@@ -18,7 +18,7 @@ impl ItemHandler {
     }
 
     pub async fn get_items(data: web::Data<ItemHandler>) -> impl Responder {
-        let items = data.service.find_all();
+        let items = data.service.find_all().await;
         HttpResponse::Ok().json(items)
     }
 
@@ -27,7 +27,7 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> impl Responder {
         let item_id = path.into_inner();
-        match data.service.find_by_id(item_id) {
+        match data.service.find_by_id(item_id).await {
             Some(item) => HttpResponse::Ok().json(item),
             None => HttpResponse::NotFound().json("アイテムが見つかりません"),
         }
@@ -37,7 +37,7 @@ impl ItemHandler {
         data: web::Data<ItemHandler>,
         item: web::Json<CreateItemRequest>,
     ) -> impl Responder {
-        let new_item = data.service.create(item.into_inner());
+        let new_item = data.service.create(item.into_inner()).await;
         HttpResponse::Created().json(new_item)
     }
 
@@ -47,7 +47,7 @@ impl ItemHandler {
         item: web::Json<UpdateItemRequest>,
     ) -> impl Responder {
         let item_id = path.into_inner();
-        match data.service.update(item_id, item.into_inner()) {
+        match data.service.update(item_id, item.into_inner()).await {
             Some(updated_item) => HttpResponse::Ok().json(updated_item),
             None => HttpResponse::NotFound().json("アイテムが見つかりません"),
         }
@@ -58,7 +58,7 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> impl Responder {
         let item_id = path.into_inner();
-        if data.service.delete(item_id) {
+        if data.service.delete(item_id).await {
             HttpResponse::Ok().json("アイテムを削除しました")
         } else {
             HttpResponse::NotFound().json("アイテムが見つかりません")
