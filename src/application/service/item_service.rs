@@ -1,29 +1,29 @@
 use crate::domain::model::item::Item;
-use crate::domain::repository::item_repository::ItemRepositoryImpl;
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
+use std::sync::Mutex;
 
 pub struct ItemService {
-    repository: ItemRepositoryImpl,
-    counter: std::sync::Mutex<u64>,
+    repository: crate::domain::repository::item_repository::ItemRepositoryImpl,
+    counter: Mutex<u64>,
 }
 
 impl ItemService {
-    pub fn new(repository: ItemRepositoryImpl) -> Self {
+    pub fn new(repository: crate::domain::repository::item_repository::ItemRepositoryImpl) -> Self {
         Self {
             repository,
-            counter: std::sync::Mutex::new(0),
+            counter: Mutex::new(0),
         }
     }
 
-    pub fn find_all(&self) -> Vec<Item> {
-        self.repository.find_all()
+    pub async fn find_all(&self) -> Vec<Item> {
+        self.repository.find_all().await
     }
 
-    pub fn find_by_id(&self, id: u64) -> Option<Item> {
-        self.repository.find_by_id(id)
+    pub async fn find_by_id(&self, id: u64) -> Option<Item> {
+        self.repository.find_by_id(id).await
     }
 
-    pub fn create(&self, req: CreateItemRequest) -> Item {
+    pub async fn create(&self, req: CreateItemRequest) -> Item {
         let mut counter = self.counter.lock().unwrap();
         let id = *counter;
         *counter += 1;
@@ -34,24 +34,24 @@ impl ItemService {
             description: req.description,
         };
 
-        self.repository.create(item)
+        self.repository.create(item).await
     }
 
-    pub fn update(&self, id: u64, req: UpdateItemRequest) -> Option<Item> {
-        if let Some(mut item) = self.repository.find_by_id(id) {
+    pub async fn update(&self, id: u64, req: UpdateItemRequest) -> Option<Item> {
+        if let Some(mut item) = self.repository.find_by_id(id).await {
             if let Some(name) = req.name {
                 item.name = name;
             }
             if let Some(description) = req.description {
                 item.description = Some(description);
             }
-            self.repository.update(item)
+            self.repository.update(item).await
         } else {
             None
         }
     }
 
-    pub fn delete(&self, id: u64) -> bool {
-        self.repository.delete(id)
+    pub async fn delete(&self, id: u64) -> bool {
+        self.repository.delete(id).await
     }
 }
