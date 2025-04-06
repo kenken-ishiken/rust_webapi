@@ -39,7 +39,28 @@ Both namespaces have Istio sidecar injection enabled.
 
 1. Update the Docker registry in the deployment.yaml file:
    ```
-   sed -i 's|${DOCKER_REGISTRY}|your-registry.example.com|g' k8s/base/deployment.yaml
+   # Either edit the file directly
+   # Replace ${DOCKER_REGISTRY} with your actual registry (e.g., docker.io/username)
+   
+   # Or use kustomize to set the image
+   cat > k8s/overlays/dev/kustomization.yaml << EOF
+   apiVersion: kustomize.config.k8s.io/v1beta1
+   kind: Kustomization
+   
+   resources:
+     - ../../base
+   
+   namespace: api-dev
+   
+   images:
+   - name: \${DOCKER_REGISTRY}/rust-webapi
+     newName: docker.io/username/rust-webapi
+     newTag: latest
+   
+   patchesStrategicMerge:
+     - deployment-patch.yaml
+     - configmap-patch.yaml
+   EOF
    ```
 
 2. Create the Secret with your actual database URL:
