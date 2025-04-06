@@ -3,7 +3,7 @@ mod application;
 mod infrastructure;
 mod presentation;
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::sync::Arc;
 use log::{info, error};
 use dotenv::dotenv;
@@ -19,18 +19,20 @@ use crate::infrastructure::repository::user_repository::PostgresUserRepository;
 use crate::application::service::user_service::UserService;
 use crate::presentation::api::user_handler::UserHandler;
 
+use crate::infrastructure::auth::keycloak::{KeycloakAuth, KeycloakConfig};
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 環境変数の読み込み
     dotenv().ok();
-    
+
     // ロギングの初期化
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    
+
     // データベース接続プールの作成
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be set in .env file");
-    
+
     let pool = match PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url).await {
@@ -43,29 +45,39 @@ async fn main() -> std::io::Result<()> {
                 std::process::exit(1);
             }
         };
-    
+
     // リポジトリの作成
     let item_repository: ItemRepositoryImpl = Arc::new(PostgresItemRepository::new(pool.clone()));
     let user_repository: UserRepositoryImpl = Arc::new(PostgresUserRepository::new(pool.clone()));
-    
+
     // サービスの作成
     let item_service = Arc::new(ItemService::new(item_repository.clone()));
     let user_service = Arc::new(UserService::new(user_repository.clone()));
-    
+
+    // Keycloak認証の設定
+    let keycloak_config = KeycloakConfig::from_env();
+    let keycloak_auth = web::Data::new(KeycloakAuth::new(keycloak_config));
+
     // ハンドラーの作成
     let item_handler = web::Data::new(ItemHandler::new(item_service.clone()));
     let user_handler = web::Data::new(UserHandler::new(user_service.clone()));
 
     info!("サーバーを開始します: http://127.0.0.1:8080");
-    
+
     // HTTPサーバーの設定と起動
     HttpServer::new(move || {
         App::new()
             .app_data(item_handler.clone())
             .app_data(user_handler.clone())
+            .app_data(keycloak_auth.clone())
+            .wrap(Logger::default())
             .route("/", web::get().to(ItemHandler::index))
             .service(
                 web::scope("/api")
+                    // 認証不要のエンドポイント
+                    .route("/health", web::get().to(|| async { "OK" }))
+
+                    // 認証必要のエンドポイント
                     .route("/items", web::get().to(ItemHandler::get_items))
                     .route("/items", web::post().to(ItemHandler::create_item))
                     .route("/items/{id}", web::get().to(ItemHandler::get_item))

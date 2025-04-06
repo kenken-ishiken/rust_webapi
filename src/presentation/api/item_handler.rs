@@ -1,8 +1,10 @@
 use actix_web::{web, HttpResponse, Responder};
 use std::sync::Arc;
+use log::info;
 
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
 use crate::application::service::item_service::ItemService;
+use crate::infrastructure::auth::middleware::KeycloakUser;
 
 pub struct ItemHandler {
     service: Arc<ItemService>,
@@ -17,13 +19,19 @@ impl ItemHandler {
         HttpResponse::Ok().json("Rust WebAPI サーバーが稼働中です")
     }
 
-    pub async fn get_items(data: web::Data<ItemHandler>) -> impl Responder {
+    pub async fn get_items(
+        data: web::Data<ItemHandler>,
+        user: KeycloakUser
+    ) -> impl Responder {
+        // 認証済みユーザー情報をログに出力
+        info!("ユーザー {} がアイテム一覧を取得しました", user.claims.preferred_username);
+
         let items = data.service.find_all().await;
         HttpResponse::Ok().json(items)
     }
 
     pub async fn get_item(
-        data: web::Data<ItemHandler>, 
+        data: web::Data<ItemHandler>,
         path: web::Path<u64>,
     ) -> impl Responder {
         let item_id = path.into_inner();
