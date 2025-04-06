@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rust-webapi-config
+data:
+  keycloak-realm: "staging-realm"
+  keycloak-auth-server-url: "http://keycloak.staging:8080/auth"
+  keycloak-client-id: "rust-webapi-staging"

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rust-webapi-config
+data:
+  keycloak-realm: "dev-realm"
+  keycloak-auth-server-url: "http://keycloak.dev:8080/auth"
+  keycloak-client-id: "rust-webapi-dev"

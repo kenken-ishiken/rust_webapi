@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rust-webapi
+  labels:
+    app: rust-webapi
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rust-webapi
+  template:
+    metadata:
+      labels:
+        app: rust-webapi
+    spec:
+      containers:
+      - name: rust-webapi
+        image: ${DOCKER_REGISTRY}/rust-webapi:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: rust-webapi-secrets
+              key: database-url
+        - name: KEYCLOAK_REALM
+          valueFrom:
+            configMapKeyRef:
+              name: rust-webapi-config
+              key: keycloak-realm
+        - name: KEYCLOAK_AUTH_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rust-webapi-config
+              key: keycloak-auth-server-url
+        - name: KEYCLOAK_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: rust-webapi-config
+              key: keycloak-client-id
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
