@@ -13,23 +13,24 @@ pub trait ItemRepository: Send + Sync {
 
 pub type ItemRepositoryImpl = Arc<dyn ItemRepository>;
 
+use mockall::predicate::*;
+use mockall::mock;
+
+mock! {
+    pub ItemRepo {}
+    #[async_trait]
+    impl ItemRepository for ItemRepo {
+        async fn find_all(&self) -> Vec<Item>;
+        async fn find_by_id(&self, id: u64) -> Option<Item>;
+        async fn create(&self, item: Item) -> Item;
+        async fn update(&self, item: Item) -> Option<Item>;
+        async fn delete(&self, id: u64) -> bool;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockall::predicate::*;
-    use mockall::mock;
-
-    mock! {
-        pub ItemRepo {}
-        #[async_trait]
-        impl ItemRepository for ItemRepo {
-            async fn find_all(&self) -> Vec<Item>;
-            async fn find_by_id(&self, id: u64) -> Option<Item>;
-            async fn create(&self, item: Item) -> Item;
-            async fn update(&self, item: Item) -> Option<Item>;
-            async fn delete(&self, id: u64) -> bool;
-        }
-    }
 
     #[tokio::test]
     async fn test_find_all_success() {

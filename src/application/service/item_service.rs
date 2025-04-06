@@ -59,7 +59,7 @@ impl ItemService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::repository::item_repository::{ItemRepository, MockItemRepo};
+    use crate::domain::repository::item_repository::MockItemRepo;
     use mockall::predicate::*;
     use std::sync::Arc;
 

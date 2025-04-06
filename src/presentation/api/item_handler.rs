@@ -80,7 +80,7 @@ mod tests {
     use super::*;
     use actix_web::{test, web, App, http::StatusCode};
     use crate::application::service::item_service::ItemService;
-    use crate::domain::repository::item_repository::{ItemRepository, MockItemRepo};
+    use crate::domain::repository::item_repository::MockItemRepo;
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;
@@ -91,11 +91,31 @@ mod tests {
                 claims: KeycloakClaims {
                     sub: "test-user-id".to_string(),
                     preferred_username: "test-user".to_string(),
-                    email: Some("test@example.com".to_string()),
-                    name: Some("Test User".to_string()),
-                    given_name: Some("Test".to_string()),
-                    family_name: Some("User".to_string()),
+                    email: "test@example.com".to_string(),
+                    name: "Test User".to_string(),
+                    given_name: "Test".to_string(),
+                    family_name: "User".to_string(),
                     exp: 0,
+                    iat: 0,
+                    auth_time: 0,
+                    jti: "test-jti".to_string(),
+                    iss: "test-issuer".to_string(),
+                    aud: "test-audience".to_string(),
+                    typ: "Bearer".to_string(),
+                    azp: "test-azp".to_string(),
+                    session_state: "test-session".to_string(),
+                    acr: "1".to_string(),
+                    realm_access: crate::infrastructure::auth::keycloak::RealmAccess {
+                        roles: vec!["user".to_string()],
+                    },
+                    resource_access: crate::infrastructure::auth::keycloak::ResourceAccess {
+                        account: crate::infrastructure::auth::keycloak::Account {
+                            roles: vec!["manage-account".to_string()],
+                        },
+                    },
+                    scope: "openid profile email".to_string(),
+                    sid: "test-sid".to_string(),
+                    email_verified: true,
                 },
             }
         }
@@ -104,9 +124,8 @@ mod tests {
     #[actix_web::test]
     async fn test_index() {
         let resp = ItemHandler::index().await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -135,9 +154,7 @@ mod tests {
         let user = KeycloakUser::mock();
 
         let resp = ItemHandler::get_items(handler, user).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -160,9 +177,7 @@ mod tests {
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::get_item(handler, path).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -179,9 +194,7 @@ mod tests {
         let path = web::Path::from(999u64);
 
         let resp = ItemHandler::get_item(handler, path).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
@@ -208,9 +221,7 @@ mod tests {
         let json_req = web::Json(req);
 
         let resp = ItemHandler::create_item(handler, json_req).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
@@ -246,9 +257,7 @@ mod tests {
         let json_req = web::Json(req);
 
         let resp = ItemHandler::update_item(handler, path, json_req).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -271,9 +280,7 @@ mod tests {
         let json_req = web::Json(req);
 
         let resp = ItemHandler::update_item(handler, path, json_req).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
@@ -290,9 +297,7 @@ mod tests {
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::delete_item(handler, path).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -309,9 +314,7 @@ mod tests {
         let path = web::Path::from(999u64);
 
         let resp = ItemHandler::delete_item(handler, path).await;
-        let resp = test::TestRequest::default()
-            .to_http_response(resp)
-            .unwrap();
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
         
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
