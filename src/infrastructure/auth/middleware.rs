@@ -1,10 +1,10 @@
-use actix_web::{dev::Payload, Error, FromRequest, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{dev::Payload, Error, FromRequest, HttpRequest, HttpResponse, ResponseError};
 use actix_web::web::Data;
 use actix_web_httpauth::extractors::bearer::BearerAuth;
-use futures::future::{ready, Ready};
-use log::{error, info};
+use log::error;
 use std::future::Future;
 use std::pin::Pin;
+use std::fmt;
 
 use super::keycloak::{KeycloakAuth, KeycloakClaims, KeycloakError};
 
@@ -12,9 +12,33 @@ pub struct KeycloakUser {
     pub claims: KeycloakClaims,
 }
 
+#[derive(Debug)]
+pub enum AuthError {
+    Unauthorized(String),
+    InternalError(String),
+}
+
+impl fmt::Display for AuthError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AuthError::Unauthorized(msg) => write!(f, "Unauthorized: {}", msg),
+            AuthError::InternalError(msg) => write!(f, "Internal server error: {}", msg),
+        }
+    }
+}
+
+impl ResponseError for AuthError {
+    fn error_response(&self) -> HttpResponse {
+        match self {
+            AuthError::Unauthorized(msg) => HttpResponse::Unauthorized().json(msg),
+            AuthError::InternalError(msg) => HttpResponse::InternalServerError().json(msg),
+        }
+    }
+}
+
 impl FromRequest for KeycloakUser {
     type Error = Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
@@ -24,18 +48,14 @@ impl FromRequest for KeycloakUser {
             let auth = BearerAuth::extract(&req).await
                 .map_err(|_| {
                     error!("認証トークンが見つかりません");
-                    HttpResponse::Unauthorized()
-                        .json("認証トークンが必要です")
-                        .into_error()
+                    AuthError::Unauthorized("認証トークンが必要です".to_string())
                 })?;
             
             // Keycloak認証サービスを取得
             let auth_service = req.app_data::<Data<KeycloakAuth>>()
                 .ok_or_else(|| {
                     error!("KeycloakAuthサービスが設定されていません");
-                    HttpResponse::InternalServerError()
-                        .json("サーバー設定エラー")
-                        .into_error()
+                    AuthError::InternalError("サーバー設定エラー".to_string())
                 })?;
             
             // トークンを検証
@@ -48,9 +68,7 @@ impl FromRequest for KeycloakUser {
                         _ => "認証に失敗しました",
                     };
                     error!("認証エラー: {}", e);
-                    HttpResponse::Unauthorized()
-                        .json(error_message)
-                        .into_error()
+                    AuthError::Unauthorized(error_message.to_string())
                 })?;
             
             // 検証成功：ユーザー情報を返す
