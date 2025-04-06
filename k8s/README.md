@@ -42,9 +42,15 @@ Both namespaces have Istio sidecar injection enabled.
    sed -i 's|${DOCKER_REGISTRY}|your-registry.example.com|g' k8s/base/deployment.yaml
    ```
 
-2. Update the ConfigMap and Secret with your actual values:
+2. Create the Secret with your actual database URL:
+   ```
+   kubectl create secret generic rust-webapi-secrets \
+     --namespace api \
+     --from-literal=database-url='postgres://postgres:password@postgres.database:5432/rustwebapi'
+   ```
+
+3. Update the ConfigMap with your actual values:
    - Update `keycloak-realm`, `keycloak-auth-server-url`, and `keycloak-client-id` in `configmap.yaml`
-   - Update the database URL in `secret.yaml` if needed
 
 3. Apply the manifests using Kustomize:
    ```
