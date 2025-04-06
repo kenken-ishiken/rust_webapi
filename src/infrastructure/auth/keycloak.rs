@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm, TokenData};
 use reqwest::Client;
-use log::{info, error};
+
 
 #[derive(Debug)]
 pub enum KeycloakError {
