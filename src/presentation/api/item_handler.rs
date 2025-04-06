@@ -5,6 +5,7 @@ use log::info;
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
 use crate::application::service::item_service::ItemService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
+use crate::domain::model::item::Item;
 
 pub struct ItemHandler {
     service: Arc<ItemService>,
@@ -71,5 +72,247 @@ impl ItemHandler {
         } else {
             HttpResponse::NotFound().json("アイテムが見つかりません")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{test, web, App, http::StatusCode};
+    use crate::application::service::item_service::ItemService;
+    use crate::domain::repository::item_repository::{ItemRepository, MockItemRepo};
+    use mockall::predicate::*;
+    use std::sync::Arc;
+    use crate::infrastructure::auth::keycloak::KeycloakClaims;
+
+    impl KeycloakUser {
+        fn mock() -> Self {
+            Self {
+                claims: KeycloakClaims {
+                    sub: "test-user-id".to_string(),
+                    preferred_username: "test-user".to_string(),
+                    email: Some("test@example.com".to_string()),
+                    name: Some("Test User".to_string()),
+                    given_name: Some("Test".to_string()),
+                    family_name: Some("User".to_string()),
+                    exp: 0,
+                },
+            }
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_index() {
+        let resp = ItemHandler::index().await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn test_get_items() {
+        let items = vec![
+            Item {
+                id: 1,
+                name: "Item 1".to_string(),
+                description: Some("Description 1".to_string()),
+            },
+            Item {
+                id: 2,
+                name: "Item 2".to_string(),
+                description: None,
+            },
+        ];
+
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_find_all()
+            .return_once(move || items.clone());
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let user = KeycloakUser::mock();
+
+        let resp = ItemHandler::get_items(handler, user).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn test_get_item_found() {
+        let item = Item {
+            id: 1,
+            name: "Item 1".to_string(),
+            description: Some("Description 1".to_string()),
+        };
+
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_find_by_id()
+            .with(eq(1u64))
+            .return_once(move |_| Some(item.clone()));
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+
+        let resp = ItemHandler::get_item(handler, path).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn test_get_item_not_found() {
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_find_by_id()
+            .with(eq(999u64))
+            .return_once(|_| None);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(999u64);
+
+        let resp = ItemHandler::get_item(handler, path).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn test_create_item() {
+        let req = CreateItemRequest {
+            name: "New Item".to_string(),
+            description: Some("New Description".to_string()),
+        };
+
+        let created_item = Item {
+            id: 1,
+            name: "New Item".to_string(),
+            description: Some("New Description".to_string()),
+        };
+
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_create()
+            .return_once(move |_| created_item.clone());
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let json_req = web::Json(req);
+
+        let resp = ItemHandler::create_item(handler, json_req).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::CREATED);
+    }
+
+    #[actix_web::test]
+    async fn test_update_item_found() {
+        let req = UpdateItemRequest {
+            name: Some("Updated Item".to_string()),
+            description: Some("Updated Description".to_string()),
+        };
+
+        let updated_item = Item {
+            id: 1,
+            name: "Updated Item".to_string(),
+            description: Some("Updated Description".to_string()),
+        };
+
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_find_by_id()
+            .with(eq(1u64))
+            .return_once(|_| Some(Item {
+                id: 1,
+                name: "Original Item".to_string(),
+                description: None,
+            }));
+
+        mock_repo.expect_update()
+            .return_once(move |_| Some(updated_item.clone()));
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+        let json_req = web::Json(req);
+
+        let resp = ItemHandler::update_item(handler, path, json_req).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn test_update_item_not_found() {
+        let req = UpdateItemRequest {
+            name: Some("Updated Item".to_string()),
+            description: None,
+        };
+
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_find_by_id()
+            .with(eq(999u64))
+            .return_once(|_| None);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(999u64);
+        let json_req = web::Json(req);
+
+        let resp = ItemHandler::update_item(handler, path, json_req).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_item_success() {
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_delete()
+            .with(eq(1u64))
+            .return_once(|_| true);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+
+        let resp = ItemHandler::delete_item(handler, path).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_item_not_found() {
+        let mut mock_repo = MockItemRepo::new();
+        mock_repo.expect_delete()
+            .with(eq(999u64))
+            .return_once(|_| false);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(999u64);
+
+        let resp = ItemHandler::delete_item(handler, path).await;
+        let resp = test::TestRequest::default()
+            .to_http_response(resp)
+            .unwrap();
+        
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
