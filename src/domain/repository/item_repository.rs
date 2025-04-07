@@ -13,9 +13,12 @@ pub trait ItemRepository: Send + Sync {
 
 pub type ItemRepositoryImpl = Arc<dyn ItemRepository>;
 
+#[cfg(test)]
 use mockall::predicate::*;
+#[cfg(test)]
 use mockall::mock;
 
+#[cfg(test)]
 mock! {
     pub ItemRepo {}
     #[async_trait]
@@ -44,13 +47,13 @@ mod tests {
             name: "Item 2".to_string(),
             description: None,
         };
-        
+
         let mut mock_repo = MockItemRepo::new();
         mock_repo.expect_find_all()
             .return_once(move || vec![item1.clone(), item2.clone()]);
-        
+
         let result = mock_repo.find_all().await;
-        
+
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].id, 1);
         assert_eq!(result[0].name, "Item 1");
@@ -67,14 +70,14 @@ mod tests {
             name: "Item 1".to_string(),
             description: Some("Description 1".to_string()),
         };
-        
+
         let mut mock_repo = MockItemRepo::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(item.clone()));
-        
+
         let result = mock_repo.find_by_id(1).await;
-        
+
         assert!(result.is_some());
         let found_item = result.unwrap();
         assert_eq!(found_item.id, 1);
@@ -88,9 +91,9 @@ mod tests {
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
-        
+
         let result = mock_repo.find_by_id(999).await;
-        
+
         assert!(result.is_none());
     }
 
@@ -101,16 +104,16 @@ mod tests {
             name: "New Item".to_string(),
             description: Some("New Description".to_string()),
         };
-        
+
         let mut mock_repo = MockItemRepo::new();
         mock_repo.expect_create()
             .with(function(move |i: &Item| {
                 i.id == 1 && i.name == "New Item" && i.description == Some("New Description".to_string())
             }))
             .return_once(move |item| item);
-        
+
         let result = mock_repo.create(item.clone()).await;
-        
+
         assert_eq!(result.id, 1);
         assert_eq!(result.name, "New Item");
         assert_eq!(result.description, Some("New Description".to_string()));
@@ -123,16 +126,16 @@ mod tests {
             name: "Updated Item".to_string(),
             description: Some("Updated Description".to_string()),
         };
-        
+
         let mut mock_repo = MockItemRepo::new();
         mock_repo.expect_update()
             .with(function(move |i: &Item| {
                 i.id == 1 && i.name == "Updated Item"
             }))
             .return_once(move |item| Some(item));
-        
+
         let result = mock_repo.update(item.clone()).await;
-        
+
         assert!(result.is_some());
         let updated = result.unwrap();
         assert_eq!(updated.id, 1);
@@ -146,9 +149,9 @@ mod tests {
         mock_repo.expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
-        
+
         let result = mock_repo.delete(1).await;
-        
+
         assert!(result);
     }
 }

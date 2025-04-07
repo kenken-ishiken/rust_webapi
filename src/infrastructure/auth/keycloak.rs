@@ -8,6 +8,7 @@ use reqwest::Client;
 #[derive(Debug)]
 pub enum KeycloakError {
     InvalidToken,
+    #[allow(dead_code)]
     TokenExpired,
     JwtError(jsonwebtoken::errors::Error),
     ReqwestError(reqwest::Error),
@@ -124,11 +125,14 @@ struct JwkSet {
 #[derive(Debug, Deserialize)]
 struct Jwk {
     kid: String,
+    #[allow(dead_code)]
     kty: String,
+    #[allow(dead_code)]
     #[serde(rename = "use")]
     usage: String,
     n: String,
     e: String,
+    #[allow(dead_code)]
     alg: Option<String>,
 }
 

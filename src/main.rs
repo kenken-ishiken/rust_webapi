@@ -3,11 +3,15 @@ mod application;
 mod infrastructure;
 mod presentation;
 
-use actix_web::{web, App, HttpServer, middleware::Logger};
+use actix_web::{web, App, HttpServer};
 use std::sync::Arc;
 use log::{info, error};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
+
+// JSONロガーのインポート
+use crate::infrastructure::logger;
+use crate::infrastructure::logger::actix_logger::json_logger;
 
 use crate::domain::repository::item_repository::ItemRepositoryImpl;
 use crate::infrastructure::repository::item_repository::PostgresItemRepository;
@@ -26,8 +30,9 @@ async fn main() -> std::io::Result<()> {
     // 環境変数の読み込み
     dotenv().ok();
 
-    // ロギングの初期化
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // JSONロギングの初期化
+    let _log_guard = logger::init_json_logger();
+    info!("JSONロガーが初期化されました");
 
     // データベース接続プールの作成
     let database_url = std::env::var("DATABASE_URL")
@@ -70,7 +75,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(item_handler.clone())
             .app_data(user_handler.clone())
             .app_data(keycloak_auth.clone())
-            .wrap(Logger::default())
+            .wrap(json_logger())
             .route("/", web::get().to(ItemHandler::index))
             .service(
                 web::scope("/api")

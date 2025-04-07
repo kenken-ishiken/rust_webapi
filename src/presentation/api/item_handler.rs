@@ -5,7 +5,6 @@ use log::info;
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
 use crate::application::service::item_service::ItemService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
-use crate::domain::model::item::Item;
 
 pub struct ItemHandler {
     service: Arc<ItemService>,
@@ -78,9 +77,10 @@ impl ItemHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, web, App, http::StatusCode};
+    use actix_web::{test, web, http::StatusCode};
     use crate::application::service::item_service::ItemService;
     use crate::domain::repository::item_repository::MockItemRepo;
+    use crate::domain::model::item::Item;
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;
@@ -124,9 +124,9 @@ mod tests {
     #[actix_web::test]
     async fn test_index() {
         let resp = ItemHandler::index().await;
-        
+
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -155,7 +155,7 @@ mod tests {
 
         let resp = ItemHandler::get_items(handler, user).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -178,7 +178,7 @@ mod tests {
 
         let resp = ItemHandler::get_item(handler, path).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -195,7 +195,7 @@ mod tests {
 
         let resp = ItemHandler::get_item(handler, path).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
@@ -222,7 +222,7 @@ mod tests {
 
         let resp = ItemHandler::create_item(handler, json_req).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
@@ -258,7 +258,7 @@ mod tests {
 
         let resp = ItemHandler::update_item(handler, path, json_req).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -281,7 +281,7 @@ mod tests {
 
         let resp = ItemHandler::update_item(handler, path, json_req).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
@@ -298,7 +298,7 @@ mod tests {
 
         let resp = ItemHandler::delete_item(handler, path).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -315,7 +315,7 @@ mod tests {
 
         let resp = ItemHandler::delete_item(handler, path).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
-        
+
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }
