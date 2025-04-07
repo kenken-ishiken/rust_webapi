@@ -12,6 +12,7 @@ use sqlx::postgres::PgPoolOptions;
 // JSONロガーのインポート
 use crate::infrastructure::logger;
 use crate::infrastructure::logger::actix_logger::json_logger;
+use crate::infrastructure::metrics::{init_metrics, metrics_handler};
 
 use crate::domain::repository::item_repository::ItemRepositoryImpl;
 use crate::infrastructure::repository::item_repository::PostgresItemRepository;
@@ -33,6 +34,9 @@ async fn main() -> std::io::Result<()> {
     // JSONロギングの初期化
     let _log_guard = logger::init_json_logger();
     info!("JSONロガーが初期化されました");
+    
+    init_metrics();
+    info!("メトリクスが初期化されました");
 
     // データベース接続プールの作成
     let database_url = std::env::var("DATABASE_URL")
@@ -81,6 +85,7 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api")
                     // 認証不要のエンドポイント
                     .route("/health", web::get().to(|| async { "OK" }))
+                    .route("/metrics", web::get().to(metrics_handler))
 
                     // 認証必要のエンドポイント
                     .route("/items", web::get().to(ItemHandler::get_items))

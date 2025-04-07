@@ -1,6 +1,7 @@
 use crate::domain::model::item::Item;
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
 use std::sync::Mutex;
+use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 
 pub struct ItemService {
     repository: crate::domain::repository::item_repository::ItemRepositoryImpl,
@@ -16,11 +17,19 @@ impl ItemService {
     }
 
     pub async fn find_all(&self) -> Vec<Item> {
-        self.repository.find_all().await
+        let items = self.repository.find_all().await;
+        increment_success_counter("item", "find_all");
+        items
     }
 
     pub async fn find_by_id(&self, id: u64) -> Option<Item> {
-        self.repository.find_by_id(id).await
+        let item = self.repository.find_by_id(id).await;
+        if item.is_some() {
+            increment_success_counter("item", "find_by_id");
+        } else {
+            increment_error_counter("item", "find_by_id");
+        }
+        item
     }
 
     pub async fn create(&self, req: CreateItemRequest) -> Item {
@@ -34,7 +43,9 @@ impl ItemService {
             description: req.description,
         };
 
-        self.repository.create(item).await
+        let created_item = self.repository.create(item).await;
+        increment_success_counter("item", "create");
+        created_item
     }
 
     pub async fn update(&self, id: u64, req: UpdateItemRequest) -> Option<Item> {
@@ -47,12 +58,19 @@ impl ItemService {
             }
             self.repository.update(item).await
         } else {
+            increment_error_counter("item", "update");
             None
         }
     }
 
     pub async fn delete(&self, id: u64) -> bool {
-        self.repository.delete(id).await
+        let result = self.repository.delete(id).await;
+        if result {
+            increment_success_counter("item", "delete");
+        } else {
+            increment_error_counter("item", "delete");
+        }
+        result
     }
 }
 

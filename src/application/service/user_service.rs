@@ -1,6 +1,7 @@
 use crate::domain::model::user::User;
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
 use std::sync::Mutex;
+use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 
 pub struct UserService {
     repository: crate::domain::repository::user_repository::UserRepositoryImpl,
@@ -16,11 +17,19 @@ impl UserService {
     }
 
     pub async fn find_all(&self) -> Vec<User> {
-        self.repository.find_all().await
+        let users = self.repository.find_all().await;
+        increment_success_counter("user", "find_all");
+        users
     }
 
     pub async fn find_by_id(&self, id: u64) -> Option<User> {
-        self.repository.find_by_id(id).await
+        let user = self.repository.find_by_id(id).await;
+        if user.is_some() {
+            increment_success_counter("user", "find_by_id");
+        } else {
+            increment_error_counter("user", "find_by_id");
+        }
+        user
     }
 
     pub async fn create(&self, req: CreateUserRequest) -> User {
@@ -34,7 +43,9 @@ impl UserService {
             email: req.email,
         };
 
-        self.repository.create(user).await
+        let created_user = self.repository.create(user).await;
+        increment_success_counter("user", "create");
+        created_user
     }
 
     pub async fn update(&self, id: u64, req: UpdateUserRequest) -> Option<User> {
@@ -47,11 +58,18 @@ impl UserService {
             }
             self.repository.update(user).await
         } else {
+            increment_error_counter("user", "update");
             None
         }
     }
 
     pub async fn delete(&self, id: u64) -> bool {
-        self.repository.delete(id).await
+        let result = self.repository.delete(id).await;
+        if result {
+            increment_success_counter("user", "delete");
+        } else {
+            increment_error_counter("user", "delete");
+        }
+        result
     }
 }
