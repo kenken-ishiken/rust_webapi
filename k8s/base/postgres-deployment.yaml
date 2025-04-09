@@ -16,16 +16,25 @@ spec:
     spec:
       containers:
       - name: postgres
-        image: postgres:15
+        image: postgres:15.3  # 具体的なバージョンを指定
         ports:
         - containerPort: 5432
         env:
         - name: POSTGRES_USER
-          value: postgres
+          valueFrom:
+            secretKeyRef:
+              name: rust-webapi-secrets
+              key: postgres-user
         - name: POSTGRES_PASSWORD
-          value: postgres
+          valueFrom:
+            secretKeyRef:
+              name: rust-webapi-secrets
+              key: postgres-password
         - name: POSTGRES_DB
-          value: rustwebapi
+          valueFrom:
+            secretKeyRef:
+              name: rust-webapi-secrets
+              key: postgres-db
         volumeMounts:
         - name: postgres-data
           mountPath: /var/lib/postgresql/data
@@ -36,6 +45,22 @@ spec:
           requests:
             cpu: "500m"
             memory: "512Mi"
+        # リードネスプローブとライブネスプローブを追加
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "postgres"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "postgres"]
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
       volumes:
       - name: postgres-data
         persistentVolumeClaim:

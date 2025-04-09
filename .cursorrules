@@ -1,0 +1,161 @@
+{
+  "formatter": "rustfmt",
+  "format_on_save": true,
+  "line_width": 100,
+  "tab_width": 4,
+  "use_spaces": true,
+  "ending_newline": true,
+  "clippy": {
+    "lint_on_save": true
+  },
+  "rules": [
+    {
+      "pattern": "**/*.rs",
+      "convention": {
+        "import_style": {
+          "group_imports": true,
+          "group_order": ["std", "external", "crate", "self", "super"]
+        },
+        "naming": {
+          "variables": "snake_case",
+          "functions": "snake_case",
+          "types": "PascalCase",
+          "constants": "SCREAMING_SNAKE_CASE"
+        },
+        "comments": {
+          "require_doc_comments": true
+        },
+        "code_style": {
+          "prefer_match_over_if_let": true,
+          "prefer_impl_trait": true,
+          "prefer_struct_update": true,
+          "prefer_builder_pattern": true
+        }
+      }
+    },
+    {
+      "pattern": "**/domain/**/*.rs",
+      "convention": {
+        "comments": {
+          "require_doc_comments": true,
+          "doc_style": "///"
+        }
+      }
+    },
+    {
+      "pattern": "**/infrastructure/**/*.rs",
+      "convention": {
+        "error_handling": {
+          "prefer_result_over_option": true,
+          "use_anyhow_for_errors": true
+        }
+      }
+    },
+    {
+      "pattern": "**/tests/**/*.rs",
+      "convention": {
+        "naming": {
+          "functions": {
+            "prefix": "test_",
+            "case": "snake_case"
+          }
+        },
+        "comments": {
+          "require_doc_comments": false
+        }
+      }
+    },
+    {
+      "pattern": "**/application/**/*.rs",
+      "convention": {
+        "comments": {
+          "require_doc_comments": true
+        },
+        "code_organization": {
+          "prefer_small_functions": true,
+          "max_function_length": 50
+        }
+      }
+    },
+    {
+      "pattern": "**/presentation/**/*.rs",
+      "convention": {
+        "error_handling": {
+          "use_custom_error_type": true
+        },
+        "comments": {
+          "require_doc_comments": true
+        }
+      }
+    }
+  ],
+  "snippets": {
+    "rs": {
+      "domain_entity": {
+        "prefix": "entity",
+        "body": [
+          "#[derive(Debug, Clone, PartialEq, Eq)]",
+          "pub struct ${1:EntityName} {",
+          "    pub id: ${2:String},",
+          "    $0",
+          "}",
+          "",
+          "impl ${1:EntityName} {",
+          "    pub fn new(id: ${2:String}) -> Self {",
+          "        Self {",
+          "            id,",
+          "            $0",
+          "        }",
+          "    }",
+          "}"
+        ],
+        "description": "新しいドメインエンティティを作成"
+      },
+      "repository_trait": {
+        "prefix": "repo",
+        "body": [
+          "#[async_trait]",
+          "pub trait ${1:Name}Repository: Send + Sync {",
+          "    async fn find_by_id(&self, id: &str) -> Result<Option<${2:Entity}>, Error>;",
+          "    async fn save(&self, ${3:entity}: &${2:Entity}) -> Result<(), Error>;",
+          "    $0",
+          "}"
+        ],
+        "description": "新しいリポジトリトレイトを作成"
+      },
+      "use_case": {
+        "prefix": "usecase",
+        "body": [
+          "pub struct ${1:Name}UseCase<R: ${2:Repository}> {",
+          "    repository: R,",
+          "}",
+          "",
+          "impl<R: ${2:Repository}> ${1:Name}UseCase<R> {",
+          "    pub fn new(repository: R) -> Self {",
+          "        Self { repository }",
+          "    }",
+          "",
+          "    pub async fn execute(&self, $3) -> Result<$4, Error> {",
+          "        $0",
+          "    }",
+          "}"
+        ],
+        "description": "新しいユースケースを作成"
+      },
+      "api_handler": {
+        "prefix": "handler",
+        "body": [
+          "#[post(\"/${1:path}\")]",
+          "pub async fn ${2:name}_handler(",
+          "    data: web::Data<AppState>,",
+          "    payload: web::Json<${3:RequestType}>",
+          ") -> Result<HttpResponse, Error> {",
+          "    $0",
+          "    Ok(HttpResponse::Ok().json($4))",
+          "}"
+        ],
+        "description": "新しいAPIハンドラを作成"
+      }
+    }
+  }
+} 

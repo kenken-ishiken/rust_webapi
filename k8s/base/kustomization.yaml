@@ -12,6 +12,10 @@ resources:
   - postgres-pvc.yaml
   - gateway.yaml
   - httproute.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - network-policy.yaml
+  - postgres-network-policy.yaml
 
 namespace: api
 

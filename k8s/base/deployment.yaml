@@ -14,9 +14,21 @@ spec:
       labels:
         app: rust-webapi
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - rust-webapi
+              topologyKey: "kubernetes.io/hostname"
       containers:
       - name: rust-webapi
-        image: ${DOCKER_REGISTRY}/rust-webapi:latest
+        image: ${DOCKER_REGISTRY}/rust-webapi:1.0.0
         ports:
         - containerPort: 8080
         env:
@@ -53,9 +65,20 @@ spec:
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
         livenessProbe:
           httpGet:
             path: /health
             port: 8080
           initialDelaySeconds: 15
           periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
