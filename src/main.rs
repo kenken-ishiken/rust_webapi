@@ -5,13 +5,18 @@ mod presentation;
 
 use actix_web::{web, App, HttpServer};
 use std::sync::Arc;
-use log::{info, error};
 use dotenv::dotenv;
+// Tracing for structured logging
+use tracing::{info, error};
+use tracing_log::LogTracer;
+use tracing_subscriber::{EnvFilter, fmt};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_actix_web::TracingLogger;
 use sqlx::postgres::PgPoolOptions;
 
-// JSONロガーのインポート
-use crate::infrastructure::logger;
-use crate::infrastructure::logger::actix_logger::json_logger;
+// Remove slog-based JSON logger; using tracing for structured logging
+// Middleware: TracingLogger for HTTP request logging
+// (replace slog middleware with tracing-actix-web)
 use crate::infrastructure::metrics::{init_metrics, metrics_handler};
 
 use crate::domain::repository::item_repository::ItemRepositoryImpl;
@@ -31,12 +36,24 @@ async fn main() -> std::io::Result<()> {
     // 環境変数の読み込み
     dotenv().ok();
 
-    // JSONロギングの初期化
-    let _log_guard = logger::init_json_logger();
-    info!("JSONロガーが初期化されました");
+    // Initialize LogTracer to capture log crate events in tracing
+    LogTracer::init().expect("Failed to initialize LogTracer");
+    // Initialize tracing subscriber for structured JSON logging
+    // Initialize tracing subscriber for structured JSON logging; ignore if already set
+    if let Err(e) = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .json()
+        .with_timer(fmt::time::UtcTime::rfc_3339())
+        .with_current_span(true)
+        .with_span_events(FmtSpan::ENTER | FmtSpan::EXIT)
+        .try_init()
+    {
+        eprintln!("Warning: failed to install tracing subscriber (may already be set): {:?}", e);
+    }
+    info!("Structured JSON logging initialized");
     
     init_metrics();
-    info!("メトリクスが初期化されました");
+    info!("Metrics initialized");
 
     // データベース接続プールの作成
     let database_url = std::env::var("DATABASE_URL")
@@ -79,7 +96,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(item_handler.clone())
             .app_data(user_handler.clone())
             .app_data(keycloak_auth.clone())
-            .wrap(json_logger())
+            // HTTP request tracing middleware
+            .wrap(TracingLogger::default())
             .route("/", web::get().to(ItemHandler::index))
             .service(
                 web::scope("/api")
