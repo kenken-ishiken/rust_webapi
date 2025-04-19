@@ -4,6 +4,7 @@ use log::info;
 use serde_json::json;
 
 /// Actix-web用のカスタムJSONロガーを作成する関数
+#[allow(dead_code)]
 pub fn json_logger() -> Logger {
     Logger::new("%{r}a \"%r\" %s %b %T")
         .custom_request_replace("actix_logging", |req| {

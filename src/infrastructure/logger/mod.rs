@@ -8,6 +8,7 @@ use std::io;
 pub mod actix_logger;
 
 /// JSONロガーを初期化する関数
+#[allow(dead_code)]
 pub fn init_json_logger() -> GlobalLoggerGuard {
     // JSONドレインの設定
     let json_drain = Json::new(io::stdout())
