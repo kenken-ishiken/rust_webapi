@@ -1,0 +1,88 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Shell テスト (API 動作確認)
+
+## 前提
+- Rust toolchain がインストール済み
+- 環境変数 `DATABASE_URL` が設定済み (.env ファイルなど)
+- サーバーが起動している (デフォルト: `http://127.0.0.1:8080`)
+
+## 1. サーバー起動
+```bash
+cargo run
+```
+
+## 2. ヘルスチェック
+```bash
+curl -i http://127.0.0.1:8080/api/health
+```
+
+## 3. メトリクス取得
+```bash
+curl -i http://127.0.0.1:8080/api/metrics
+```
+
+## 4. Items エンドポイント
+
+### 4.1 一覧取得
+```bash
+curl -i http://127.0.0.1:8080/api/items
+```
+
+### 4.2 作成
+```bash
+curl -i -X POST http://127.0.0.1:8080/api/items \
+  -H "Content-Type: application/json" \
+  -d '{"name":"サンプルアイテム","price":100}'
+```
+
+### 4.3 単一取得
+```bash
+curl -i http://127.0.0.1:8080/api/items/{id}
+```
+
+### 4.4 更新
+```bash
+curl -i -X PUT http://127.0.0.1:8080/api/items/{id} \
+  -H "Content-Type: application/json" \
+  -d '{"name":"更新後のアイテム","price":150}'
+```
+
+### 4.5 削除
+```bash
+curl -i -X DELETE http://127.0.0.1:8080/api/items/{id}
+```
+
+## 5. Users エンドポイント
+
+### 5.1 一覧取得
+```bash
+curl -i http://127.0.0.1:8080/api/users
+```
+
+### 5.2 作成
+```bash
+curl -i -X POST http://127.0.0.1:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"太郎","email":"taro@example.com"}'
+```
+
+### 5.3 単一取得
+```bash
+curl -i http://127.0.0.1:8080/api/users/{id}
+```
+
+### 5.4 更新
+```bash
+curl -i -X PUT http://127.0.0.1:8080/api/users/{id} \
+  -H "Content-Type: application/json" \
+  -d '{"name":"次郎","email":"jiro@example.com"}'
+```
+
+### 5.5 削除
+```bash
+curl -i -X DELETE http://127.0.0.1:8080/api/users/{id}
+```
