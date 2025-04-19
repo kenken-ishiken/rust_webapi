@@ -1,0 +1,86 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# アプリケーション層コーディング規約
+
+## ユースケース定義
+
+ユースケースは以下の形式で定義します：
+
+```rust
+/// ユーザー作成ユースケース
+pub struct CreateUserUseCase<R: UserRepository> {
+    repository: R,
+}
+
+impl<R: UserRepository> CreateUserUseCase<R> {
+    /// 新しいインスタンスを作成
+    pub fn new(repository: R) -> Self {
+        Self { repository }
+    }
+
+    /// ユーザーを作成する
+    ///
+    /// # 引数
+    /// * `input` - ユーザー作成入力
+    ///
+    /// # 戻り値
+    /// * 作成されたユーザーID
+    pub async fn execute(&self, input: CreateUserInput) -> Result<String, Error> {
+        // ユースケースの実装
+        let user = User::new(
+            Uuid::new_v4().to_string(),
+            input.name,
+            input.email.try_into()?,
+        );
+
+        self.repository.save(&user).await?;
+        
+        Ok(user.id)
+    }
+}
+```
+
+## 関数設計
+
+- 関数の最大長: 50行
+- 単一責任の原則に従う
+- 複雑な処理は小さな関数に分割
+
+## エラー処理
+
+- ドメインエラーの適切な変換
+- エラーメッセージは具体的に
+- エラーチェーンの維持
+
+```rust
+fn validate_order(order: &Order) -> Result<(), Error> {
+    if order.items.is_empty() {
+        return Err(Error::InvalidOrder("注文アイテムが空です".to_string()));
+    }
+    
+    // 他のバリデーション
+    
+    Ok(())
+}
+```
+
+## トランザクション管理
+
+- トランザクションの境界を明確に
+- 必要に応じて`#[transactional]`属性を使用
+- デッドロックを防ぐための適切な順序付け
+
+## テスト容易性
+
+- 依存性の注入を活用
+- モックオブジェクトの使用を考慮
+- テスト用の構造体ビルダーを提供
+
+## ドキュメンテーション
+
+- すべての公開要素にドキュメンテーションコメント必須
+- ユースケースの入力と出力の説明
+- 副作用の明示

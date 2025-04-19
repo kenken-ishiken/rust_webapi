@@ -1,0 +1,33 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# プレゼンテーション層コーディング規約
+
+## APIエンドポイント定義
+
+```rust
+/// ユーザー作成ハンドラ
+///
+/// 新しいユーザーを作成します。
+#[post("/users")]
+pub async fn create_user(
+    data: web::Data<AppState>,
+    payload: web::Json<CreateUserRequest>,
+) -> Result<HttpResponse, ApiError> {
+    let use_case = data.user_use_case();
+    
+    let input = CreateUserInput {
+        name: payload.name.clone(),
+        email: payload.email.clone(),
+    };
+    
+    let user_id = use_case
+        .execute(input)
+        .await
+        .map_err(|e| ApiError::Internal(e))?;
+    
+    Ok(HttpResponse::Created().json(CreateUserResponse { id: user_id }))
+}
+```

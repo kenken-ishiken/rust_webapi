@@ -1,0 +1,76 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# インフラストラクチャ層コーディング規約
+
+## エラー処理
+
+- `anyhow::Result`を使用
+- エラーコンテキストの追加
+- エラーの適切な変換と伝播
+
+```rust
+use anyhow::{Context, Result};
+
+pub async fn fetch_data() -> Result<Data> {
+    external_api_call()
+        .await
+        .context("外部APIの呼び出しに失敗")?
+}
+```
+
+## データベースアクセス
+
+- トランザクション管理の実装
+- コネクションプールの適切な利用
+- SQLインジェクション対策
+
+```rust
+#[async_trait]
+impl UserRepository for SqlUserRepository {
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>> {
+        let result = sqlx::query_as!(
+            UserRecord,
+            "SELECT * FROM users WHERE id = $1",
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .context("ユーザー検索中にエラーが発生")?;
+
+        Ok(result.map(|r| r.into()))
+    }
+}
+```
+
+## 外部サービス連携
+
+- タイムアウト設定
+- リトライ処理の実装
+- サーキットブレーカーパターンの適用
+
+## キャッシュ戦略
+
+- キャッシュの有効期限設定
+- 分散キャッシュの考慮
+- キャッシュの整合性管理
+
+## ロギング
+
+- 構造化ログの使用
+- 適切なログレベルの選択
+- センシティブ情報の除外
+
+## 設定管理
+
+- 環境変数の利用
+- 設定ファイルの適切な構造化
+- シークレット情報の安全な管理
+
+## テスト
+
+- モックの活用
+- テスト用の設定分離
+- インテグレーションテストの実装

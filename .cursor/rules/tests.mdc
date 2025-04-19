@@ -1,0 +1,20 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# テストコード規約
+
+## テスト関数の命名
+
+- プレフィックスとして`test_`を使用
+- テストの目的が分かる名前を付ける
+- snake_caseを使用
+
+```rust
+#[test]
+fn test_create_user_success() {
+    // テストの実装
+}
+
+#[test]
