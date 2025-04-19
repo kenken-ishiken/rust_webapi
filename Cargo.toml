@@ -36,7 +36,14 @@ lazy_static = "1.4.0"
 opentelemetry = "0.29.1"
 opentelemetry-otlp = "0.29.0"
 tracing-opentelemetry = "0.30.0"
+domain = { path = "crates/domain" }
 
 [dev-dependencies]
 mockall = "0.11.4"
 tokio-test = "0.4.3"
+
+[workspace]
+members = [
+    "crates/domain",
+    # 他のcrateは今後追加
+]

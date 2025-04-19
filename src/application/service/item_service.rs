@@ -1,15 +1,15 @@
-use crate::domain::model::item::Item;
+use domain::model::item::Item;
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
 use std::sync::Mutex;
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 
 pub struct ItemService {
-    repository: crate::domain::repository::item_repository::ItemRepositoryImpl,
+    repository: domain::repository::item_repository::ItemRepositoryImpl,
     counter: Mutex<u64>,
 }
 
 impl ItemService {
-    pub fn new(repository: crate::domain::repository::item_repository::ItemRepositoryImpl) -> Self {
+    pub fn new(repository: domain::repository::item_repository::ItemRepositoryImpl) -> Self {
         Self {
             repository,
             counter: Mutex::new(0),
@@ -77,7 +77,7 @@ impl ItemService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::repository::item_repository::MockItemRepo;
+    use domain::repository::item_repository::MockItemRepo;
     use mockall::predicate::*;
     use std::sync::Arc;
 

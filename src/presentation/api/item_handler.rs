@@ -94,8 +94,8 @@ mod tests {
     use super::*;
     use actix_web::{test, web, http::StatusCode};
     use crate::application::service::item_service::ItemService;
-    use crate::domain::repository::item_repository::MockItemRepo;
-    use crate::domain::model::item::Item;
+    use domain::repository::item_repository::MockItemRepo;
+    use domain::model::item::Item;
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use sqlx::{PgPool, Row};
 use async_trait::async_trait;
-use crate::domain::model::item::Item;
-use crate::domain::repository::item_repository::ItemRepository;
+use domain::model::item::Item;
+use domain::repository::item_repository::ItemRepository;
 
 pub struct InMemoryItemRepository {
     items: Mutex<HashMap<u64, Item>>,

@@ -668,6 +668,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "domain"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "dotenv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2360,6 +2369,7 @@ dependencies = [
  "async-trait",
  "base64 0.13.1",
  "chrono",
+ "domain",
  "dotenv",
  "env_logger",
  "futures",

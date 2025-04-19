@@ -1,15 +1,15 @@
-use crate::domain::model::user::User;
+use domain::model::user::User;
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
 use std::sync::Mutex;
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 
 pub struct UserService {
-    repository: crate::domain::repository::user_repository::UserRepositoryImpl,
+    repository: domain::repository::user_repository::UserRepositoryImpl,
     counter: Mutex<u64>,
 }
 
 impl UserService {
-    pub fn new(repository: crate::domain::repository::user_repository::UserRepositoryImpl) -> Self {
+    pub fn new(repository: domain::repository::user_repository::UserRepositoryImpl) -> Self {
         Self {
             repository,
             counter: Mutex::new(0),

@@ -1,1 +1,13 @@
 /target
+
+# macOS metadata
+.DS_Store
+
+# Environment variables
+.env
+
+# Editor settings
+.cursorrules
+
+# JetBrains IDE files
+/.idea/

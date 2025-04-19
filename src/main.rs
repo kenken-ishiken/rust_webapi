@@ -1,4 +1,3 @@
-mod domain;
 mod application;
 mod infrastructure;
 mod presentation;
@@ -27,12 +26,12 @@ use crate::infrastructure::metrics::{
 use std::time::Instant;
 use actix_web::dev::Service;
 
-use crate::domain::repository::item_repository::ItemRepositoryImpl;
+use domain::repository::item_repository::ItemRepositoryImpl;
 use crate::infrastructure::repository::item_repository::PostgresItemRepository;
 use crate::application::service::item_service::ItemService;
 use crate::presentation::api::item_handler::ItemHandler;
 
-use crate::domain::repository::user_repository::UserRepositoryImpl;
+use domain::repository::user_repository::UserRepositoryImpl;
 use crate::infrastructure::repository::user_repository::PostgresUserRepository;
 use crate::application::service::user_service::UserService;
 use crate::presentation::api::user_handler::UserHandler;

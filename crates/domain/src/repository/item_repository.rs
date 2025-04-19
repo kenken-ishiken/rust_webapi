@@ -1,4 +1,4 @@
-use crate::domain::model::item::Item;
+use crate::model::item::Item;
 use std::sync::Arc;
 use async_trait::async_trait;
 

@@ -1,4 +1,4 @@
-use crate::domain::model::user::User;
+use crate::model::user::User;
 use std::sync::Arc;
 use async_trait::async_trait;
 
