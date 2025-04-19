@@ -17,7 +17,15 @@ use sqlx::postgres::PgPoolOptions;
 // Remove slog-based JSON logger; using tracing for structured logging
 // Middleware: TracingLogger for HTTP request logging
 // (replace slog middleware with tracing-actix-web)
-use crate::infrastructure::metrics::{init_metrics, metrics_handler};
+use crate::infrastructure::metrics::{
+    init_metrics,
+    metrics_handler,
+    increment_success_counter,
+    increment_error_counter,
+    observe_request_duration,
+};
+use std::time::Instant;
+use actix_web::dev::Service;
 
 use crate::domain::repository::item_repository::ItemRepositoryImpl;
 use crate::infrastructure::repository::item_repository::PostgresItemRepository;
@@ -98,6 +106,28 @@ async fn main() -> std::io::Result<()> {
             .app_data(keycloak_auth.clone())
             // HTTP request tracing middleware
             .wrap(TracingLogger::default())
+            // Metrics middleware: record request counts and durations
+            .wrap_fn(|req, srv| {
+                // Clone path for labeling; skip metrics endpoint
+                let path = req.path().to_string();
+                let start = Instant::now();
+                let fut = srv.call(req);
+                async move {
+                    let res = fut.await?;
+                    if path != "/api/metrics" {
+                        let elapsed = start.elapsed().as_secs_f64();
+                        // Observe request duration
+                        observe_request_duration("rust_webapi", &path, elapsed);
+                        // Count success vs error based on status code
+                        if res.status().is_server_error() {
+                            increment_error_counter("rust_webapi", &path);
+                        } else {
+                            increment_success_counter("rust_webapi", &path);
+                        }
+                    }
+                    Ok(res)
+                }
+            })
             .route("/", web::get().to(ItemHandler::index))
             .service(
                 web::scope("/api")

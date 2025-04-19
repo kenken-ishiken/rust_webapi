@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use std::sync::Arc;
-use log::info;
+use tracing::info;
 
 use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
 use crate::application::service::item_service::ItemService;
@@ -36,8 +36,14 @@ impl ItemHandler {
     ) -> impl Responder {
         let item_id = path.into_inner();
         match data.service.find_by_id(item_id).await {
-            Some(item) => HttpResponse::Ok().json(item),
-            None => HttpResponse::NotFound().json("アイテムが見つかりません"),
+            Some(item) => {
+                info!("Fetched item {}", item_id);
+                HttpResponse::Ok().json(item)
+            },
+            None => {
+                info!("Item {} not found", item_id);
+                HttpResponse::NotFound().json("アイテムが見つかりません")
+            },
         }
     }
 
@@ -46,6 +52,7 @@ impl ItemHandler {
         item: web::Json<CreateItemRequest>,
     ) -> impl Responder {
         let new_item = data.service.create(item.into_inner()).await;
+        info!("Created item {}", new_item.id);
         HttpResponse::Created().json(new_item)
     }
 
@@ -56,8 +63,14 @@ impl ItemHandler {
     ) -> impl Responder {
         let item_id = path.into_inner();
         match data.service.update(item_id, item.into_inner()).await {
-            Some(updated_item) => HttpResponse::Ok().json(updated_item),
-            None => HttpResponse::NotFound().json("アイテムが見つかりません"),
+            Some(updated_item) => {
+                info!("Updated item {}", item_id);
+                HttpResponse::Ok().json(updated_item)
+            },
+            None => {
+                info!("Item {} not found for update", item_id);
+                HttpResponse::NotFound().json("アイテムが見つかりません")
+            },
         }
     }
 
@@ -67,8 +80,10 @@ impl ItemHandler {
     ) -> impl Responder {
         let item_id = path.into_inner();
         if data.service.delete(item_id).await {
+            info!("Deleted item {}", item_id);
             HttpResponse::Ok().json("アイテムを削除しました")
         } else {
+            info!("Item {} not found for deletion", item_id);
             HttpResponse::NotFound().json("アイテムが見つかりません")
         }
     }
