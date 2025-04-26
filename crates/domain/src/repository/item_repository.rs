@@ -14,9 +14,9 @@ pub trait ItemRepository: Send + Sync {
 pub type ItemRepositoryImpl = Arc<dyn ItemRepository>;
 
 #[cfg(test)]
-use mockall::predicate::*;
+pub use mockall::predicate::*;
 #[cfg(test)]
-use mockall::mock;
+pub use mockall::mock;
 
 #[cfg(test)]
 mock! {
@@ -30,6 +30,9 @@ mock! {
         async fn delete(&self, id: u64) -> bool;
     }
 }
+
+#[cfg(test)]
+pub use self::MockItemRepo;
 
 #[cfg(test)]
 mod tests {

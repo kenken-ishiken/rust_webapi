@@ -94,11 +94,24 @@ mod tests {
     use super::*;
     use actix_web::{test, web, http::StatusCode};
     use crate::application::service::item_service::ItemService;
-    use domain::repository::item_repository::MockItemRepo;
     use domain::model::item::Item;
+    use mockall::mock;
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;
+    use domain::repository::item_repository::ItemRepository;
+
+    mock! {
+        ItemRep {}
+        #[async_trait::async_trait]
+        impl ItemRepository for ItemRep {
+            async fn find_all(&self) -> Vec<Item>;
+            async fn find_by_id(&self, id: u64) -> Option<Item>;
+            async fn create(&self, item: Item) -> Item;
+            async fn update(&self, item: Item) -> Option<Item>;
+            async fn delete(&self, id: u64) -> bool;
+        }
+    }
 
     impl KeycloakUser {
         fn mock() -> Self {
@@ -160,7 +173,7 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_all()
             .return_once(move || items.clone());
 
@@ -182,7 +195,7 @@ mod tests {
             description: Some("Description 1".to_string()),
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(item.clone()));
@@ -199,7 +212,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_item_not_found() {
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
@@ -227,7 +240,7 @@ mod tests {
             description: Some("New Description".to_string()),
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_create()
             .return_once(move |_| created_item.clone());
 
@@ -254,7 +267,7 @@ mod tests {
             description: Some("Updated Description".to_string()),
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(|_| Some(Item {
@@ -284,7 +297,7 @@ mod tests {
             description: None,
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
@@ -302,7 +315,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_delete_item_success() {
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
@@ -319,7 +332,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_delete_item_not_found() {
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_delete()
             .with(eq(999u64))
             .return_once(|_| false);

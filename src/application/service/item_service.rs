@@ -43,9 +43,9 @@ impl ItemService {
             description: req.description,
         };
 
-        let created_item = self.repository.create(item).await;
+        let _created_item = self.repository.create(item).await;
         increment_success_counter("item", "create");
-        created_item
+        _created_item
     }
 
     pub async fn update(&self, id: u64, req: UpdateItemRequest) -> Option<Item> {
@@ -77,9 +77,22 @@ impl ItemService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::repository::item_repository::MockItemRepo;
+    use mockall::mock;
     use mockall::predicate::*;
     use std::sync::Arc;
+    use domain::repository::item_repository::ItemRepository;
+
+    mock! {
+        ItemRep {}
+        #[async_trait::async_trait]
+        impl ItemRepository for ItemRep {
+            async fn find_all(&self) -> Vec<Item>;
+            async fn find_by_id(&self, id: u64) -> Option<Item>;
+            async fn create(&self, item: Item) -> Item;
+            async fn update(&self, item: Item) -> Option<Item>;
+            async fn delete(&self, id: u64) -> bool;
+        }
+    }
 
     #[tokio::test]
     async fn test_find_all() {
@@ -96,7 +109,7 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_all()
             .return_once(move || items.clone());
 
@@ -118,7 +131,7 @@ mod tests {
             description: Some("Description 1".to_string()),
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(item.clone()));
@@ -134,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_by_id_not_found() {
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
@@ -152,13 +165,13 @@ mod tests {
             description: Some("New Description".to_string()),
         };
 
-        let created_item = Item {
+        let _created_item = Item {
             id: 0,
             name: "New Item".to_string(),
             description: Some("New Description".to_string()),
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_create()
             .with(function(|item: &Item| {
                 item.name == "New Item" && 
@@ -193,7 +206,7 @@ mod tests {
             description: Some("Updated Description".to_string()),
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(existing_item));
@@ -223,7 +236,7 @@ mod tests {
             description: None,
         };
 
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
@@ -236,7 +249,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_success() {
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
@@ -249,7 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_not_found() {
-        let mut mock_repo = MockItemRepo::new();
+        let mut mock_repo = MockItemRep::new();
         mock_repo.expect_delete()
             .with(eq(999u64))
             .return_once(|_| false);
