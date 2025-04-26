@@ -32,9 +32,6 @@ mock! {
 }
 
 #[cfg(test)]
-pub use self::MockItemRepo;
-
-#[cfg(test)]
 mod tests {
     use super::*;
 

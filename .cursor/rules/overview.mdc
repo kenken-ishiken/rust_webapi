@@ -1,0 +1,35 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Rust WebAPI プロジェクト ルール概要
+
+このプロジェクトはレイヤードアーキテクチャを採用し、各層ごとに詳細なコーディング規約・テスト・運用ルールを定めています。  
+各ルールの詳細は、対応するmdcファイルを参照してください。
+
+## 1. プロジェクト全体
+- [rust-webapi.mdc](mdc:rust-webapi.mdc)：プロジェクト構造、共通コーディング規約、ドキュメント方針
+
+## 2. ドメイン層
+- [domain.mdc](mdc:domain.mdc)：エンティティ・値オブジェクト・リポジトリの設計規約、命名規則
+
+## 3. アプリケーション層
+- [application.mdc](mdc:application.mdc)：ユースケース設計、関数分割、エラー処理、テスト容易性
+
+## 4. インフラストラクチャ層
+- [infrastructure.mdc](mdc:infrastructure.mdc)：DBアクセス、外部連携、ロギング、設定管理、エラー伝播
+
+## 5. プレゼンテーション層
+- [presentation.mdc](mdc:presentation.mdc)：APIエンドポイント設計、リクエスト/レスポンス規約
+
+## 6. テスト
+- [tests.mdc](mdc:tests.mdc)：テスト関数命名規約、テスト実装例
+
+## 7. シェル/APIテスト
+- [shelltest.mdc](mdc:shelltest.mdc)：curlによるAPI動作確認手順
+
+---
+
+各mdcファイルは、プロジェクトのルート `.cursor/rules/` ディレクトリに格納されています。  
+新しいルールを追加したい場合は、このガイドに追記し、個別のmdcファイルも作成・編集してください。
