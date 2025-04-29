@@ -5,8 +5,8 @@ alwaysApply: false
 ---
 # Rust WebAPI プロジェクト ルール概要
 
-このプロジェクトはレイヤードアーキテクチャを採用し、各層ごとに詳細なコーディング規約・テスト・運用ルールを定めています。  
-各ルールの詳細は、対応するmdcファイルを参照してください。
+このプロジェクトはクラウドネイティブな実運用を想定したRust製REST APIサーバーです。  
+ドメイン駆動設計（DDD）に基づく多層アーキテクチャを採用し、各層ごとに詳細なコーディング規約・テスト・運用ルールを定めています。
 
 ## 1. プロジェクト全体
 - [rust-webapi.mdc](mdc:rust-webapi.mdc)：プロジェクト構造、共通コーディング規約、ドキュメント方針
@@ -28,6 +28,39 @@ alwaysApply: false
 
 ## 7. シェル/APIテスト
 - [shelltest.mdc](mdc:shelltest.mdc)：curlによるAPI動作確認手順
+
+## 主要な特徴
+
+- **RESTful API**：CRUD 操作を HTTP/JSON で提供  
+- **ドメイン駆動設計**：多層アーキテクチャ（domain, application, infrastructure, presentation）
+- **高速**：`tokio` と `actix-web` による非同期 I/O  
+- **型安全**：Rust の型システムでリクエスト／レスポンスを保証  
+- **永続化**：`sqlx` による PostgreSQL 連携
+- **認証**：JWT / Keycloak 連携
+- **可観測性**：Prometheus / OpenTelemetry / Tracing 対応
+- **コンテナ化**：Docker / Kubernetes / Istio 対応
+
+## ディレクトリ構成
+
+```
+.
+├── src/                # メインアプリケーション
+│   ├── main.rs         # エントリポイント
+│   ├── application/    # アプリケーション層（DTO、サービス）
+│   ├── domain/         # ドメイン層（モデル、リポジトリインターフェース）
+│   ├── infrastructure/ # インフラ層（DB、認証、ロギング）
+│   └── presentation/   # プレゼンテーション層（API ハンドラ）
+├── crates/domain/      # ドメイン層サブクレート
+├── k8s/                # Kubernetes マニフェスト
+│   ├── base/           # 共通設定
+│   └── overlays/       # 環境別設定（dev, staging, prod）
+├── initdb/             # DB 初期化 SQL
+├── scripts/            # 補助スクリプト
+├── o11y.md             # 可観測性ガイド
+├── Dockerfile          # コンテナイメージ定義
+├── docker-compose.yml  # ローカル開発環境
+└── README.md           # 本ドキュメント
+```
 
 ---
 

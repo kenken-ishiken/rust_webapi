@@ -11,8 +11,31 @@ alwaysApply: true
 - サーバーが起動している (デフォルト: `http://127.0.0.1:8080`)
 
 ## 1. サーバー起動
+
+### ローカル実行（Rust のみ）
 ```bash
+# 依存関係を取得してサーバーを起動
 cargo run
+
+# 別ターミナルで動作確認
+curl http://127.0.0.1:8080/
+```
+
+### Docker Compose 実行（PostgreSQL 含む）
+```bash
+# 環境変数ファイル作成
+cat > .env << EOF
+DATABASE_URL=postgres://postgres:password@postgres:5432/rustwebapi
+KEYCLOAK_URL=http://localhost:8081
+KEYCLOAK_REALM=rust-webapi
+KEYCLOAK_CLIENT_ID=api-client
+EOF
+
+# コンテナ起動
+docker-compose up -d
+
+# 動作確認
+curl http://localhost:8080/
 ```
 
 ## 2. ヘルスチェック
@@ -36,7 +59,8 @@ curl -i http://127.0.0.1:8080/api/items
 ```bash
 curl -i -X POST http://127.0.0.1:8080/api/items \
   -H "Content-Type: application/json" \
-  -d '{"name":"サンプルアイテム","price":100}'
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -d '{"name":"サンプルアイテム","description":"説明文"}'
 ```
 
 ### 4.3 単一取得
@@ -48,41 +72,77 @@ curl -i http://127.0.0.1:8080/api/items/{id}
 ```bash
 curl -i -X PUT http://127.0.0.1:8080/api/items/{id} \
   -H "Content-Type: application/json" \
-  -d '{"name":"更新後のアイテム","price":150}'
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -d '{"name":"更新後のアイテム","description":"更新後の説明文"}'
 ```
 
 ### 4.5 削除
 ```bash
-curl -i -X DELETE http://127.0.0.1:8080/api/items/{id}
+curl -i -X DELETE http://127.0.0.1:8080/api/items/{id} \
+  -H "Authorization: Bearer {JWT_TOKEN}"
 ```
 
 ## 5. Users エンドポイント
 
 ### 5.1 一覧取得
 ```bash
-curl -i http://127.0.0.1:8080/api/users
+curl -i http://127.0.0.1:8080/api/users \
+  -H "Authorization: Bearer {JWT_TOKEN}"
 ```
 
 ### 5.2 作成
 ```bash
 curl -i -X POST http://127.0.0.1:8080/api/users \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
   -d '{"name":"太郎","email":"taro@example.com"}'
 ```
 
 ### 5.3 単一取得
 ```bash
-curl -i http://127.0.0.1:8080/api/users/{id}
+curl -i http://127.0.0.1:8080/api/users/{id} \
+  -H "Authorization: Bearer {JWT_TOKEN}"
 ```
 
 ### 5.4 更新
 ```bash
 curl -i -X PUT http://127.0.0.1:8080/api/users/{id} \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
   -d '{"name":"次郎","email":"jiro@example.com"}'
 ```
 
 ### 5.5 削除
 ```bash
-curl -i -X DELETE http://127.0.0.1:8080/api/users/{id}
+curl -i -X DELETE http://127.0.0.1:8080/api/users/{id} \
+  -H "Authorization: Bearer {JWT_TOKEN}"
 ```
+
+## 6. JWT トークン取得（Keycloak連携時）
+
+```bash
+# Keycloakからトークン取得
+curl -X POST \
+  http://localhost:8081/realms/rust-webapi/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'client_id=api-client&username=testuser&password=password&grant_type=password'
+```
+
+レスポンス例:
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiw...",
+  "expires_in": 300,
+  "refresh_expires_in": 1800,
+  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiw...",
+  "token_type": "bearer",
+  "not-before-policy": 0,
+  "session_state": "a856fb91-eabc-4160-9d22-9f65e837b6b3",
+  "scope": "email profile"
+}
+```
+
+取得したaccess_tokenを使用してAPIリクエスト:
+```bash
+curl -i http://127.0.0.1:8080/api/users \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiw..."

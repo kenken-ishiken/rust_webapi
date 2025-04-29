@@ -5,6 +5,14 @@ alwaysApply: true
 ---
 # プレゼンテーション層コーディング規約
 
+## API設計原則
+
+- RESTful設計原則に従う
+- リソース指向のURLパス設計
+- HTTPメソッドの適切な使用
+- 一貫したレスポンス形式
+- 適切なHTTPステータスコードの使用
+
 ## APIエンドポイント定義
 
 ```rust
@@ -31,3 +39,116 @@ pub async fn create_user(
     Ok(HttpResponse::Created().json(CreateUserResponse { id: user_id }))
 }
 ```
+
+## APIリファレンス
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/` | ヘルスチェック |
+| GET | `/api/items` | アイテム一覧取得 |
+| GET | `/api/items/{id}` | 特定アイテム取得 |
+| POST | `/api/items` | アイテム作成 |
+| DELETE | `/api/items/{id}` | アイテム削除 |
+| GET | `/api/users` | ユーザー一覧取得 |
+| GET | `/api/users/{id}` | 特定ユーザー取得 |
+
+## リクエスト/レスポンス形式
+
+### リクエスト例（アイテム作成）
+```json
+{
+  "name": "テスト",
+  "description": "説明"
+}
+```
+
+### レスポンス例
+```json
+{
+  "id": 0,
+  "name": "テスト",
+  "description": "説明"
+}
+```
+
+## エラーハンドリング
+
+- 適切なHTTPステータスコードの使用
+- 一貫したエラーレスポンス形式
+- エラーメッセージの国際化対応
+
+```rust
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
+}
+
+impl ResponseError for ApiError {
+    fn error_response(&self) -> HttpResponse {
+        let status = self.status_code();
+        let error_response = ErrorResponse {
+            code: self.code().to_string(),
+            message: self.message().to_string(),
+            details: self.details(),
+        };
+        
+        HttpResponse::build(status).json(error_response)
+    }
+}
+```
+
+## 認証・認可
+
+- JWT認証の実装
+- Keycloak連携
+- ロールベースのアクセス制御
+
+```rust
+/// 認証ミドルウェア
+pub fn auth_middleware(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, Error> {
+    // JWTの検証ロジック
+    let token = credentials.token();
+    let claims = verify_token(token)?;
+    
+    // ユーザー情報をリクエストに追加
+    req.extensions_mut().insert(claims);
+    
+    Ok(req)
+}
+```
+
+## バリデーション
+
+- リクエストデータの検証
+- 適切なエラーメッセージの返却
+- クロスフィールドバリデーション
+
+```rust
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+    
+    #[validate(email)]
+    pub email: String,
+}
+
+pub async fn create_user(
+    payload: web::Json<CreateUserRequest>,
+) -> Result<HttpResponse, ApiError> {
+    payload.validate()?;
+    // 処理続行
+}
+```
+
+## ドキュメンテーション
+
+- OpenAPI（Swagger）ドキュメントの生成
+- エンドポイントの詳細な説明
+- リクエスト/レスポンス例の提供
