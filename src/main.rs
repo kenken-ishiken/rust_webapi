@@ -4,7 +4,7 @@ mod presentation;
 
 use actix_web::{web, App, HttpServer};
 use std::sync::Arc;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 // Tracing for structured logging
 use tracing::{info, error};
 use tracing_log::LogTracer;

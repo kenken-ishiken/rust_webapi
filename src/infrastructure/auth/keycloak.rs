@@ -3,6 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm, TokenData};
 use reqwest::Client;
+use base64::Engine;
 
 
 #[derive(Debug)]
@@ -12,6 +13,7 @@ pub enum KeycloakError {
     TokenExpired,
     JwtError(jsonwebtoken::errors::Error),
     ReqwestError(reqwest::Error),
+    #[allow(dead_code)]
     Other(String),
 }
 
@@ -168,22 +170,20 @@ impl KeycloakAuth {
             .ok_or(KeycloakError::InvalidToken)?;
 
         // JWKからRSA公開鍵を作成
-        let n = base64_url_decode(&jwk.n)?;
-        let e = base64_url_decode(&jwk.e)?;
-
         // トークンを検証
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
         validation.set_audience(&[&self.config.client_id]);
         validation.set_issuer(&[format!("{}/realms/{}", self.config.auth_server_url, self.config.realm)]);
 
-        let key = DecodingKey::from_rsa_components(&String::from_utf8_lossy(&n), &String::from_utf8_lossy(&e))?;
+        let key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)?;
         let token_data = decode::<KeycloakClaims>(token, &key, &validation)?;
 
         Ok(token_data)
     }
 }
 
+#[allow(dead_code)]
 fn base64_url_decode(input: &str) -> Result<Vec<u8>, KeycloakError> {
     let input = input.replace('-', "+").replace('_', "/");
     let padding = match input.len() % 4 {
@@ -195,6 +195,6 @@ fn base64_url_decode(input: &str) -> Result<Vec<u8>, KeycloakError> {
     };
     let input = format!("{}{}", input, padding);
 
-    base64::decode(&input)
+    base64::engine::general_purpose::STANDARD.decode(&input)
         .map_err(|e| KeycloakError::Other(format!("Base64 decode error: {}", e)))
 }
