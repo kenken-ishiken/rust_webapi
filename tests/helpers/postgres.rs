@@ -19,19 +19,30 @@ impl PostgresContainer {
             let _ = env_logger::builder().is_test(true).try_init();
         });
 
-        // PostgreSQL container setup with testcontainers-modules
-        let docker = testcontainers::clients::Cli::default();
-        let container = docker.run(postgres::Postgres::default());
-
-        // Get the mapped port
-        let host_port = container.get_host_port_ipv4(5432);
-
-        // The container will be automatically cleaned up when it goes out of scope
-        // To keep it alive for the duration of the test, we need to keep reference to it
-        // We store it in thread_local storage
-        CONTAINER.with(|c| {
-            *c.borrow_mut() = Some(container);
-        });
+        // Use a static Docker client
+        let host_port = {
+            // Create a static Docker client
+            static DOCKER: std::sync::OnceLock<testcontainers::clients::Cli> = std::sync::OnceLock::new();
+            let docker = DOCKER.get_or_init(|| testcontainers::clients::Cli::default());
+            
+            CONTAINER.with(|c| {
+                if c.borrow().is_none() {
+                    // PostgreSQL container setup with testcontainers-modules
+                    let container = docker.run(postgres::Postgres::default());
+                    
+                    // Get the mapped port
+                    let port = container.get_host_port_ipv4(5432);
+                    
+                    // Store the container in thread_local storage
+                    *c.borrow_mut() = Some(container);
+                    
+                    port
+                } else {
+                    // Container already exists, get the port
+                    c.borrow().as_ref().unwrap().get_host_port_ipv4(5432)
+                }
+            })
+        };
 
         Self {
             host: "localhost".to_string(),
@@ -70,5 +81,5 @@ impl PostgresContainer {
 
 // Use thread_local storage to keep the container alive
 thread_local! {
-    static CONTAINER: std::cell::RefCell<Option<testcontainers::Container<postgres::Postgres>>> = std::cell::RefCell::new(None);
+    static CONTAINER: std::cell::RefCell<Option<testcontainers::Container<'static, postgres::Postgres>>> = std::cell::RefCell::new(None);
 }

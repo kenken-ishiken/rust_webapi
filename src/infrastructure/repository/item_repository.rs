@@ -61,7 +61,7 @@ impl PostgresItemRepository {
         Self { pool }
     }
 
-    // テスト用にテーブルを初期化するメソッド
+    // テーブルを初期化するメソッド（テスト用）
     #[cfg(test)]
     pub async fn init_table(&self) -> Result<(), sqlx::Error> {
         sqlx::query(
