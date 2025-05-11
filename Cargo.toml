@@ -42,6 +42,8 @@ domain = { path = "crates/domain" }
 [dev-dependencies]
 mockall = "0.11.4"
 tokio-test = "0.4.3"
+testcontainers = "0.15.0"
+testcontainers-modules = { version = "0.3.1", features = ["postgres"] }
 
 [workspace]
 members = [

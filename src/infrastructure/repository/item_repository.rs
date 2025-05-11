@@ -60,6 +60,21 @@ impl PostgresItemRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    // テスト用にテーブルを初期化するメソッド
+    #[cfg(test)]
+    pub async fn init_table(&self) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS items (
+                id BIGINT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT
+            )"
+        )
+        .execute(&self.pool)
+        .await
+        .map(|_| ())
+    }
 }
 
 #[async_trait]
@@ -158,7 +173,7 @@ impl ItemRepository for PostgresItemRepository {
             .bind(id as i64)
             .execute(&self.pool)
             .await;
-            
+
         match result {
             Ok(res) => res.rows_affected() > 0,
             Err(e) => {
@@ -166,5 +181,97 @@ impl ItemRepository for PostgresItemRepository {
                 false
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use testcontainers_modules::postgres;
+
+    async fn setup_postgres() -> PgPool {
+        // PostgreSQLコンテナの起動（デフォルト設定で実行）
+        let docker = testcontainers::clients::Cli::default();
+        let container = docker.run(postgres::Postgres::default());
+
+        // PostgreSQLへの接続情報の取得
+        let host_port = container.get_host_port_ipv4(5432);
+
+        // 接続プールの作成
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&format!(
+                "postgres://postgres:postgres@localhost:{}/postgres",
+                host_port
+            ))
+            .await
+            .expect("Failed to connect to Postgres");
+
+        pool
+    }
+    
+    #[tokio::test]
+    async fn test_postgres_crud_operations() {
+        // PostgreSQLコンテナの初期化
+        let pool = setup_postgres().await;
+        
+        // リポジトリの作成とテーブルの初期化
+        let repo = PostgresItemRepository::new(pool);
+        repo.init_table().await.expect("Failed to create items table");
+        
+        // テストデータ
+        let item = Item {
+            id: 1,
+            name: "Test Item".to_string(),
+            description: Some("Test Description".to_string()),
+        };
+        
+        // 1. アイテム作成のテスト
+        let created_item = repo.create(item.clone()).await;
+        assert_eq!(created_item.id, item.id);
+        assert_eq!(created_item.name, item.name);
+        assert_eq!(created_item.description, item.description);
+        
+        // 2. 単一アイテム取得のテスト
+        let found_item = repo.find_by_id(1).await;
+        assert!(found_item.is_some());
+        let found_item = found_item.unwrap();
+        assert_eq!(found_item.id, item.id);
+        assert_eq!(found_item.name, item.name);
+        assert_eq!(found_item.description, item.description);
+        
+        // 3. 存在しないアイテム取得のテスト
+        let not_found = repo.find_by_id(999).await;
+        assert!(not_found.is_none());
+        
+        // 4. 全アイテム取得のテスト
+        let all_items = repo.find_all().await;
+        assert_eq!(all_items.len(), 1);
+        assert_eq!(all_items[0].id, item.id);
+        
+        // 5. アイテム更新のテスト
+        let updated_item = Item {
+            id: 1,
+            name: "Updated Item".to_string(),
+            description: Some("Updated Description".to_string()),
+        };
+        
+        let result = repo.update(updated_item.clone()).await;
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.name, "Updated Item");
+        assert_eq!(result.description, Some("Updated Description".to_string()));
+        
+        // 6. アイテム削除のテスト
+        let deleted = repo.delete(1).await;
+        assert!(deleted);
+        
+        // 削除後の検証
+        let all_items_after_delete = repo.find_all().await;
+        assert_eq!(all_items_after_delete.len(), 0);
+        
+        // 7. 存在しないアイテムの削除テスト
+        let not_deleted = repo.delete(999).await;
+        assert!(!not_deleted);
     }
 }

@@ -60,6 +60,21 @@ impl PostgresUserRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+    
+    // テスト用にテーブルを初期化するメソッド
+    #[cfg(test)]
+    pub async fn init_table(&self) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS users (
+                id BIGINT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL
+            )"
+        )
+        .execute(&self.pool)
+        .await
+        .map(|_| ())
+    }
 }
 
 #[async_trait]
@@ -158,7 +173,7 @@ impl UserRepository for PostgresUserRepository {
             .bind(id as i64)
             .execute(&self.pool)
             .await;
-            
+
         match result {
             Ok(res) => res.rows_affected() > 0,
             Err(e) => {
@@ -166,5 +181,97 @@ impl UserRepository for PostgresUserRepository {
                 false
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use testcontainers_modules::postgres;
+
+    async fn setup_postgres() -> PgPool {
+        // PostgreSQLコンテナの起動（デフォルト設定で実行）
+        let docker = testcontainers::clients::Cli::default();
+        let container = docker.run(postgres::Postgres::default());
+
+        // PostgreSQLへの接続情報の取得
+        let host_port = container.get_host_port_ipv4(5432);
+
+        // 接続プールの作成
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&format!(
+                "postgres://postgres:postgres@localhost:{}/postgres",
+                host_port
+            ))
+            .await
+            .expect("Failed to connect to Postgres");
+
+        pool
+    }
+    
+    #[tokio::test]
+    async fn test_postgres_crud_operations() {
+        // PostgreSQLコンテナの初期化
+        let pool = setup_postgres().await;
+        
+        // リポジトリの作成とテーブルの初期化
+        let repo = PostgresUserRepository::new(pool);
+        repo.init_table().await.expect("Failed to create users table");
+        
+        // テストデータ
+        let user = User {
+            id: 1,
+            username: "testuser".to_string(),
+            email: "test@example.com".to_string(),
+        };
+        
+        // 1. ユーザー作成のテスト
+        let created_user = repo.create(user.clone()).await;
+        assert_eq!(created_user.id, user.id);
+        assert_eq!(created_user.username, user.username);
+        assert_eq!(created_user.email, user.email);
+        
+        // 2. 単一ユーザー取得のテスト
+        let found_user = repo.find_by_id(1).await;
+        assert!(found_user.is_some());
+        let found_user = found_user.unwrap();
+        assert_eq!(found_user.id, user.id);
+        assert_eq!(found_user.username, user.username);
+        assert_eq!(found_user.email, user.email);
+        
+        // 3. 存在しないユーザー取得のテスト
+        let not_found = repo.find_by_id(999).await;
+        assert!(not_found.is_none());
+        
+        // 4. 全ユーザー取得のテスト
+        let all_users = repo.find_all().await;
+        assert_eq!(all_users.len(), 1);
+        assert_eq!(all_users[0].id, user.id);
+        
+        // 5. ユーザー更新のテスト
+        let updated_user = User {
+            id: 1,
+            username: "updateduser".to_string(),
+            email: "updated@example.com".to_string(),
+        };
+        
+        let result = repo.update(updated_user.clone()).await;
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.username, "updateduser");
+        assert_eq!(result.email, "updated@example.com");
+        
+        // 6. ユーザー削除のテスト
+        let deleted = repo.delete(1).await;
+        assert!(deleted);
+        
+        // 削除後の検証
+        let all_users_after_delete = repo.find_all().await;
+        assert_eq!(all_users_after_delete.len(), 0);
+        
+        // 7. 存在しないユーザーの削除テスト
+        let not_deleted = repo.delete(999).await;
+        assert!(!not_deleted);
     }
 }

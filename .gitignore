@@ -11,3 +11,5 @@
 
 # JetBrains IDE files
 /.idea/
+
+**/.claude/settings.local.json

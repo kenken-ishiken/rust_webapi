@@ -84,15 +84,21 @@ curl http://localhost:8080/
 
 ## API リファレンス
 
-| メソッド | パス | 説明 |
-|----------|------|------|
-| GET | `/` | ヘルスチェック |
-| GET | `/api/items` | アイテム一覧取得 |
-| GET | `/api/items/{id}` | 特定アイテム取得 |
-| POST | `/api/items` | アイテム作成 |
-| DELETE | `/api/items/{id}` | アイテム削除 |
-| GET | `/api/users` | ユーザー一覧取得 |
-| GET | `/api/users/{id}` | 特定ユーザー取得 |
+| メソッド  | パス                        | 説明                  |
+|-----------|-----------------------------|-----------------------|
+| GET       | `/`                         | サーバー稼働確認      |
+| GET       | `/api/health`               | ヘルスチェック        |
+| GET       | `/api/metrics`              | メトリクス取得        |
+| GET       | `/api/items`                | アイテム一覧取得      |
+| GET       | `/api/items/{id}`           | 特定アイテム取得      |
+| POST      | `/api/items`                | アイテム作成          |
+| PUT       | `/api/items/{id}`           | 特定アイテム更新      |
+| DELETE    | `/api/items/{id}`           | アイテム削除          |
+| GET       | `/api/users`                | ユーザー一覧取得      |
+| GET       | `/api/users/{id}`           | 特定ユーザー取得      |
+| POST      | `/api/users`                | ユーザー作成          |
+| PUT       | `/api/users/{id}`           | 特定ユーザー更新      |
+| DELETE    | `/api/users/{id}`           | ユーザー削除          |
 
 ### 例：アイテム作成
 ```bash
@@ -116,7 +122,7 @@ curl -X POST http://127.0.0.1:8080/api/items \
 本プロジェクトは包括的な可観測性を実現するため、以下の機能を提供しています：
 
 - **ログ**：`tracing` / `slog` による JSON 構造化ログ
-- **メトリクス**：Prometheus エクスポート（`/metrics` エンドポイント）
+- **メトリクス**：Prometheus エクスポート（`/api/metrics` エンドポイント）
 - **トレーシング**：OpenTelemetry 対応（分散トレーシング）
 
 詳細な可観測性の設計と実装ガイドは [o11y.md](o11y.md) を参照してください。
