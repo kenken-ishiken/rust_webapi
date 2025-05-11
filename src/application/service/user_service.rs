@@ -1,7 +1,6 @@
 use domain::model::user::User;
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
-use std::sync::Arc;
 
 pub struct UserService {
     repository: domain::repository::user_repository::UserRepositoryImpl,
@@ -71,6 +70,7 @@ mod tests {
     use super::*;
     use mockall::predicate::*;
     use mockall::mock;
+    use std::sync::Arc;
     use domain::repository::user_repository::UserRepository;
 
     mock! {
