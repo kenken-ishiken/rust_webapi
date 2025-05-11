@@ -1,0 +1,98 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# アプリケーション層コーディング規約
+
+アプリケーション層はユースケースを実装し、ドメイン層とプレゼンテーション層の間のインターフェースを提供します。
+
+## ユースケース定義
+
+ユースケースは以下の形式で定義します：
+
+```rust
+/// ユーザー作成ユースケース
+pub struct CreateUserUseCase<R: UserRepository> {
+    repository: R,
+}
+
+impl<R: UserRepository> CreateUserUseCase<R> {
+    /// 新しいインスタンスを作成
+    pub fn new(repository: R) -> Self {
+        Self { repository }
+    }
+
+    /// ユーザーを作成する
+    ///
+    /// # 引数
+    /// * `input` - ユーザー作成入力
+    ///
+    /// # 戻り値
+    /// * 作成されたユーザーID
+    pub async fn execute(&self, input: CreateUserInput) -> Result<String, Error> {
+        // ユースケースの実装
+        let user = User::new(
+            Uuid::new_v4().to_string(),
+            input.name,
+            input.email.try_into()?,
+        );
+
+        self.repository.save(&user).await?;
+        
+        Ok(user.id)
+    }
+}
+```
+
+## DTOの定義
+
+Data Transfer Objects（DTO）の例:
+
+```rust
+/// ユーザー作成入力データ
+#[derive(Debug, Clone)]
+pub struct CreateUserInput {
+    pub name: String,
+    pub email: String,
+}
+
+/// ユーザー詳細データ
+#[derive(Debug, Clone, Serialize)]
+pub struct UserDto {
+    pub id: String,
+    pub name: String,
+    pub email: String,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<User> for UserDto {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            name: user.name,
+            email: user.email.value().to_string(),
+            created_at: user.created_at,
+        }
+    }
+}
+```
+
+## 関数設計
+
+- 関数の最大長: 50行
+- 単一責任の原則に従う
+- 複雑な処理は小さな関数に分割
+
+## エラー処理
+
+- ドメインエラーの適切な変換
+- エラーメッセージは具体的に
+- エラーチェーンの維持
+
+## ドキュメンテーション
+
+- すべての公開要素にドキュメンテーションコメント必須
+- ユースケースの入力と出力の説明
+- 副作用の明示
+

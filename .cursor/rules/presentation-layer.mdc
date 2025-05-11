@@ -1,0 +1,141 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# プレゼンテーション層コーディング規約
+
+プレゼンテーション層はAPIエンドポイントを定義し、リクエスト/レスポンスの処理を担当します。
+
+## APIエンドポイント定義
+
+```rust
+/// ユーザー作成ハンドラ
+///
+/// 新しいユーザーを作成します。
+#[post("/users")]
+pub async fn create_user(
+    data: web::Data<AppState>,
+    payload: web::Json<CreateUserRequest>,
+) -> Result<HttpResponse, ApiError> {
+    let use_case = data.user_use_case();
+    
+    let input = CreateUserInput {
+        name: payload.name.clone(),
+        email: payload.email.clone(),
+    };
+    
+    let user_id = use_case
+        .execute(input)
+        .await
+        .map_err(|e| ApiError::Internal(e))?;
+    
+    Ok(HttpResponse::Created().json(CreateUserResponse { id: user_id }))
+}
+```
+
+## リクエスト/レスポンス定義
+
+```rust
+/// ユーザー作成リクエスト
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+    
+    #[validate(email)]
+    pub email: String,
+}
+
+/// ユーザー作成レスポンス
+#[derive(Debug, Serialize)]
+pub struct CreateUserResponse {
+    pub id: String,
+}
+```
+
+## エラーハンドリング
+
+カスタムエラー型を定義し、適切なHTTPステータスコードに変換します：
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum ApiError {
+    #[error("内部エラー: {0}")]
+    Internal(#[from] anyhow::Error),
+    
+    #[error("バリデーションエラー: {0}")]
+    Validation(String),
+    
+    #[error("認証エラー")]
+    Unauthorized,
+    
+    #[error("リソースが見つかりません: {0}")]
+    NotFound(String),
+}
+
+impl ResponseError for ApiError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Validation(_) => StatusCode::BAD_REQUEST,
+            ApiError::Unauthorized => StatusCode::UNAUTHORIZED,
+            ApiError::NotFound(_) => StatusCode::NOT_FOUND,
+        }
+    }
+    
+    fn error_response(&self) -> HttpResponse {
+        let status = self.status_code();
+        let error_response = ErrorResponse {
+            code: status.as_u16().to_string(),
+            message: self.to_string(),
+        };
+        
+        HttpResponse::build(status).json(error_response)
+    }
+}
+```
+
+## バリデーション
+
+- リクエストデータの検証
+- 適切なエラーメッセージの返却
+- クロスフィールドバリデーション
+
+```rust
+pub async fn create_user(
+    payload: web::Json<CreateUserRequest>,
+) -> Result<HttpResponse, ApiError> {
+    payload.validate().map_err(|e| {
+        ApiError::Validation(e.to_string())
+    })?;
+    
+    // 処理続行
+}
+```
+
+## ルーティング設定
+
+APIルートを適切にグループ化します：
+
+```rust
+pub fn configure_routes(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/api")
+            .service(
+                web::scope("/users")
+                    .service(create_user)
+                    .service(get_user)
+                    .service(update_user)
+                    .service(delete_user)
+            )
+            .service(
+                web::scope("/items")
+                    .service(create_item)
+                    .service(get_items)
+                    // その他のアイテム関連エンドポイント
+            )
+    );
+}
+```
+
