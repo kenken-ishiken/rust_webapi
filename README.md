@@ -125,6 +125,14 @@ curl -X POST http://127.0.0.1:8080/api/items \
 - **メトリクス**：Prometheus エクスポート（`/api/metrics` エンドポイント）
 - **トレーシング**：OpenTelemetry 対応（分散トレーシング）
 
+### Datadog 連携
+
+Datadog Agent を起動し、環境変数 `OTEL_EXPORTER_OTLP_ENDPOINT`
+（例: `http://localhost:4317`）を指定することで、
+アプリケーションから Datadog へトレースを送信できます。
+ログは JSON 形式で標準出力に出力されるため、
+Agent のログ収集機能を利用すればトレースと自動的に関連付けられます。
+
 詳細な可観測性の設計と実装ガイドは [o11y.md](o11y.md) を参照してください。
 
 ## 開発

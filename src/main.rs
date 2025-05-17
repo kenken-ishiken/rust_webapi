@@ -7,9 +7,6 @@ use std::sync::Arc;
 use dotenvy::dotenv;
 // Tracing for structured logging
 use tracing::{info, error};
-use tracing_log::LogTracer;
-use tracing_subscriber::{EnvFilter, fmt};
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_actix_web::TracingLogger;
 use sqlx::postgres::PgPoolOptions;
 
@@ -23,6 +20,7 @@ use crate::infrastructure::metrics::{
     increment_error_counter,
     observe_request_duration,
 };
+use crate::infrastructure::tracing::init_tracing;
 use std::time::Instant;
 use actix_web::dev::Service;
 
@@ -43,21 +41,9 @@ async fn main() -> std::io::Result<()> {
     // 環境変数の読み込み
     dotenv().ok();
 
-    // Initialize LogTracer to capture log crate events in tracing
-    LogTracer::init().expect("Failed to initialize LogTracer");
-    // Initialize tracing subscriber for structured JSON logging
-    // Initialize tracing subscriber for structured JSON logging; ignore if already set
-    if let Err(e) = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .json()
-        .with_timer(fmt::time::UtcTime::rfc_3339())
-        .with_current_span(true)
-        .with_span_events(FmtSpan::ENTER | FmtSpan::EXIT)
-        .try_init()
-    {
-        eprintln!("Warning: failed to install tracing subscriber (may already be set): {:?}", e);
-    }
-    info!("Structured JSON logging initialized");
+    // Initialize tracing and OpenTelemetry (Datadog compatible)
+    init_tracing().expect("failed to initialize tracing");
+    info!("Tracing initialized");
     
     init_metrics();
     info!("Metrics initialized");
