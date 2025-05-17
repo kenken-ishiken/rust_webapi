@@ -168,7 +168,7 @@ cargo clippy --all-targets -- -D warnings
 詳細なデプロイ手順は [k8s/README.md](k8s/README.md) を参照してください。
 
 ## コントリビューション
-Issue や Pull Request は歓迎です。CONTRIBUTING.md は現在作成中ですが、以下の点にご協力ください：
+Issue や Pull Request は歓迎です。詳細な手順は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。以下の点にご協力ください：
 
 - コードスタイルは `rustfmt` と `clippy` に準拠
 - 新機能には単体テストを追加
