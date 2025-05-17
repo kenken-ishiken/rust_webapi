@@ -88,7 +88,7 @@ cargo run
   - `item_service.rs`: アイテム関連のビジネスロジック
   - `user_service.rs`: ユーザー関連のビジネスロジック
 
-### 3. ドメイン層 (`src/domain`)
+### 3. ドメイン層 (`src/app_domain`)
 
 - ビジネスエンティティの定義
 - リポジトリインターフェースの定義
@@ -121,10 +121,10 @@ cargo run
 
 ### 1. ドメインモデルの定義
 
-`src/domain/model/`に新しいエンティティを定義します。
+`src/app_domain/model/`に新しいエンティティを定義します。
 
 ```rust
-// src/domain/model/product.rs
+// src/app_domain/model/product.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -139,7 +139,7 @@ pub struct Product {
 モジュール定義も忘れずに更新します：
 
 ```rust
-// src/domain/model/mod.rs
+// src/app_domain/model/mod.rs
 pub mod item;
 pub mod user;
 pub mod product; // 追加
@@ -147,10 +147,10 @@ pub mod product; // 追加
 
 ### 2. リポジトリインターフェースの定義
 
-`src/domain/repository/`に新しいリポジトリトレイトを定義します。
+`src/app_domain/repository/`に新しいリポジトリトレイトを定義します。
 
 ```rust
-// src/domain/repository/product_repository.rs
+// src/app_domain/repository/product_repository.rs
 use async_trait::async_trait;
 use crate::domain::model::product::Product;
 
@@ -166,7 +166,7 @@ pub trait ProductRepository: Send + Sync {
 モジュール定義も更新します：
 
 ```rust
-// src/domain/repository/mod.rs
+// src/app_domain/repository/mod.rs
 pub mod item_repository;
 pub mod user_repository;
 pub mod product_repository; // 追加

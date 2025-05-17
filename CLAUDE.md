@@ -49,7 +49,7 @@ The project uses PostgreSQL with sqlx. The database schema is defined in:
 
 This project follows Domain-Driven Design principles with a layered architecture:
 
-1. **Domain Layer** (`crates/domain/` and `src/domain/`)
+1. **Domain Layer** (`crates/domain/` and `src/app_domain/`)
    - Business entities and value objects
    - Repository interfaces (traits)
    - Pure business logic
@@ -61,7 +61,7 @@ This project follows Domain-Driven Design principles with a layered architecture
 3. **Infrastructure Layer** (`src/infrastructure/`)
    - Repository implementations using PostgreSQL
    - Authentication with Keycloak
-   - Logging and metrics using tracing, slog, and Prometheus
+   - Logging and metrics using tracing and Prometheus (slog utilities remain for reference)
    - Configuration management
 
 4. **Presentation Layer** (`src/presentation/`)
@@ -98,7 +98,7 @@ JWT authentication using Keycloak:
 ### Observability
 
 The project implements comprehensive observability via:
-- **Logging**: Structured JSON logging with `tracing` and `slog`
+- **Logging**: Structured JSON logging with `tracing` (slog utilities kept for reference)
 - **Metrics**: Prometheus metrics exposed at `/api/metrics`
 - **Tracing**: OpenTelemetry integration for distributed tracing
 
@@ -108,7 +108,7 @@ The application uses environment variables for configuration, typically loaded f
 
 ```
 DATABASE_URL=postgres://postgres:password@postgres:5432/rustwebapi
-KEYCLOAK_URL=http://localhost:8081
+KEYCLOAK_AUTH_SERVER_URL=http://localhost:8081
 KEYCLOAK_REALM=rust-webapi
 KEYCLOAK_CLIENT_ID=api-client
 ```
