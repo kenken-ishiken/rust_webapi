@@ -67,7 +67,7 @@ curl http://127.0.0.1:8080/
 # 環境変数ファイル作成
 cat > .env << EOF
 DATABASE_URL=postgres://postgres:password@postgres:5432/rustwebapi
-KEYCLOAK_URL=http://localhost:8081
+KEYCLOAK_AUTH_SERVER_URL=http://localhost:8081
 KEYCLOAK_REALM=rust-webapi
 KEYCLOAK_CLIENT_ID=api-client
 EOF
@@ -121,7 +121,7 @@ curl -X POST http://127.0.0.1:8080/api/items \
 
 本プロジェクトは包括的な可観測性を実現するため、以下の機能を提供しています：
 
-- **ログ**：`tracing` / `slog` による JSON 構造化ログ
+- **ログ**：`tracing` による JSON 構造化ログ（slog 用ユーティリティは参考用に残置）
 - **メトリクス**：Prometheus エクスポート（`/api/metrics` エンドポイント）
 - **トレーシング**：OpenTelemetry 対応（分散トレーシング）
 
