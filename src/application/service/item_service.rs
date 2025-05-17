@@ -56,7 +56,13 @@ impl ItemService {
             if let Some(description) = req.description {
                 item.description = Some(description);
             }
-            self.repository.update(item).await
+            let updated = self.repository.update(item).await;
+            if updated.is_some() {
+                increment_success_counter("item", "update");
+            } else {
+                increment_error_counter("item", "update");
+            }
+            updated
         } else {
             increment_error_counter("item", "update");
             None
