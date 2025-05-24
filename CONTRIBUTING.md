@@ -46,7 +46,7 @@ cargo fmt
 cargo clippy --all-targets -- -D warnings
 ```
 
-可観測性の仕組みやトレース設定の詳細は `o11y.md` を参照してください。
+可観測性の仕組みやトレース設定の詳細は `docs/operations-guide.md` および `o11y.md` を参照してください。
 
 ## コーディング規約
 
