@@ -3,6 +3,10 @@ name = "rust_webapi"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+testing = []
+
 [dependencies]
 actix-web = "4.4.0"
 actix-rt = "2.9.0"
