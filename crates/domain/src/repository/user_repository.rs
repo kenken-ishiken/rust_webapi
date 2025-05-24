@@ -204,6 +204,8 @@ mod tests {
             email: "multi@example.com".to_string(),
         };
 
+        let user_clone = user.clone();
+        
         let mut mock_repo = MockUserRepo::new();
         
         // Expect create operation
@@ -214,7 +216,7 @@ mod tests {
         // Expect find operation
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(move |_| Some(user.clone()));
+            .return_once(move |_| Some(user_clone.clone()));
 
         // Perform operations
         let created = mock_repo.create(user.clone()).await;
