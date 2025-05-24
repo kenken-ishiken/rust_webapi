@@ -4,10 +4,11 @@
 
 ## 利用可能なドキュメント
 
-- [API リファレンス](api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例
+- [API リファレンス](api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例、curl使用例
 - [アーキテクチャガイド](architecture-guide.md) - システム設計、データフロー、コンポーネント構成
 - [開発ガイド](development-guide.md) - 開発環境のセットアップ、テスト、デバッグ
 - [運用ガイド](operations-guide.md) - デプロイ、監視、バックアップ、スケーリング
+- [Keycloakセットアップガイド](keycloak-setup.md) - Keycloak認証サーバーの設定と連携方法
 
 ## その他の関連ドキュメント
 

@@ -39,13 +39,9 @@ curl http://127.0.0.1:8080/
 
 ### Docker Compose 実行（PostgreSQL 含む）
 ```bash
-# 環境変数ファイル作成
-cat > .env << EOF
-DATABASE_URL=******postgres:5432/rustwebapi
-KEYCLOAK_AUTH_SERVER_URL=http://localhost:8081
-KEYCLOAK_REALM=rust-webapi
-KEYCLOAK_CLIENT_ID=api-client
-EOF
+# 環境変数ファイル作成（.env.example をコピーして編集）
+cp .env.example .env
+# .env ファイルを編集して実際の値を設定
 
 # コンテナ起動
 docker-compose up -d
@@ -61,10 +57,11 @@ curl http://localhost:8080/
 
 プロジェクトに関する詳細なドキュメントは以下を参照してください：
 
-- [API リファレンス](docs/api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例
+- [API リファレンス](docs/api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例、curl使用例
 - [アーキテクチャガイド](docs/architecture-guide.md) - システム設計、データフロー、コンポーネント構成
 - [開発ガイド](docs/development-guide.md) - 開発環境のセットアップ、テスト、デバッグ
 - [運用ガイド](docs/operations-guide.md) - デプロイ、監視、バックアップ、スケーリング
+- [Keycloakセットアップガイド](docs/keycloak-setup.md) - Keycloak認証サーバーの設定と連携方法
 
 その他の重要なドキュメント：
 - [可観測性ガイド](o11y.md) - ログ、メトリクス、トレーシングの実装と運用
