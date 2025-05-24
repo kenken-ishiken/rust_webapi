@@ -62,7 +62,7 @@ impl PostgresItemRepository {
     }
 
     // テーブルを初期化するメソッド（テスト用）
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub async fn init_table(&self) -> Result<(), sqlx::Error> {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS items (
