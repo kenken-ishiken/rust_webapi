@@ -45,6 +45,14 @@ cargo clippy --all-targets -- -D warnings
 The project uses PostgreSQL with sqlx. The database schema is defined in:
 - `initdb/01_create_tables.sql`
 
+## Documentation
+
+Detailed documentation is available in the `docs/` directory:
+- `docs/api-reference.md`: API endpoint specifications
+- `docs/architecture-guide.md`: System architecture and design
+- `docs/development-guide.md`: Development workflow and tools
+- `docs/operations-guide.md`: Deployment and operations
+
 ## Architecture
 
 This project follows Domain-Driven Design principles with a layered architecture:

@@ -14,12 +14,11 @@
 │   ├── infrastructure/ # インフラ層（DB、認証、ロギング）
 │   └── presentation/   # プレゼンテーション層（API ハンドラ）
 ├── crates/domain/      # ドメイン層サブクレート
+├── docs/               # 詳細ドキュメント
 ├── k8s/                # Kubernetes マニフェスト
 ├── initdb/             # DB 初期化 SQL
 ├── scripts/            # 補助スクリプト
-├── o11y.md             # 可観測性ガイド
-├── Dockerfile          # コンテナイメージ定義
-├── docker-compose.yml  # ローカル開発環境
+├── tests/              # 統合テスト
 ```
 
 詳細な責務は `.github/directorystructure.md` を参照してください。
@@ -57,6 +56,7 @@ cargo clippy --all-targets -- -D warnings
 
 ## さらに学ぶべきこと
 
+- 詳細なドキュメントは `docs/` ディレクトリを参照してください。
 - 認証機構：`src/infrastructure/auth/` の実装を確認してください。
 - テスト：`tests/` ディレクトリには統合テストの例があります。
 - Kubernetes デプロイ：`k8s/README.md` に本番環境向けの手順があります。
