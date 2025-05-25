@@ -45,6 +45,8 @@ opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic"] }
 tracing-opentelemetry = "0.30.0"
 domain = { path = "crates/domain" }
 mockall = "0.11.4"
+rust_decimal = { version = "1.32", features = ["serde-with-str"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
 
 [dev-dependencies]
 tokio-test = "0.4.3"

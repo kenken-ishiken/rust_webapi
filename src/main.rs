@@ -42,6 +42,11 @@ use crate::infrastructure::repository::category_repository::PostgresCategoryRepo
 use crate::application::service::category_service::CategoryService;
 use crate::presentation::api::category_handler::{CategoryHandler, configure_category_routes};
 
+use crate::app_domain::repository::product_repository::ProductRepository;
+use crate::infrastructure::repository::product_repository::PostgresProductRepository;
+use crate::application::service::product_service::ProductService;
+use crate::presentation::api::product_handler::{ProductHandler, configure_product_routes};
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 環境変数の読み込み
@@ -75,11 +80,13 @@ async fn main() -> std::io::Result<()> {
     let item_repository: ItemRepositoryImpl = Arc::new(PostgresItemRepository::new(pool.clone()));
     let user_repository: UserRepositoryImpl = Arc::new(PostgresUserRepository::new(pool.clone()));
     let category_repository: Arc<dyn CategoryRepository> = Arc::new(PostgresCategoryRepository::new(pool.clone()));
+    let product_repository: Arc<dyn ProductRepository> = Arc::new(PostgresProductRepository::new(pool.clone()));
 
     // サービスの作成
     let item_service = Arc::new(ItemService::new(item_repository.clone()));
     let user_service = Arc::new(UserService::new(user_repository.clone()));
     let category_service = Arc::new(CategoryService::new(category_repository.clone()));
+    let product_service = Arc::new(ProductService::new(product_repository.clone()));
 
     // Keycloak認証の設定
     let keycloak_config = KeycloakConfig::from_env();
@@ -89,6 +96,7 @@ async fn main() -> std::io::Result<()> {
     let item_handler = web::Data::new(ItemHandler::new(item_service.clone()));
     let user_handler = web::Data::new(UserHandler::new(user_service.clone()));
     let category_handler = web::Data::new(CategoryHandler::new(category_service.clone()));
+    let product_handler = web::Data::new(ProductHandler::new(product_service.clone()));
 
     info!("サーバーを開始します: http://127.0.0.1:8080");
 
@@ -98,6 +106,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(item_handler.clone())
             .app_data(user_handler.clone())
             .app_data(category_handler.clone())
+            .app_data(product_handler.clone())
             .app_data(keycloak_auth.clone())
             // HTTP request tracing middleware
             .wrap(TracingLogger::default())
@@ -143,6 +152,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/users/{id}", web::delete().to(UserHandler::delete_user))
             )
             .configure(configure_category_routes)
+            .configure(configure_product_routes)
     })
     .bind("127.0.0.1:8080")?
     .run()
