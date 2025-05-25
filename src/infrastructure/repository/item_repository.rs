@@ -22,12 +22,17 @@ impl InMemoryItemRepository {
 impl ItemRepository for InMemoryItemRepository {
     async fn find_all(&self) -> Vec<Item> {
         let items = self.items.lock().unwrap();
-        items.values().cloned().collect()
+        items.values()
+            .filter(|item| !item.deleted)
+            .cloned()
+            .collect()
     }
 
     async fn find_by_id(&self, id: u64) -> Option<Item> {
         let items = self.items.lock().unwrap();
-        items.get(&id).cloned()
+        items.get(&id)
+            .filter(|item| !item.deleted)
+            .cloned()
     }
 
     async fn create(&self, item: Item) -> Item {
@@ -38,17 +43,92 @@ impl ItemRepository for InMemoryItemRepository {
 
     async fn update(&self, item: Item) -> Option<Item> {
         let mut items = self.items.lock().unwrap();
-        if items.contains_key(&item.id) {
-            items.insert(item.id, item.clone());
-            Some(item)
-        } else {
-            None
+        if let Some(existing) = items.get(&item.id) {
+            if !existing.deleted {
+                items.insert(item.id, item.clone());
+                return Some(item);
+            }
         }
+        None
     }
 
     async fn delete(&self, id: u64) -> bool {
+        // For backward compatibility, we'll make this perform a physical delete
+        self.physical_delete(id).await
+    }
+    
+    async fn logical_delete(&self, id: u64) -> bool {
+        let mut items = self.items.lock().unwrap();
+        if let Some(mut item) = items.get(&id).cloned() {
+            if !item.deleted {
+                item.deleted = true;
+                item.deleted_at = Some(chrono::Utc::now());
+                items.insert(id, item);
+                return true;
+            }
+        }
+        false
+    }
+    
+    async fn physical_delete(&self, id: u64) -> bool {
         let mut items = self.items.lock().unwrap();
         items.remove(&id).is_some()
+    }
+    
+    async fn restore(&self, id: u64) -> bool {
+        let mut items = self.items.lock().unwrap();
+        if let Some(mut item) = items.get(&id).cloned() {
+            if item.deleted {
+                item.deleted = false;
+                item.deleted_at = None;
+                items.insert(id, item);
+                return true;
+            }
+        }
+        false
+    }
+    
+    async fn find_deleted(&self) -> Vec<Item> {
+        let items = self.items.lock().unwrap();
+        items.values()
+            .filter(|item| item.deleted)
+            .cloned()
+            .collect()
+    }
+    
+    async fn validate_deletion(&self, _id: u64) -> DeletionValidation {
+        // Simplified implementation for in-memory repository
+        DeletionValidation {
+            can_delete: true,
+            related_data: RelatedDataCount {
+                related_orders: 0,
+                related_reviews: 0,
+                related_categories: 0,
+            },
+        }
+    }
+    
+    async fn batch_delete(&self, ids: Vec<u64>, is_physical: bool) -> Vec<u64> {
+        let mut successful_ids = Vec::new();
+        
+        for id in ids {
+            let success = if is_physical {
+                self.physical_delete(id).await
+            } else {
+                self.logical_delete(id).await
+            };
+            
+            if success {
+                successful_ids.push(id);
+            }
+        }
+        
+        successful_ids
+    }
+    
+    async fn get_deletion_logs(&self, _item_id: Option<u64>) -> Vec<DeletionLog> {
+        // In-memory implementation doesn't track deletion logs
+        Vec::new()
     }
 }
 
@@ -69,7 +149,23 @@ impl PostgresItemRepository {
             "CREATE TABLE IF NOT EXISTS items (
                 id BIGINT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
-                description TEXT
+                description TEXT,
+                deleted BOOLEAN NOT NULL DEFAULT FALSE,
+                deleted_at TIMESTAMP WITH TIME ZONE
+            )"
+        )
+        .execute(&self.pool)
+        .await
+        .map(|_| ())?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS deletion_logs (
+                id SERIAL PRIMARY KEY,
+                item_id BIGINT NOT NULL,
+                item_name VARCHAR(255) NOT NULL,
+                deletion_type VARCHAR(20) NOT NULL,
+                deleted_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                deleted_by VARCHAR(255) NOT NULL
             )"
         )
         .execute(&self.pool)
@@ -81,7 +177,7 @@ impl PostgresItemRepository {
 #[async_trait]
 impl ItemRepository for PostgresItemRepository {
     async fn find_all(&self) -> Vec<Item> {
-        let result = sqlx::query("SELECT id, name, description FROM items")
+        let result = sqlx::query("SELECT id, name, description, deleted, deleted_at FROM items WHERE deleted = FALSE")
             .fetch_all(&self.pool)
             .await;
             
@@ -92,6 +188,8 @@ impl ItemRepository for PostgresItemRepository {
                         id: row.get::<i64, _>("id") as u64,
                         name: row.get("name"),
                         description: row.get("description"),
+                        deleted: row.get("deleted"),
+                        deleted_at: row.get("deleted_at"),
                     })
                     .collect()
             }
@@ -103,7 +201,7 @@ impl ItemRepository for PostgresItemRepository {
     }
 
     async fn find_by_id(&self, id: u64) -> Option<Item> {
-        let result = sqlx::query("SELECT id, name, description FROM items WHERE id = $1")
+        let result = sqlx::query("SELECT id, name, description, deleted, deleted_at FROM items WHERE id = $1 AND deleted = FALSE")
             .bind(id as i64)
             .fetch_optional(&self.pool)
             .await;
@@ -113,6 +211,8 @@ impl ItemRepository for PostgresItemRepository {
                 id: row.get::<i64, _>("id") as u64,
                 name: row.get("name"),
                 description: row.get("description"),
+                deleted: row.get("deleted"),
+                deleted_at: row.get("deleted_at"),
             }),
             Ok(None) => None,
             Err(e) => {
@@ -124,11 +224,13 @@ impl ItemRepository for PostgresItemRepository {
 
     async fn create(&self, item: Item) -> Item {
         let result = sqlx::query(
-                "INSERT INTO items (id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description"
+                "INSERT INTO items (id, name, description, deleted, deleted_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, deleted, deleted_at"
             )
             .bind(item.id as i64)
             .bind(&item.name)
             .bind(&item.description)
+            .bind(item.deleted)
+            .bind(&item.deleted_at)
             .fetch_one(&self.pool)
             .await;
             
@@ -137,6 +239,8 @@ impl ItemRepository for PostgresItemRepository {
                 id: row.get::<i64, _>("id") as u64,
                 name: row.get("name"),
                 description: row.get("description"),
+                deleted: row.get("deleted"),
+                deleted_at: row.get("deleted_at"),
             },
             Err(e) => {
                 log::error!("Error creating item: {}", e);
@@ -147,11 +251,13 @@ impl ItemRepository for PostgresItemRepository {
 
     async fn update(&self, item: Item) -> Option<Item> {
         let result = sqlx::query(
-                "UPDATE items SET name = $2, description = $3 WHERE id = $1 RETURNING id, name, description"
+                "UPDATE items SET name = $2, description = $3, deleted = $4, deleted_at = $5 WHERE id = $1 AND deleted = FALSE RETURNING id, name, description, deleted, deleted_at"
             )
             .bind(item.id as i64)
             .bind(&item.name)
             .bind(&item.description)
+            .bind(item.deleted)
+            .bind(&item.deleted_at)
             .fetch_optional(&self.pool)
             .await;
             
@@ -160,6 +266,8 @@ impl ItemRepository for PostgresItemRepository {
                 id: row.get::<i64, _>("id") as u64,
                 name: row.get("name"),
                 description: row.get("description"),
+                deleted: row.get("deleted"),
+                deleted_at: row.get("deleted_at"),
             }),
             Ok(None) => None,
             Err(e) => {
@@ -170,15 +278,220 @@ impl ItemRepository for PostgresItemRepository {
     }
 
     async fn delete(&self, id: u64) -> bool {
+        // For backward compatibility, we'll make this method perform a physical delete
+        self.physical_delete(id).await
+    }
+    
+    async fn logical_delete(&self, id: u64) -> bool {
+        let now = chrono::Utc::now();
+        let result = sqlx::query(
+            "UPDATE items SET deleted = TRUE, deleted_at = $2 WHERE id = $1 AND deleted = FALSE"
+        )
+        .bind(id as i64)
+        .bind(now)
+        .execute(&self.pool)
+        .await;
+
+        match result {
+            Ok(res) => {
+                if res.rows_affected() > 0 {
+                    // Log the deletion
+                    self.log_deletion(id, "Logical", "system").await;
+                    true
+                } else {
+                    false
+                }
+            },
+            Err(e) => {
+                log::error!("Error logically deleting item {}: {}", id, e);
+                false
+            }
+        }
+    }
+    
+    async fn physical_delete(&self, id: u64) -> bool {
+        // Get the item name before deletion for logging
+        let item = self.find_by_id(id).await;
+        
         let result = sqlx::query("DELETE FROM items WHERE id = $1")
             .bind(id as i64)
             .execute(&self.pool)
             .await;
 
         match result {
-            Ok(res) => res.rows_affected() > 0,
+            Ok(res) => {
+                if res.rows_affected() > 0 && item.is_some() {
+                    // Log the deletion if the item existed
+                    self.log_deletion(id, "Physical", "system").await;
+                    true
+                } else {
+                    res.rows_affected() > 0
+                }
+            },
             Err(e) => {
-                log::error!("Error deleting item {}: {}", id, e);
+                log::error!("Error physically deleting item {}: {}", id, e);
+                false
+            }
+        }
+    }
+    
+    async fn restore(&self, id: u64) -> bool {
+        let result = sqlx::query(
+            "UPDATE items SET deleted = FALSE, deleted_at = NULL WHERE id = $1 AND deleted = TRUE"
+        )
+        .bind(id as i64)
+        .execute(&self.pool)
+        .await;
+
+        match result {
+            Ok(res) => {
+                if res.rows_affected() > 0 {
+                    // Log the restoration
+                    self.log_deletion(id, "Restore", "system").await;
+                    true
+                } else {
+                    false
+                }
+            },
+            Err(e) => {
+                log::error!("Error restoring item {}: {}", id, e);
+                false
+            }
+        }
+    }
+    
+    async fn find_deleted(&self) -> Vec<Item> {
+        let result = sqlx::query("SELECT id, name, description, deleted, deleted_at FROM items WHERE deleted = TRUE")
+            .fetch_all(&self.pool)
+            .await;
+            
+        match result {
+            Ok(rows) => {
+                rows.iter()
+                    .map(|row| Item {
+                        id: row.get::<i64, _>("id") as u64,
+                        name: row.get("name"),
+                        description: row.get("description"),
+                        deleted: row.get("deleted"),
+                        deleted_at: row.get("deleted_at"),
+                    })
+                    .collect()
+            }
+            Err(e) => {
+                log::error!("Error fetching deleted items: {}", e);
+                vec![]
+            }
+        }
+    }
+    
+    async fn validate_deletion(&self, id: u64) -> DeletionValidation {
+        // This is a placeholder implementation. In a real application,
+        // you would check for related entities like orders, reviews, etc.
+        let related_data = RelatedDataCount {
+            related_orders: 0,
+            related_reviews: 0,
+            related_categories: 0,
+        };
+        
+        DeletionValidation {
+            can_delete: true,
+            related_data,
+        }
+    }
+    
+    async fn batch_delete(&self, ids: Vec<u64>, is_physical: bool) -> Vec<u64> {
+        let mut successful_deletions = Vec::new();
+        
+        for id in ids {
+            let success = if is_physical {
+                self.physical_delete(id).await
+            } else {
+                self.logical_delete(id).await
+            };
+            
+            if success {
+                successful_deletions.push(id);
+            }
+        }
+        
+        successful_deletions
+    }
+    
+    async fn get_deletion_logs(&self, item_id: Option<u64>) -> Vec<DeletionLog> {
+        let query = match item_id {
+            Some(id) => {
+                sqlx::query("SELECT id, item_id, item_name, deletion_type, deleted_at, deleted_by FROM deletion_logs WHERE item_id = $1 ORDER BY deleted_at DESC")
+                    .bind(id as i64)
+            },
+            None => {
+                sqlx::query("SELECT id, item_id, item_name, deletion_type, deleted_at, deleted_by FROM deletion_logs ORDER BY deleted_at DESC")
+            }
+        };
+        
+        let result = query.fetch_all(&self.pool).await;
+        
+        match result {
+            Ok(rows) => {
+                rows.iter()
+                    .map(|row| {
+                        let deletion_type_str: String = row.get("deletion_type");
+                        let deletion_type = match deletion_type_str.as_str() {
+                            "Logical" => DeletionType::Logical,
+                            "Physical" => DeletionType::Physical,
+                            "Restore" => DeletionType::Restore,
+                            _ => DeletionType::Logical, // Default
+                        };
+                        
+                        DeletionLog {
+                            id: row.get::<i64, _>("id") as u64,
+                            item_id: row.get::<i64, _>("item_id") as u64,
+                            item_name: row.get("item_name"),
+                            deletion_type,
+                            deleted_at: row.get("deleted_at"),
+                            deleted_by: row.get("deleted_by"),
+                        }
+                    })
+                    .collect()
+            },
+            Err(e) => {
+                log::error!("Error fetching deletion logs: {}", e);
+                vec![]
+            }
+        }
+    }
+    
+    // Helper method to log deletions
+    async fn log_deletion(&self, item_id: u64, deletion_type: &str, deleted_by: &str) -> bool {
+        // Get the item name for logging
+        let item_name = match self.find_by_id(item_id).await {
+            Some(item) => item.name,
+            None => {
+                // Try to find in deleted items
+                let deleted_items = self.find_deleted().await;
+                deleted_items.iter()
+                    .find(|item| item.id == item_id)
+                    .map(|item| item.name.clone())
+                    .unwrap_or_else(|| format!("Unknown Item {}", item_id))
+            }
+        };
+        
+        let now = chrono::Utc::now();
+        
+        let result = sqlx::query(
+            "INSERT INTO deletion_logs (item_id, item_name, deletion_type, deleted_at, deleted_by) VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(item_id as i64)
+        .bind(&item_name)
+        .bind(deletion_type)
+        .bind(now)
+        .bind(deleted_by)
+        .execute(&self.pool)
+        .await;
+        
+        match result {
+            Ok(_) => true,
+            Err(e) => {
+                log::error!("Error logging deletion for item {}: {}", item_id, e);
                 false
             }
         }
