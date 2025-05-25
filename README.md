@@ -75,7 +75,7 @@ curl http://localhost:8080/
 ├── src/                # メインアプリケーション
 │   ├── main.rs         # エントリポイント
 │   ├── application/    # アプリケーション層（DTO、サービス）
-│   ├── domain/         # ドメイン層（モデル、リポジトリインターフェース）
+│   ├── app_domain/     # ドメイン層（モデル、リポジトリインターフェース）
 │   ├── infrastructure/ # インフラ層（DB、認証、ロギング）
 │   └── presentation/   # プレゼンテーション層（API ハンドラ）
 ├── crates/domain/      # ドメイン層サブクレート
