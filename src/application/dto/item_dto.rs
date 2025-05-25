@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct CreateItemRequest {
@@ -17,6 +18,38 @@ pub struct ItemResponse {
     pub id: u64,
     pub name: String,
     pub description: Option<String>,
+    pub deleted: bool,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub struct BatchDeleteRequest {
+    pub ids: Vec<u64>,
+    pub is_physical: Option<bool>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct BatchDeleteResponse {
+    pub successful_ids: Vec<u64>,
+    pub failed_ids: Vec<u64>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct DeletionValidationResponse {
+    pub can_delete: bool,
+    pub related_orders: i64,
+    pub related_reviews: i64,
+    pub related_categories: i64,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct DeletionLogResponse {
+    pub id: u64,
+    pub item_id: u64,
+    pub item_name: String,
+    pub deletion_type: String,
+    pub deleted_at: DateTime<Utc>,
+    pub deleted_by: String,
 }
 
 #[cfg(test)]
@@ -67,10 +100,14 @@ mod tests {
             id: 1,
             name: "Test Item".to_string(),
             description: Some("Test Description".to_string()),
+            deleted: false,
+            deleted_at: None,
         };
 
         assert_eq!(resp.id, 1);
         assert_eq!(resp.name, "Test Item");
         assert_eq!(resp.description, Some("Test Description".to_string()));
+        assert_eq!(resp.deleted, false);
+        assert_eq!(resp.deleted_at, None);
     }
 }

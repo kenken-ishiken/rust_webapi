@@ -1,5 +1,2 @@
-pub struct Item {
-    pub id: u64,
-    pub name: String,
-    pub description: Option<String>,
-}
+// This file now uses the domain model directly.
+// All types have been moved to crates/domain/src/model/item.rs

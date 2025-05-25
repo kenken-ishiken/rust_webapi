@@ -2,7 +2,10 @@ use actix_web::{web, HttpResponse, Responder};
 use std::sync::Arc;
 use tracing::info;
 
-use crate::application::dto::item_dto::{CreateItemRequest, UpdateItemRequest};
+use crate::application::dto::item_dto::{
+    CreateItemRequest, UpdateItemRequest, BatchDeleteRequest, 
+    BatchDeleteResponse, DeletionValidationResponse, DeletionLogResponse
+};
 use crate::application::service::item_service::ItemService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
 
@@ -87,6 +90,102 @@ impl ItemHandler {
             HttpResponse::NotFound().json("アイテムが見つかりません")
         }
     }
+    
+    // New handlers for product deletion API
+    
+    pub async fn logical_delete_item(
+        data: web::Data<ItemHandler>,
+        path: web::Path<u64>,
+    ) -> impl Responder {
+        let item_id = path.into_inner();
+        if data.service.logical_delete(item_id).await {
+            info!("Logically deleted item {}", item_id);
+            HttpResponse::Ok().json("アイテムを論理削除しました")
+        } else {
+            info!("Item {} not found for logical deletion", item_id);
+            HttpResponse::NotFound().json("アイテムが見つかりません")
+        }
+    }
+    
+    pub async fn physical_delete_item(
+        data: web::Data<ItemHandler>,
+        path: web::Path<u64>,
+    ) -> impl Responder {
+        let item_id = path.into_inner();
+        if data.service.physical_delete(item_id).await {
+            info!("Physically deleted item {}", item_id);
+            HttpResponse::Ok().json("アイテムを物理削除しました")
+        } else {
+            info!("Item {} not found for physical deletion", item_id);
+            HttpResponse::NotFound().json("アイテムが見つかりません")
+        }
+    }
+    
+    pub async fn restore_item(
+        data: web::Data<ItemHandler>,
+        path: web::Path<u64>,
+    ) -> impl Responder {
+        let item_id = path.into_inner();
+        if data.service.restore(item_id).await {
+            info!("Restored item {}", item_id);
+            HttpResponse::Ok().json("アイテムを復元しました")
+        } else {
+            info!("Item {} not found for restoration", item_id);
+            HttpResponse::NotFound().json("アイテムが見つかりません")
+        }
+    }
+    
+    pub async fn validate_item_deletion(
+        data: web::Data<ItemHandler>,
+        path: web::Path<u64>,
+    ) -> impl Responder {
+        let item_id = path.into_inner();
+        match data.service.validate_deletion(item_id).await {
+            Some(validation) => {
+                info!("Validated deletion for item {}", item_id);
+                HttpResponse::Ok().json(validation)
+            },
+            None => {
+                info!("Item {} not found for deletion validation", item_id);
+                HttpResponse::NotFound().json("アイテムが見つかりません")
+            },
+        }
+    }
+    
+    pub async fn batch_delete_items(
+        data: web::Data<ItemHandler>,
+        req: web::Json<BatchDeleteRequest>,
+    ) -> impl Responder {
+        let result = data.service.batch_delete(req.into_inner()).await;
+        info!("Batch deleted {} items", result.successful_ids.len());
+        HttpResponse::Ok().json(result)
+    }
+    
+    pub async fn get_deleted_items(
+        data: web::Data<ItemHandler>,
+    ) -> impl Responder {
+        let deleted_items = data.service.find_deleted().await;
+        info!("Fetched {} deleted items", deleted_items.len());
+        HttpResponse::Ok().json(deleted_items)
+    }
+    
+    pub async fn get_item_deletion_log(
+        data: web::Data<ItemHandler>,
+        path: web::Path<u64>,
+    ) -> impl Responder {
+        let item_id = path.into_inner();
+        let logs = data.service.get_deletion_logs(Some(item_id)).await;
+        info!("Fetched {} deletion logs for item {}", logs.len(), item_id);
+        HttpResponse::Ok().json(logs)
+    }
+    
+    pub async fn get_deletion_logs(
+        data: web::Data<ItemHandler>,
+    ) -> impl Responder {
+        let logs = data.service.get_deletion_logs(None).await;
+        info!("Fetched {} deletion logs", logs.len());
+        HttpResponse::Ok().json(logs)
+    }
 }
 
 #[cfg(test)]
@@ -94,12 +193,13 @@ mod tests {
     use super::*;
     use actix_web::{test, web, http::StatusCode};
     use crate::application::service::item_service::ItemService;
-    use domain::model::item::Item;
+    use domain::model::item::{Item, DeletionValidation, RelatedDataCount, DeletionLog, DeletionType};
     use mockall::mock;
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;
     use domain::repository::item_repository::ItemRepository;
+    use chrono::Utc;
 
     mock! {
         ItemRep {}
@@ -110,6 +210,13 @@ mod tests {
             async fn create(&self, item: Item) -> Item;
             async fn update(&self, item: Item) -> Option<Item>;
             async fn delete(&self, id: u64) -> bool;
+            async fn logical_delete(&self, id: u64) -> bool;
+            async fn physical_delete(&self, id: u64) -> bool;
+            async fn restore(&self, id: u64) -> bool;
+            async fn find_deleted(&self) -> Vec<Item>;
+            async fn validate_deletion(&self, id: u64) -> DeletionValidation;
+            async fn batch_delete(&self, ids: Vec<u64>, is_physical: bool) -> Vec<u64>;
+            async fn get_deletion_logs(&self, item_id: Option<u64>) -> Vec<DeletionLog>;
         }
     }
 
@@ -165,11 +272,15 @@ mod tests {
                 id: 1,
                 name: "Item 1".to_string(),
                 description: Some("Description 1".to_string()),
+                deleted: false,
+                deleted_at: None,
             },
             Item {
                 id: 2,
                 name: "Item 2".to_string(),
                 description: None,
+                deleted: false,
+                deleted_at: None,
             },
         ];
 
@@ -193,6 +304,8 @@ mod tests {
             id: 1,
             name: "Item 1".to_string(),
             description: Some("Description 1".to_string()),
+            deleted: false,
+            deleted_at: None,
         };
 
         let mut mock_repo = MockItemRep::new();
@@ -238,6 +351,8 @@ mod tests {
             id: 1,
             name: "New Item".to_string(),
             description: Some("New Description".to_string()),
+            deleted: false,
+            deleted_at: None,
         };
 
         let mut mock_repo = MockItemRep::new();
@@ -265,6 +380,8 @@ mod tests {
             id: 1,
             name: "Updated Item".to_string(),
             description: Some("Updated Description".to_string()),
+            deleted: false,
+            deleted_at: None,
         };
 
         let mut mock_repo = MockItemRep::new();
@@ -274,6 +391,8 @@ mod tests {
                 id: 1,
                 name: "Original Item".to_string(),
                 description: None,
+                deleted: false,
+                deleted_at: None,
             }));
 
         mock_repo.expect_update()
@@ -345,5 +464,184 @@ mod tests {
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+    
+    // Tests for new handlers
+    
+    #[actix_web::test]
+    async fn test_logical_delete_item_success() {
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_logical_delete()
+            .with(eq(1u64))
+            .return_once(|_| true);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+
+        let resp = ItemHandler::logical_delete_item(handler, path).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    
+    #[actix_web::test]
+    async fn test_physical_delete_item_success() {
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_physical_delete()
+            .with(eq(1u64))
+            .return_once(|_| true);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+
+        let resp = ItemHandler::physical_delete_item(handler, path).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    
+    #[actix_web::test]
+    async fn test_restore_item_success() {
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_restore()
+            .with(eq(1u64))
+            .return_once(|_| true);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+
+        let resp = ItemHandler::restore_item(handler, path).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    
+    #[actix_web::test]
+    async fn test_validate_item_deletion() {
+        let validation = DeletionValidation {
+            can_delete: true,
+            related_data: RelatedDataCount {
+                related_orders: 0,
+                related_reviews: 0,
+                related_categories: 0,
+            },
+        };
+
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_find_by_id()
+            .with(eq(1u64))
+            .return_once(|_| Some(Item {
+                id: 1,
+                name: "Test Item".to_string(),
+                description: None,
+                deleted: false,
+                deleted_at: None,
+            }));
+            
+        mock_repo.expect_validate_deletion()
+            .with(eq(1u64))
+            .return_once(move |_| validation);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let path = web::Path::from(1u64);
+
+        let resp = ItemHandler::validate_item_deletion(handler, path).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    
+    #[actix_web::test]
+    async fn test_batch_delete_items() {
+        let req = BatchDeleteRequest {
+            ids: vec![1, 2, 3],
+            is_physical: Some(false),
+        };
+
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_batch_delete()
+            .with(eq(vec![1, 2, 3]), eq(false))
+            .return_once(move |_, _| vec![1, 3]);
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+        let json_req = web::Json(req);
+
+        let resp = ItemHandler::batch_delete_items(handler, json_req).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    
+    #[actix_web::test]
+    async fn test_get_deleted_items() {
+        let deleted_items = vec![
+            Item {
+                id: 1,
+                name: "Deleted Item 1".to_string(),
+                description: Some("Description 1".to_string()),
+                deleted: true,
+                deleted_at: Some(Utc::now()),
+            },
+            Item {
+                id: 2,
+                name: "Deleted Item 2".to_string(),
+                description: None,
+                deleted: true,
+                deleted_at: Some(Utc::now()),
+            },
+        ];
+
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_find_deleted()
+            .return_once(move || deleted_items.clone());
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+
+        let resp = ItemHandler::get_deleted_items(handler).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    
+    #[actix_web::test]
+    async fn test_get_deletion_logs() {
+        let now = Utc::now();
+        let logs = vec![
+            DeletionLog {
+                id: 1,
+                item_id: 1,
+                item_name: "Item 1".to_string(),
+                deletion_type: DeletionType::Logical,
+                deleted_at: now,
+                deleted_by: "test_user".to_string(),
+            },
+            DeletionLog {
+                id: 2,
+                item_id: 2,
+                item_name: "Item 2".to_string(),
+                deletion_type: DeletionType::Physical,
+                deleted_at: now,
+                deleted_by: "test_user".to_string(),
+            },
+        ];
+
+        let mut mock_repo = MockItemRep::new();
+        mock_repo.expect_get_deletion_logs()
+            .with(eq(None))
+            .return_once(move |_| logs.clone());
+
+        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
+        let handler = web::Data::new(ItemHandler::new(service));
+
+        let resp = ItemHandler::get_deletion_logs(handler).await;
+        let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
+
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }
