@@ -2,8 +2,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use sqlx::{PgPool, Row};
 use async_trait::async_trait;
-use domain::model::item::Item;
+use domain::model::item::{Item, DeletionValidation, RelatedDataCount, DeletionLog, DeletionType};
 use domain::repository::item_repository::ItemRepository;
+use chrono::Utc;
+use tracing::error;
 
 pub struct InMemoryItemRepository {
     items: Mutex<HashMap<u64, Item>>,
@@ -140,6 +142,37 @@ impl PostgresItemRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+    
+    // Helper method to log deletions
+    async fn log_deletion(&self, item_id: u64, deletion_type: &str, deleted_by: &str) -> Result<(), sqlx::Error> {
+        // Get the item name for logging
+        let item_name = match self.find_by_id(item_id).await {
+            Some(item) => item.name,
+            None => {
+                // Try to find in deleted items
+                let deleted_items = self.find_deleted().await;
+                deleted_items.iter()
+                    .find(|item| item.id == item_id)
+                    .map(|item| item.name.clone())
+                    .unwrap_or_else(|| format!("Unknown Item {}", item_id))
+            }
+        };
+        
+        let now = Utc::now();
+        
+        sqlx::query(
+            "INSERT INTO deletion_logs (item_id, item_name, deletion_type, deleted_at, deleted_by) VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(item_id as i64)
+        .bind(&item_name)
+        .bind(deletion_type)
+        .bind(now)
+        .bind(deleted_by)
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(())
+    }
 
     // テーブルを初期化するメソッド（テスト用）
     #[cfg(any(test, feature = "testing"))]
@@ -194,7 +227,7 @@ impl ItemRepository for PostgresItemRepository {
                     .collect()
             }
             Err(e) => {
-                log::error!("Error fetching all items: {}", e);
+                error!("Error fetching all items: {}", e);
                 vec![]
             }
         }
@@ -216,7 +249,7 @@ impl ItemRepository for PostgresItemRepository {
             }),
             Ok(None) => None,
             Err(e) => {
-                log::error!("Error finding item by id {}: {}", id, e);
+                error!("Error finding item by id {}: {}", id, e);
                 None
             }
         }
@@ -243,7 +276,7 @@ impl ItemRepository for PostgresItemRepository {
                 deleted_at: row.get("deleted_at"),
             },
             Err(e) => {
-                log::error!("Error creating item: {}", e);
+                error!("Error creating item: {}", e);
                 item
             }
         }
@@ -271,7 +304,7 @@ impl ItemRepository for PostgresItemRepository {
             }),
             Ok(None) => None,
             Err(e) => {
-                log::error!("Error updating item {}: {}", item.id, e);
+                error!("Error updating item {}: {}", item.id, e);
                 None
             }
         }
@@ -283,7 +316,7 @@ impl ItemRepository for PostgresItemRepository {
     }
     
     async fn logical_delete(&self, id: u64) -> bool {
-        let now = chrono::Utc::now();
+        let now = Utc::now();
         let result = sqlx::query(
             "UPDATE items SET deleted = TRUE, deleted_at = $2 WHERE id = $1 AND deleted = FALSE"
         )
@@ -296,14 +329,16 @@ impl ItemRepository for PostgresItemRepository {
             Ok(res) => {
                 if res.rows_affected() > 0 {
                     // Log the deletion
-                    self.log_deletion(id, "Logical", "system").await;
+                    if let Err(e) = self.log_deletion(id, "Logical", "system").await {
+                        error!("Failed to log logical deletion for item {}: {}", id, e);
+                    }
                     true
                 } else {
                     false
                 }
             },
             Err(e) => {
-                log::error!("Error logically deleting item {}: {}", id, e);
+                error!("Error logically deleting item {}: {}", id, e);
                 false
             }
         }
@@ -322,14 +357,16 @@ impl ItemRepository for PostgresItemRepository {
             Ok(res) => {
                 if res.rows_affected() > 0 && item.is_some() {
                     // Log the deletion if the item existed
-                    self.log_deletion(id, "Physical", "system").await;
+                    if let Err(e) = self.log_deletion(id, "Physical", "system").await {
+                        error!("Failed to log physical deletion for item {}: {}", id, e);
+                    }
                     true
                 } else {
                     res.rows_affected() > 0
                 }
             },
             Err(e) => {
-                log::error!("Error physically deleting item {}: {}", id, e);
+                error!("Error physically deleting item {}: {}", id, e);
                 false
             }
         }
@@ -347,14 +384,16 @@ impl ItemRepository for PostgresItemRepository {
             Ok(res) => {
                 if res.rows_affected() > 0 {
                     // Log the restoration
-                    self.log_deletion(id, "Restore", "system").await;
+                    if let Err(e) = self.log_deletion(id, "Restore", "system").await {
+                        error!("Failed to log restoration for item {}: {}", id, e);
+                    }
                     true
                 } else {
                     false
                 }
             },
             Err(e) => {
-                log::error!("Error restoring item {}: {}", id, e);
+                error!("Error restoring item {}: {}", id, e);
                 false
             }
         }
@@ -378,7 +417,7 @@ impl ItemRepository for PostgresItemRepository {
                     .collect()
             }
             Err(e) => {
-                log::error!("Error fetching deleted items: {}", e);
+                error!("Error fetching deleted items: {}", e);
                 vec![]
             }
         }
@@ -454,45 +493,8 @@ impl ItemRepository for PostgresItemRepository {
                     .collect()
             },
             Err(e) => {
-                log::error!("Error fetching deletion logs: {}", e);
+                error!("Error fetching deletion logs: {}", e);
                 vec![]
-            }
-        }
-    }
-    
-    // Helper method to log deletions
-    async fn log_deletion(&self, item_id: u64, deletion_type: &str, deleted_by: &str) -> bool {
-        // Get the item name for logging
-        let item_name = match self.find_by_id(item_id).await {
-            Some(item) => item.name,
-            None => {
-                // Try to find in deleted items
-                let deleted_items = self.find_deleted().await;
-                deleted_items.iter()
-                    .find(|item| item.id == item_id)
-                    .map(|item| item.name.clone())
-                    .unwrap_or_else(|| format!("Unknown Item {}", item_id))
-            }
-        };
-        
-        let now = chrono::Utc::now();
-        
-        let result = sqlx::query(
-            "INSERT INTO deletion_logs (item_id, item_name, deletion_type, deleted_at, deleted_by) VALUES ($1, $2, $3, $4, $5)"
-        )
-        .bind(item_id as i64)
-        .bind(&item_name)
-        .bind(deletion_type)
-        .bind(now)
-        .bind(deleted_by)
-        .execute(&self.pool)
-        .await;
-        
-        match result {
-            Ok(_) => true,
-            Err(e) => {
-                log::error!("Error logging deletion for item {}: {}", item_id, e);
-                false
             }
         }
     }
