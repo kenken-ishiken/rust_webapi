@@ -1,4 +1,5 @@
 mod application;
+mod app_domain;
 mod infrastructure;
 mod presentation;
 
@@ -36,6 +37,11 @@ use crate::presentation::api::user_handler::UserHandler;
 
 use crate::infrastructure::auth::keycloak::{KeycloakAuth, KeycloakConfig};
 
+use crate::app_domain::repository::category_repository::CategoryRepository;
+use crate::infrastructure::repository::category_repository::PostgresCategoryRepository;
+use crate::application::service::category_service::CategoryService;
+use crate::presentation::api::category_handler::{CategoryHandler, configure_category_routes};
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 環境変数の読み込み
@@ -68,10 +74,12 @@ async fn main() -> std::io::Result<()> {
     // リポジトリの作成
     let item_repository: ItemRepositoryImpl = Arc::new(PostgresItemRepository::new(pool.clone()));
     let user_repository: UserRepositoryImpl = Arc::new(PostgresUserRepository::new(pool.clone()));
+    let category_repository: Arc<dyn CategoryRepository> = Arc::new(PostgresCategoryRepository::new(pool.clone()));
 
     // サービスの作成
     let item_service = Arc::new(ItemService::new(item_repository.clone()));
     let user_service = Arc::new(UserService::new(user_repository.clone()));
+    let category_service = Arc::new(CategoryService::new(category_repository.clone()));
 
     // Keycloak認証の設定
     let keycloak_config = KeycloakConfig::from_env();
@@ -80,6 +88,7 @@ async fn main() -> std::io::Result<()> {
     // ハンドラーの作成
     let item_handler = web::Data::new(ItemHandler::new(item_service.clone()));
     let user_handler = web::Data::new(UserHandler::new(user_service.clone()));
+    let category_handler = web::Data::new(CategoryHandler::new(category_service.clone()));
 
     info!("サーバーを開始します: http://127.0.0.1:8080");
 
@@ -88,6 +97,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(item_handler.clone())
             .app_data(user_handler.clone())
+            .app_data(category_handler.clone())
             .app_data(keycloak_auth.clone())
             // HTTP request tracing middleware
             .wrap(TracingLogger::default())
@@ -132,6 +142,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/users/{id}", web::put().to(UserHandler::update_user))
                     .route("/users/{id}", web::delete().to(UserHandler::delete_user))
             )
+            .configure(configure_category_routes)
     })
     .bind("127.0.0.1:8080")?
     .run()
