@@ -83,7 +83,6 @@ async fn test_mock_item_repository_create() {
         description: Some("New Description".to_string()),
     };
     
-    let expected_item = input_item.clone();
     
     mock_repo
         .expect_create()

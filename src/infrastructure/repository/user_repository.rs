@@ -63,6 +63,7 @@ impl PostgresUserRepository {
     
     // テスト用にテーブルを初期化するメソッド
     #[cfg(any(test, feature = "testing"))]
+    #[allow(dead_code)]
     pub async fn init_table(&self) -> Result<(), sqlx::Error> {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
