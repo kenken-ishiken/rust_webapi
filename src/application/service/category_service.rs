@@ -63,7 +63,7 @@ impl CategoryService {
     }
 
     pub async fn find_by_parent_id(&self, parent_id: Option<&str>, include_inactive: bool) -> CategoriesResponse {
-        let categories = self.repository.find_by_parent_id(parent_id, include_inactive).await;
+        let categories = self.repository.find_by_parent_id(parent_id.map(|s| s.to_string()), include_inactive).await;
         
         let mut category_list = Vec::new();
         for category in &categories {
@@ -215,7 +215,7 @@ impl CategoryService {
     }
 
     pub async fn move_category(&self, id: &str, req: MoveCategoryRequest) -> Result<CategoryResponse, CategoryError> {
-        match self.repository.move_category(id, req.parent_id.as_deref(), req.sort_order).await {
+        match self.repository.move_category(id, req.parent_id, req.sort_order).await {
             Ok(moved_category) => {
                 increment_success_counter("category", "move");
                 info!("Moved category {} to parent {:?} with sort order {}", id, req.parent_id, req.sort_order);

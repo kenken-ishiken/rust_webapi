@@ -51,30 +51,32 @@ impl PostgresCategoryRepository {
         }
     }
 
-    async fn build_category_tree_recursive(
-        &self,
-        categories: &[Category],
-        parent_id: Option<&str>,
-    ) -> Vec<CategoryTree> {
-        let mut tree = Vec::new();
+    fn build_category_tree_recursive<'a>(
+        &'a self,
+        categories: &'a [Category],
+        parent_id: Option<&'a str>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Vec<CategoryTree>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut tree = Vec::new();
 
-        for category in categories {
-            if category.parent_id.as_deref() == parent_id {
-                let children = self.build_category_tree_recursive(categories, Some(&category.id)).await;
-                
-                tree.push(CategoryTree {
-                    id: category.id.clone(),
-                    name: category.name.clone(),
-                    description: category.description.clone(),
-                    sort_order: category.sort_order,
-                    is_active: category.is_active,
-                    children,
-                });
+            for category in categories {
+                if category.parent_id.as_deref() == parent_id {
+                    let children = self.build_category_tree_recursive(categories, Some(&category.id)).await;
+                    
+                    tree.push(CategoryTree {
+                        id: category.id.clone(),
+                        name: category.name.clone(),
+                        description: category.description.clone(),
+                        sort_order: category.sort_order,
+                        is_active: category.is_active,
+                        children,
+                    });
+                }
             }
-        }
 
-        tree.sort_by_key(|t| t.sort_order);
-        tree
+            tree.sort_by_key(|t| t.sort_order);
+            tree
+        })
     }
 
     async fn get_category_ancestors(&self, category_id: &str) -> Result<Vec<String>, CategoryError> {
@@ -139,7 +141,7 @@ impl CategoryRepository for PostgresCategoryRepository {
         }
     }
 
-    async fn find_by_parent_id(&self, parent_id: Option<&str>, include_inactive: bool) -> Vec<Category> {
+    async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> Vec<Category> {
         let query = if include_inactive {
             "SELECT id, name, description, parent_id, sort_order, is_active, created_at, updated_at 
              FROM categories 
@@ -183,7 +185,7 @@ impl CategoryRepository for PostgresCategoryRepository {
         self.build_category_tree_recursive(&categories, None).await
     }
 
-    async fn exists_by_name_and_parent(&self, name: &str, parent_id: Option<&str>, exclude_id: Option<&str>) -> bool {
+    async fn exists_by_name_and_parent(&self, name: &str, parent_id: Option<String>, exclude_id: Option<String>) -> bool {
         let query = if exclude_id.is_some() {
             "SELECT COUNT(*) as count 
              FROM categories 
@@ -335,13 +337,13 @@ impl CategoryRepository for PostgresCategoryRepository {
         }
     }
 
-    async fn move_category(&self, id: &str, new_parent_id: Option<&str>, new_sort_order: i32) -> Result<Category, CategoryError> {
+    async fn move_category(&self, id: &str, new_parent_id: Option<String>, new_sort_order: i32) -> Result<Category, CategoryError> {
         // Validate circular reference
-        self.validate_circular_reference(id, new_parent_id).await?;
+        self.validate_circular_reference(id, new_parent_id.clone()).await?;
 
         // Validate depth
         if new_parent_id.is_some() {
-            self.validate_depth(new_parent_id).await?;
+            self.validate_depth(new_parent_id.clone()).await?;
         }
 
         // Get current category
@@ -349,7 +351,7 @@ impl CategoryRepository for PostgresCategoryRepository {
             .ok_or_else(|| CategoryError::NotFound("カテゴリが見つかりません".to_string()))?;
 
         // Update parent and sort order
-        category.parent_id = new_parent_id.map(|s| s.to_string());
+        category.parent_id = new_parent_id;
         category.sort_order = new_sort_order;
         category.updated_at = Utc::now();
 
@@ -379,9 +381,9 @@ impl CategoryRepository for PostgresCategoryRepository {
         0
     }
 
-    async fn validate_depth(&self, parent_id: Option<&str>) -> Result<(), CategoryError> {
+    async fn validate_depth(&self, parent_id: Option<String>) -> Result<(), CategoryError> {
         if let Some(parent_id) = parent_id {
-            match self.find_path(parent_id).await {
+            match self.find_path(&parent_id).await {
                 Ok(path) => {
                     if path.depth >= 5 {
                         return Err(CategoryError::MaxDepthExceeded(
@@ -397,8 +399,8 @@ impl CategoryRepository for PostgresCategoryRepository {
         Ok(())
     }
 
-    async fn validate_circular_reference(&self, id: &str, new_parent_id: Option<&str>) -> Result<(), CategoryError> {
-        if let Some(new_parent_id) = new_parent_id {
+    async fn validate_circular_reference(&self, id: &str, new_parent_id: Option<String>) -> Result<(), CategoryError> {
+        if let Some(ref new_parent_id) = new_parent_id {
             // Cannot set self as parent
             if id == new_parent_id {
                 return Err(CategoryError::CircularReference(
@@ -407,7 +409,7 @@ impl CategoryRepository for PostgresCategoryRepository {
             }
 
             // Check if new_parent_id is a descendant of current category
-            match self.find_path(new_parent_id).await {
+            match self.find_path(&new_parent_id).await {
                 Ok(path) => {
                     if path.contains(id) {
                         return Err(CategoryError::CircularReference(

@@ -201,37 +201,41 @@ impl ProductRepository for PostgresProductRepository {
                                created_at, updated_at 
                          FROM products WHERE 1=1".to_string();
         
-        let mut params = Vec::new();
         let mut param_index = 1;
 
-        if let Some(cat_id) = category_id {
+        if let Some(_) = category_id {
             query.push_str(&format!(" AND category_id = ${}", param_index));
-            params.push(cat_id);
             param_index += 1;
         }
 
-        if let Some(status_val) = status {
+        if let Some(_) = status {
             query.push_str(&format!(" AND status = ${}", param_index));
-            params.push(status_val);
             param_index += 1;
         }
 
         query.push_str(" ORDER BY created_at DESC");
 
-        if let Some(limit_val) = limit {
+        if let Some(_) = limit {
             query.push_str(&format!(" LIMIT ${}", param_index));
-            params.push(&limit_val.to_string());
             param_index += 1;
         }
 
-        if let Some(offset_val) = offset {
+        if let Some(_) = offset {
             query.push_str(&format!(" OFFSET ${}", param_index));
-            params.push(&offset_val.to_string());
         }
 
         let mut sqlx_query = sqlx::query(&query);
-        for param in params {
-            sqlx_query = sqlx_query.bind(param);
+        if let Some(cat_id) = category_id {
+            sqlx_query = sqlx_query.bind(cat_id);
+        }
+        if let Some(status_val) = status {
+            sqlx_query = sqlx_query.bind(status_val);
+        }
+        if let Some(limit_val) = limit {
+            sqlx_query = sqlx_query.bind(limit_val);
+        }
+        if let Some(offset_val) = offset {
+            sqlx_query = sqlx_query.bind(offset_val);
         }
 
         match sqlx_query.fetch_all(&self.pool).await {
@@ -938,31 +942,37 @@ impl ProductRepository for PostgresProductRepository {
                          FROM product_history 
                          WHERE product_id = $1".to_string();
         
-        let mut params = vec![product_id];
         let mut param_index = 2;
 
-        if let Some(field) = field_name {
+        if let Some(_) = field_name {
             query.push_str(&format!(" AND field_name = ${}", param_index));
-            params.push(field);
             param_index += 1;
         }
 
         query.push_str(" ORDER BY changed_at DESC");
 
-        if let Some(limit_val) = limit {
+        if let Some(_) = limit {
             query.push_str(&format!(" LIMIT ${}", param_index));
-            params.push(&limit_val.to_string());
             param_index += 1;
         }
 
-        if let Some(offset_val) = offset {
+        if let Some(_) = offset {
             query.push_str(&format!(" OFFSET ${}", param_index));
-            params.push(&offset_val.to_string());
         }
 
         let mut sqlx_query = sqlx::query(&query);
-        for param in params {
-            sqlx_query = sqlx_query.bind(param);
+        sqlx_query = sqlx_query.bind(product_id);
+        
+        if let Some(field) = field_name {
+            sqlx_query = sqlx_query.bind(field);
+        }
+        
+        if let Some(limit_val) = limit {
+            sqlx_query = sqlx_query.bind(limit_val);
+        }
+        
+        if let Some(offset_val) = offset {
+            sqlx_query = sqlx_query.bind(offset_val);
         }
 
         match sqlx_query.fetch_all(&self.pool).await {
