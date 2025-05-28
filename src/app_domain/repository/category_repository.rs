@@ -6,7 +6,7 @@ pub use mockall::predicate;
 
 #[automock]
 #[async_trait]
-pub trait CategoryRepository {
+pub trait CategoryRepository: Send + Sync {
     async fn find_all(&self, include_inactive: bool) -> Vec<Category>;
     async fn find_by_id(&self, id: &str) -> Option<Category>;
     async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> Vec<Category>;

@@ -1,0 +1,31 @@
+{
+  "name": "rust-webapi-k6-tests",
+  "version": "1.0.0",
+  "description": "k6 load testing suite for Rust WebAPI",
+  "scripts": {
+    "test:smoke": "./run-tests.sh -t smoke",
+    "test:load": "./run-tests.sh -t load",
+    "test:stress": "./run-tests.sh -t stress",
+    "test:spike": "./run-tests.sh -t spike",
+    "test:items": "./run-tests.sh -t items",
+    "test:products": "./run-tests.sh -t products",
+    "test:categories": "./run-tests.sh -t categories",
+    "test:users": "./run-tests.sh -t users",
+    "test:all": "npm run test:smoke && npm run test:items && npm run test:products && npm run test:categories && npm run test:users",
+    "test:performance": "npm run test:smoke && npm run test:load && npm run test:stress && npm run test:spike",
+    "clean": "rm -rf results/*",
+    "report": "k6-reporter results/*_summary.json --out results/report.html"
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "performance-testing",
+    "rust",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "k6-reporter": "^2.0.0"
+  }
+}

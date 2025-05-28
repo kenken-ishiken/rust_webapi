@@ -4,7 +4,7 @@ use sqlx::{PgPool, Row};
 use async_trait::async_trait;
 use domain::model::item::{Item, DeletionValidation, RelatedDataCount, DeletionLog, DeletionType};
 use crate::app_domain::repository::item_repository::ItemRepository;
-use crate::{AppError, AppResult};
+use crate::infrastructure::error::{AppError, AppResult};
 use chrono::Utc;
 use tracing::error;
 
@@ -18,6 +18,12 @@ impl InMemoryItemRepository {
         Self {
             items: Mutex::new(HashMap::new()),
         }
+    }
+}
+
+impl Default for InMemoryItemRepository {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -261,7 +267,7 @@ impl ItemRepository for PostgresItemRepository {
             .bind(&item.name)
             .bind(&item.description)
             .bind(item.deleted)
-            .bind(&item.deleted_at)
+            .bind(item.deleted_at)
             .fetch_one(&self.pool)
             .await?;
             
@@ -282,7 +288,7 @@ impl ItemRepository for PostgresItemRepository {
             .bind(&item.name)
             .bind(&item.description)
             .bind(item.deleted)
-            .bind(&item.deleted_at)
+            .bind(item.deleted_at)
             .fetch_optional(&self.pool)
             .await?;
             

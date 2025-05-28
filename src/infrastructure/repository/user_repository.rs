@@ -18,6 +18,12 @@ impl InMemoryUserRepository {
     }
 }
 
+impl Default for InMemoryUserRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl UserRepository for InMemoryUserRepository {
     async fn find_all(&self) -> Vec<User> {
@@ -38,8 +44,8 @@ impl UserRepository for InMemoryUserRepository {
 
     async fn update(&self, user: User) -> Option<User> {
         let mut users = self.users.lock().unwrap();
-        if users.contains_key(&user.id) {
-            users.insert(user.id, user.clone());
+        if let std::collections::hash_map::Entry::Occupied(mut e) = users.entry(user.id) {
+            e.insert(user.clone());
             Some(user)
         } else {
             None

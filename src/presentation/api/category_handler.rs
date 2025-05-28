@@ -239,7 +239,7 @@ mod tests {
     use actix_web::{test, web, App, http::StatusCode};
     use std::sync::Arc;
     use crate::app_domain::repository::category_repository::MockCategoryRepository;
-    use crate::app_domain::model::category::{Category, CategoryError};
+    use crate::app_domain::model::category::Category;
     use crate::application::service::category_service::CategoryService;
     use mockall::predicate::*;
     use chrono::Utc;

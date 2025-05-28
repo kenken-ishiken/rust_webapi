@@ -1,11 +1,11 @@
 use std::sync::Arc;
 use tracing::{info, error};
 
-use crate::app_domain::model::category::{Category, CategoryPath, CategoryTree, CategoryError};
+use crate::app_domain::model::category::{Category, CategoryPath, CategoryError};
 use crate::app_domain::repository::category_repository::CategoryRepository;
 use crate::application::dto::category_dto::{
     CreateCategoryRequest, UpdateCategoryRequest, MoveCategoryRequest,
-    CategoryResponse, CategoryListResponse, CategoryTreeResponse, CategoryPathResponse,
+    CategoryResponse, CategoryListResponse, CategoryPathResponse,
     CategoriesResponse, CategoryTreesResponse, CategoryPathItem
 };
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};

@@ -1,13 +1,11 @@
 use actix_web::{web, HttpResponse, Responder, Result as ActixResult};
-use tracing::{info, error, warn};
+use tracing::{info, error};
 use std::sync::Arc;
 
 use crate::application::dto::product_dto::{
     CreateProductRequest, UpdateProductRequest, PatchProductRequest,
     PriceRequest, InventoryRequest, ProductImageRequest,
     ImageReorderRequest, BatchUpdateRequest,
-    ProductResponse, ProductListResponse, PriceResponse, InventoryResponse,
-    ProductImageResponse, ProductHistoryResponse, BatchUpdateResponse,
     ProductSearchQuery, ProductHistoryQuery, ProductErrorResponse,
 };
 use crate::application::service::product_service::ProductService;

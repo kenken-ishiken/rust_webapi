@@ -1,8 +1,8 @@
-use sqlx::{PgPool, Row, Postgres, Transaction};
+use sqlx::{PgPool, Row};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rust_decimal::Decimal;
-use tracing::{error, debug, warn};
+use tracing::error;
 use std::collections::HashMap;
 
 use crate::app_domain::model::product::{
@@ -201,39 +201,41 @@ impl ProductRepository for PostgresProductRepository {
                                created_at, updated_at 
                          FROM products WHERE 1=1".to_string();
         
-        let mut params = Vec::new();
         let mut param_index = 1;
 
-        if let Some(cat_id) = category_id {
+        if let Some(_cat_id) = category_id {
             query.push_str(&format!(" AND category_id = ${}", param_index));
-            params.push(cat_id);
             param_index += 1;
         }
 
-        if let Some(status_val) = status {
+        if let Some(_status_val) = status {
             query.push_str(&format!(" AND status = ${}", param_index));
-            params.push(status_val);
             param_index += 1;
         }
 
         query.push_str(" ORDER BY created_at DESC");
 
-        if let Some(limit_val) = limit {
+        if let Some(_limit_val) = limit {
             query.push_str(&format!(" LIMIT ${}", param_index));
-            let limit_val_str = limit_val.to_string();
-            params.push(limit_val_str);
             param_index += 1;
         }
 
-        if let Some(offset_val) = offset {
+        if let Some(_offset_val) = offset {
             query.push_str(&format!(" OFFSET ${}", param_index));
-            let offset_val_str = offset_val.to_string();
-            params.push(offset_val_str);
         }
 
         let mut sqlx_query = sqlx::query(&query);
-        for param in params {
-            sqlx_query = sqlx_query.bind(param);
+        if let Some(cat_id) = category_id {
+            sqlx_query = sqlx_query.bind(cat_id);
+        }
+        if let Some(status_val) = status {
+            sqlx_query = sqlx_query.bind(status_val);
+        }
+        if let Some(limit_val) = limit {
+            sqlx_query = sqlx_query.bind(limit_val);
+        }
+        if let Some(offset_val) = offset {
+            sqlx_query = sqlx_query.bind(offset_val);
         }
 
         match sqlx_query.fetch_all(&self.pool).await {
@@ -940,12 +942,10 @@ impl ProductRepository for PostgresProductRepository {
                          FROM product_history 
                          WHERE product_id = $1".to_string();
         
-        let mut params = vec![product_id];
         let mut param_index = 2;
 
-        if let Some(field) = field_name {
+        if let Some(_field) = field_name {
             query.push_str(&format!(" AND field_name = ${}", param_index));
-            params.push(field);
             param_index += 1;
         }
 
@@ -953,20 +953,23 @@ impl ProductRepository for PostgresProductRepository {
 
         if let Some(limit_val) = limit {
             query.push_str(&format!(" LIMIT ${}", param_index));
-            let limit_val_str = limit_val.to_string();
-            params.push(limit_val_str);
             param_index += 1;
         }
 
         if let Some(offset_val) = offset {
             query.push_str(&format!(" OFFSET ${}", param_index));
-            let offset_val_str = offset_val.to_string();
-            params.push(offset_val_str);
         }
 
         let mut sqlx_query = sqlx::query(&query);
-        for param in params {
-            sqlx_query = sqlx_query.bind(param);
+        sqlx_query = sqlx_query.bind(product_id);
+        if let Some(field) = field_name {
+            sqlx_query = sqlx_query.bind(field);
+        }
+        if let Some(limit_val) = limit {
+            sqlx_query = sqlx_query.bind(limit_val);
+        }
+        if let Some(offset_val) = offset {
+            sqlx_query = sqlx_query.bind(offset_val);
         }
 
         match sqlx_query.fetch_all(&self.pool).await {
@@ -1130,6 +1133,7 @@ impl ProductRepository for PostgresProductRepository {
         Ok(results)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn search(&self, 
         query: &str,
         category_id: Option<&str>,
@@ -1210,7 +1214,7 @@ impl ProductRepository for PostgresProductRepository {
 
         // Build the complete query
         if !joins.is_empty() {
-            sql_query.push_str(" ");
+            sql_query.push(' ');
             sql_query.push_str(&joins.join(" "));
         }
 

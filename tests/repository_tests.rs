@@ -1,7 +1,7 @@
 mod helpers;
 
 use domain::model::item::Item;
-use domain::repository::item_repository::ItemRepository;
+use rust_webapi::app_domain::repository::item_repository::ItemRepository;
 use domain::model::user::User;
 use domain::repository::user_repository::UserRepository;
 use helpers::postgres::PostgresContainer;
@@ -26,16 +26,18 @@ async fn test_postgres_item_repository() {
         id: 1,
         name: "Test Item".to_string(),
         description: Some("Test Description".to_string()),
+        deleted: false,
+        deleted_at: None,
     };
     
     // 1. Test item creation
-    let created_item = repo.create(item.clone()).await;
+    let created_item = repo.create(item.clone()).await.unwrap();
     assert_eq!(created_item.id, item.id);
     assert_eq!(created_item.name, item.name);
     assert_eq!(created_item.description, item.description);
     
     // 2. Test finding item by ID
-    let found_item = repo.find_by_id(1).await;
+    let found_item = repo.find_by_id(1).await.unwrap();
     assert!(found_item.is_some());
     let found_item = found_item.unwrap();
     assert_eq!(found_item.id, item.id);
@@ -43,11 +45,11 @@ async fn test_postgres_item_repository() {
     assert_eq!(found_item.description, item.description);
     
     // 3. Test finding a non-existent item
-    let not_found = repo.find_by_id(999).await;
+    let not_found = repo.find_by_id(999).await.unwrap();
     assert!(not_found.is_none());
     
     // 4. Test getting all items
-    let all_items = repo.find_all().await;
+    let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 1);
     assert_eq!(all_items[0].id, item.id);
     
@@ -56,25 +58,26 @@ async fn test_postgres_item_repository() {
         id: 1,
         name: "Updated Item".to_string(),
         description: Some("Updated Description".to_string()),
+        deleted: false,
+        deleted_at: None,
     };
     
     let result = repo.update(updated_item.clone()).await;
-    assert!(result.is_some());
+    assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result.name, "Updated Item");
     assert_eq!(result.description, Some("Updated Description".to_string()));
     
     // 6. Test deleting an item
-    let deleted = repo.delete(1).await;
-    assert!(deleted);
+    repo.delete(1).await.unwrap();
     
     // Verify deletion
-    let all_items_after_delete = repo.find_all().await;
+    let all_items_after_delete = repo.find_all().await.unwrap();
     assert_eq!(all_items_after_delete.len(), 0);
     
     // 7. Test deleting a non-existent item
-    let not_deleted = repo.delete(999).await;
-    assert!(!not_deleted);
+    let result = repo.delete(999).await;
+    assert!(result.is_err());
 }
 
 // Test batch operations
@@ -97,26 +100,32 @@ async fn test_postgres_batch_operations() {
             id: 1,
             name: "Item 1".to_string(),
             description: Some("Description 1".to_string()),
+            deleted: false,
+            deleted_at: None,
         },
         Item {
             id: 2,
             name: "Item 2".to_string(),
             description: None,
+            deleted: false,
+            deleted_at: None,
         },
         Item {
             id: 3,
             name: "Item 3".to_string(),
             description: Some("Description 3".to_string()),
+            deleted: false,
+            deleted_at: None,
         },
     ];
     
     // Insert all items
     for item in items.clone() {
-        repo.create(item).await;
+        repo.create(item).await.unwrap();
     }
     
     // Test batch retrieval
-    let all_items = repo.find_all().await;
+    let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 3);
     
     // Verify items are sorted by ID
@@ -131,7 +140,7 @@ async fn test_postgres_batch_operations() {
     }
     
     // Verify all descriptions were updated
-    let updated_items = repo.find_all().await;
+    let updated_items = repo.find_all().await.unwrap();
     for item in updated_items {
         assert_eq!(item.description, Some("Updated".to_string()));
     }

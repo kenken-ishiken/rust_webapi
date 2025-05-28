@@ -1,10 +1,9 @@
 use std::sync::Arc;
-use std::collections::HashMap;
-use tracing::{info, error, warn};
+use tracing::{info, error};
 use uuid::Uuid;
 
 use crate::app_domain::model::product::{
-    Product, ProductStatus, ProductError, Price, Inventory, ProductImage,
+    Product, ProductError, Price, Inventory, ProductImage,
     Dimensions, ShippingInfo,
 };
 use crate::app_domain::repository::product_repository::ProductRepository;
@@ -15,7 +14,6 @@ use crate::application::dto::product_dto::{
     ProductResponse, ProductListResponse, PriceResponse, InventoryResponse,
     ProductImageResponse, ProductHistoryResponse, BatchUpdateResponse,
     BatchUpdateResult, ProductSearchQuery, ProductHistoryQuery,
-    ProductErrorResponse,
 };
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 
@@ -67,19 +65,19 @@ impl ProductService {
                 let mut response = ProductResponse::from(product);
                 
                 // Populate related data
-                if let Some(price) = self.repository.get_current_price(id).await {
+                if let Some(price) = self.repository.get_current_price(&id).await {
                     response.price = Some(price.into());
                 }
                 
-                if let Some(inventory) = self.repository.get_inventory(id).await {
+                if let Some(inventory) = self.repository.get_inventory(&id).await {
                     response.inventory = Some(inventory.into());
                 }
                 
-                let images = self.repository.get_images(id).await;
+                let images = self.repository.get_images(&id).await;
                 response.images = images.into_iter().map(Into::into).collect();
                 
-                response.tags = self.repository.get_tags(id).await;
-                response.attributes = self.repository.get_attributes(id).await;
+                response.tags = self.repository.get_tags(&id).await;
+                response.attributes = self.repository.get_attributes(&id).await;
 
                 increment_success_counter("product", "find_by_sku");
                 info!("Fetched product by SKU {}", sku);
@@ -176,7 +174,7 @@ impl ProductService {
         }
 
         // Create the product
-        let created_product = self.repository.create(product).await?;
+        let _created_product = self.repository.create(product).await?;
 
         // Set initial price
         let price = Price::from(request.price);

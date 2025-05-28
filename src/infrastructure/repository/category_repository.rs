@@ -1,7 +1,7 @@
-use sqlx::{PgPool, Row, Postgres, Transaction};
+use sqlx::{PgPool, Row};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use tracing::{error, debug};
+use chrono::Utc;
+use tracing::error;
 
 use crate::app_domain::model::category::{Category, CategoryPath, CategoryTree, CategoryError};
 use crate::app_domain::repository::category_repository::CategoryRepository;
@@ -51,6 +51,7 @@ impl PostgresCategoryRepository {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn build_category_tree_recursive<'a>(
         &'a self,
         categories: &'a [Category],

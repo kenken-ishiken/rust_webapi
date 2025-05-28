@@ -1,11 +1,11 @@
-use domain::model::item::{Item, DeletionLog, DeletionType, DeletionValidation};
+use domain::model::item::{Item, DeletionType};
 use crate::application::dto::item_dto::{
     CreateItemRequest, UpdateItemRequest, ItemResponse, 
     BatchDeleteRequest, BatchDeleteResponse, DeletionValidationResponse, DeletionLogResponse
 };
 use std::sync::Mutex;
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
-use crate::{AppError, AppResult};
+use crate::infrastructure::error::{AppError, AppResult};
 
 pub struct ItemService {
     repository: std::sync::Arc<dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync>,
@@ -188,30 +188,11 @@ impl ItemService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockall::mock;
     use mockall::predicate::*;
     use std::sync::Arc;
-    use domain::repository::item_repository::ItemRepository;
+    use crate::app_domain::repository::item_repository::MockItemRepository;
+    use domain::model::item::{DeletionValidation, RelatedDataCount, DeletionLog};
     use chrono::Utc;
-
-    mock! {
-        ItemRep {}
-        #[async_trait::async_trait]
-        impl ItemRepository for ItemRep {
-            async fn find_all(&self) -> Vec<Item>;
-            async fn find_by_id(&self, id: u64) -> Option<Item>;
-            async fn create(&self, item: Item) -> Item;
-            async fn update(&self, item: Item) -> Option<Item>;
-            async fn delete(&self, id: u64) -> bool;
-            async fn logical_delete(&self, id: u64) -> bool;
-            async fn physical_delete(&self, id: u64) -> bool;
-            async fn restore(&self, id: u64) -> bool;
-            async fn find_deleted(&self) -> Vec<Item>;
-            async fn validate_deletion(&self, id: u64) -> DeletionValidation;
-            async fn batch_delete(&self, ids: Vec<u64>, is_physical: bool) -> Vec<u64>;
-            async fn get_deletion_logs(&self, item_id: Option<u64>) -> Vec<DeletionLog>;
-        }
-    }
 
     #[tokio::test]
     async fn test_find_all() {
@@ -232,12 +213,12 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_all()
-            .return_once(move || items.clone());
+            .return_once(move || Ok(items.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.find_all().await;
+        let result = service.find_all().await.unwrap();
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].id, 1);
@@ -256,31 +237,29 @@ mod tests {
             deleted_at: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(move |_| Some(item.clone()));
+            .return_once(move |_| Ok(Some(item.clone())));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.find_by_id(1).await;
+        let result = service.find_by_id(1).await.unwrap();
 
-        assert!(result.is_some());
-        let found_item = result.unwrap();
-        assert_eq!(found_item.id, 1);
-        assert_eq!(found_item.name, "Item 1");
+        assert_eq!(result.id, 1);
+        assert_eq!(result.name, "Item 1");
     }
 
     #[tokio::test]
     async fn test_find_by_id_not_found() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
-            .return_once(|_| None);
+            .return_once(|_| Ok(None));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.find_by_id(999).await;
 
-        assert!(result.is_none());
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -298,17 +277,17 @@ mod tests {
             deleted_at: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_create()
             .with(function(|item: &Item| {
                 item.name == "New Item" && 
                 item.description == Some("New Description".to_string()) &&
                 !item.deleted
             }))
-            .return_once(|_| created_item.clone());
+            .return_once(|_| Ok(created_item.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.create(req).await;
+        let result = service.create(req).await.unwrap();
 
         assert_eq!(result.id, 0);
         assert_eq!(result.name, "New Item");
@@ -340,10 +319,10 @@ mod tests {
             deleted_at: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(move |_| Some(existing_item));
+            .return_once(move |_| Ok(Some(existing_item)));
 
         mock_repo.expect_update()
             .with(function(|item: &Item| {
@@ -352,18 +331,16 @@ mod tests {
                 item.description == Some("Updated Description".to_string()) &&
                 !item.deleted
             }))
-            .return_once(move |_| Some(updated_item));
+            .return_once(move |_| Ok(updated_item));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.update(1, req).await;
+        let result = service.update(1, req).await.unwrap();
 
-        assert!(result.is_some());
-        let updated = result.unwrap();
-        assert_eq!(updated.id, 1);
-        assert_eq!(updated.name, "Updated Item");
-        assert_eq!(updated.description, Some("Updated Description".to_string()));
-        assert_eq!(updated.deleted, false);
-        assert!(updated.deleted_at.is_none());
+        assert_eq!(result.id, 1);
+        assert_eq!(result.name, "Updated Item");
+        assert_eq!(result.description, Some("Updated Description".to_string()));
+        assert_eq!(result.deleted, false);
+        assert!(result.deleted_at.is_none());
     }
 
     #[tokio::test]
@@ -373,95 +350,95 @@ mod tests {
             description: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
-            .return_once(|_| None);
+            .return_once(|_| Ok(None));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.update(999, req).await;
 
-        assert!(result.is_none());
+        assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_delete_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_delete()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.delete(1).await;
 
-        assert!(result);
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_delete_not_found() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_delete()
             .with(eq(999u64))
-            .return_once(|_| false);
+            .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.delete(999).await;
 
-        assert!(!result);
+        assert!(result.is_err());
     }
     
     // New tests for product deletion API
     
     #[tokio::test]
     async fn test_logical_delete_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_logical_delete()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.logical_delete(1).await;
 
-        assert!(result);
+        assert!(result.is_ok());
     }
     
     #[tokio::test]
     async fn test_logical_delete_not_found() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_logical_delete()
             .with(eq(999u64))
-            .return_once(|_| false);
+            .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.logical_delete(999).await;
 
-        assert!(!result);
+        assert!(result.is_err());
     }
     
     #[tokio::test]
     async fn test_physical_delete_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_physical_delete()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.physical_delete(1).await;
 
-        assert!(result);
+        assert!(result.is_ok());
     }
     
     #[tokio::test]
     async fn test_restore_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_restore()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.restore(1).await;
 
-        assert!(result);
+        assert!(result.is_ok());
     }
     
     #[tokio::test]
@@ -483,12 +460,12 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_deleted()
-            .return_once(move || deleted_items.clone());
+            .return_once(move || Ok(deleted_items.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.find_deleted().await;
+        let result = service.find_deleted().await.unwrap();
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].id, 1);
@@ -512,25 +489,25 @@ mod tests {
             },
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(|_| Some(Item {
+            .return_once(|_| Ok(Some(Item {
                 id: 1,
                 name: "Test Item".to_string(),
                 description: None,
                 deleted: false,
                 deleted_at: None,
-            }));
+            })));
             
         mock_repo.expect_validate_deletion()
             .with(eq(1u64))
-            .return_once(move |_| validation);
+            .return_once(move |_| Ok(validation));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.validate_deletion(1).await;
 
-        assert!(result.is_some());
+        assert!(result.is_ok());
         let validation_response = result.unwrap();
         assert_eq!(validation_response.can_delete, true);
         assert_eq!(validation_response.related_orders, 0);
@@ -547,13 +524,13 @@ mod tests {
 
         let successful_ids = vec![1, 3];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_batch_delete()
             .with(eq(vec![1, 2, 3]), eq(false))
-            .return_once(move |_, _| successful_ids.clone());
+            .return_once(move |_, _| Ok(successful_ids.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.batch_delete(req).await;
+        let result = service.batch_delete(req).await.unwrap();
 
         assert_eq!(result.successful_ids, vec![1, 3]);
         assert_eq!(result.failed_ids, vec![2]);
@@ -581,13 +558,13 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_get_deletion_logs()
             .with(eq(None))
-            .return_once(move |_| logs.clone());
+            .return_once(move |_| Ok(logs.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.get_deletion_logs(None).await;
+        let result = service.get_deletion_logs(None).await.unwrap();
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].id, 1);

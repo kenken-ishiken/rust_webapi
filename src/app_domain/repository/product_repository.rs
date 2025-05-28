@@ -74,6 +74,7 @@ pub trait ProductRepository: Send + Sync {
     async fn update_inventory_batch(&self, updates: Vec<(String, Inventory)>) -> Result<Vec<Inventory>, ProductError>;
 
     // Search and filtering
+    #[allow(clippy::too_many_arguments)]
     async fn search(&self, 
         query: &str,
         category_id: Option<&str>,

@@ -25,7 +25,7 @@ use crate::infrastructure::tracing::init_tracing;
 use std::time::Instant;
 use actix_web::dev::Service;
 
-use domain::repository::item_repository::ItemRepositoryImpl;
+use crate::app_domain::repository::item_repository::ItemRepository;
 use crate::infrastructure::repository::item_repository::PostgresItemRepository;
 use crate::application::service::item_service::ItemService;
 use crate::presentation::api::item_handler::ItemHandler;
@@ -77,7 +77,7 @@ async fn main() -> std::io::Result<()> {
         };
 
     // リポジトリの作成
-    let item_repository: ItemRepositoryImpl = Arc::new(PostgresItemRepository::new(pool.clone()));
+    let item_repository: Arc<dyn ItemRepository + Send + Sync> = Arc::new(PostgresItemRepository::new(pool.clone()));
     let user_repository: UserRepositoryImpl = Arc::new(PostgresUserRepository::new(pool.clone()));
     let category_repository: Arc<dyn CategoryRepository> = Arc::new(PostgresCategoryRepository::new(pool.clone()));
     let product_repository: Arc<dyn ProductRepository> = Arc::new(PostgresProductRepository::new(pool.clone()));

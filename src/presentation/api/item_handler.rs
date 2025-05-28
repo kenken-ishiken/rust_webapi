@@ -3,8 +3,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::application::dto::item_dto::{
-    CreateItemRequest, UpdateItemRequest, BatchDeleteRequest, 
-    BatchDeleteResponse, DeletionValidationResponse, DeletionLogResponse
+    CreateItemRequest, UpdateItemRequest, BatchDeleteRequest
 };
 use crate::application::service::item_service::ItemService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
@@ -157,31 +156,12 @@ mod tests {
     use actix_web::{test, web, http::StatusCode};
     use crate::application::service::item_service::ItemService;
     use domain::model::item::{Item, DeletionValidation, RelatedDataCount, DeletionLog, DeletionType};
-    use mockall::mock;
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;
-    use domain::repository::item_repository::ItemRepository;
+    use crate::app_domain::repository::item_repository::{ItemRepository, MockItemRepository};
     use chrono::Utc;
 
-    mock! {
-        ItemRep {}
-        #[async_trait::async_trait]
-        impl ItemRepository for ItemRep {
-            async fn find_all(&self) -> Vec<Item>;
-            async fn find_by_id(&self, id: u64) -> Option<Item>;
-            async fn create(&self, item: Item) -> Item;
-            async fn update(&self, item: Item) -> Option<Item>;
-            async fn delete(&self, id: u64) -> bool;
-            async fn logical_delete(&self, id: u64) -> bool;
-            async fn physical_delete(&self, id: u64) -> bool;
-            async fn restore(&self, id: u64) -> bool;
-            async fn find_deleted(&self) -> Vec<Item>;
-            async fn validate_deletion(&self, id: u64) -> DeletionValidation;
-            async fn batch_delete(&self, ids: Vec<u64>, is_physical: bool) -> Vec<u64>;
-            async fn get_deletion_logs(&self, item_id: Option<u64>) -> Vec<DeletionLog>;
-        }
-    }
 
     impl KeycloakUser {
         fn mock() -> Self {
@@ -247,7 +227,7 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_all()
             .return_once(move || items.clone());
 
@@ -271,7 +251,7 @@ mod tests {
             deleted_at: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(item.clone()));
@@ -288,7 +268,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_item_not_found() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
@@ -318,7 +298,7 @@ mod tests {
             deleted_at: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_create()
             .return_once(move |_| created_item.clone());
 
@@ -347,7 +327,7 @@ mod tests {
             deleted_at: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(|_| Some(Item {
@@ -379,7 +359,7 @@ mod tests {
             description: None,
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
@@ -397,7 +377,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_delete_item_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
@@ -414,7 +394,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_delete_item_not_found() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_delete()
             .with(eq(999u64))
             .return_once(|_| false);
@@ -433,7 +413,7 @@ mod tests {
     
     #[actix_web::test]
     async fn test_logical_delete_item_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_logical_delete()
             .with(eq(1u64))
             .return_once(|_| true);
@@ -450,7 +430,7 @@ mod tests {
     
     #[actix_web::test]
     async fn test_physical_delete_item_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_physical_delete()
             .with(eq(1u64))
             .return_once(|_| true);
@@ -467,7 +447,7 @@ mod tests {
     
     #[actix_web::test]
     async fn test_restore_item_success() {
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_restore()
             .with(eq(1u64))
             .return_once(|_| true);
@@ -493,7 +473,7 @@ mod tests {
             },
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
             .return_once(|_| Some(Item {
@@ -525,7 +505,7 @@ mod tests {
             is_physical: Some(false),
         };
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_batch_delete()
             .with(eq(vec![1, 2, 3]), eq(false))
             .return_once(move |_, _| vec![1, 3]);
@@ -559,7 +539,7 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_deleted()
             .return_once(move || deleted_items.clone());
 
@@ -594,7 +574,7 @@ mod tests {
             },
         ];
 
-        let mut mock_repo = MockItemRep::new();
+        let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_get_deletion_logs()
             .with(eq(None))
             .return_once(move |_| logs.clone());
