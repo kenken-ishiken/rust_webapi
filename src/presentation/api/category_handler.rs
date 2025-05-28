@@ -26,9 +26,9 @@ impl CategoryHandler {
         
         info!("Fetching categories with include_inactive: {}", include_inactive);
         
-        match query.parent_id.as_deref() {
+        match &query.parent_id {
             Some(parent_id) => {
-                let response = data.service.find_by_parent_id(Some(parent_id), include_inactive).await;
+                let response = data.service.find_by_parent_id(Some(parent_id.clone()), include_inactive).await;
                 info!("Fetched {} categories for parent {}", response.total, parent_id);
                 Ok(HttpResponse::Ok().json(response))
             }
@@ -390,7 +390,7 @@ mod tests {
         
         mock_repo
             .expect_find_by_parent_id()
-            .with(eq(Some("cat_123")), eq(false))
+            .with(eq(Some("cat_123".to_string())), eq(false))
             .return_once(move |_, _| vec![child_category]);
         
         mock_repo

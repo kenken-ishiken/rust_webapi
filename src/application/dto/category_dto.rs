@@ -23,7 +23,7 @@ pub struct MoveCategoryRequest {
     pub sort_order: i32,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct CategoryResponse {
     pub id: String,
     pub name: String,

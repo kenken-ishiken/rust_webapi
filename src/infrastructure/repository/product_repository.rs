@@ -220,13 +220,15 @@ impl ProductRepository for PostgresProductRepository {
 
         if let Some(limit_val) = limit {
             query.push_str(&format!(" LIMIT ${}", param_index));
-            params.push(&limit_val.to_string());
+            let limit_val_str = limit_val.to_string();
+            params.push(limit_val_str);
             param_index += 1;
         }
 
         if let Some(offset_val) = offset {
             query.push_str(&format!(" OFFSET ${}", param_index));
-            params.push(&offset_val.to_string());
+            let offset_val_str = offset_val.to_string();
+            params.push(offset_val_str);
         }
 
         let mut sqlx_query = sqlx::query(&query);
@@ -951,13 +953,15 @@ impl ProductRepository for PostgresProductRepository {
 
         if let Some(limit_val) = limit {
             query.push_str(&format!(" LIMIT ${}", param_index));
-            params.push(&limit_val.to_string());
+            let limit_val_str = limit_val.to_string();
+            params.push(limit_val_str);
             param_index += 1;
         }
 
         if let Some(offset_val) = offset {
             query.push_str(&format!(" OFFSET ${}", param_index));
-            params.push(&offset_val.to_string());
+            let offset_val_str = offset_val.to_string();
+            params.push(offset_val_str);
         }
 
         let mut sqlx_query = sqlx::query(&query);
@@ -1219,13 +1223,15 @@ impl ProductRepository for PostgresProductRepository {
 
         if let Some(limit_val) = limit {
             sql_query.push_str(&format!(" LIMIT ${}", param_index));
-            params.push(limit_val.to_string());
+            let limit_val_str = limit_val.to_string();
+            params.push(limit_val_str);
             param_index += 1;
         }
 
         if let Some(offset_val) = offset {
             sql_query.push_str(&format!(" OFFSET ${}", param_index));
-            params.push(offset_val.to_string());
+            let offset_val_str = offset_val.to_string();
+            params.push(offset_val_str);
         }
 
         let mut sqlx_query = sqlx::query(&sql_query);

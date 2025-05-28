@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, Responder, Result as ActixResult};
 use std::sync::Arc;
 use tracing::info;
 
@@ -25,70 +25,52 @@ impl ItemHandler {
     pub async fn get_items(
         data: web::Data<ItemHandler>,
         user: KeycloakUser
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         // 認証済みユーザー情報をログに出力
         info!("ユーザー {} がアイテム一覧を取得しました", user.claims.preferred_username);
 
-        let items = data.service.find_all().await;
-        HttpResponse::Ok().json(items)
+        let items = data.service.find_all().await?;
+        Ok(HttpResponse::Ok().json(items))
     }
 
     pub async fn get_item(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        match data.service.find_by_id(item_id).await {
-            Some(item) => {
-                info!("Fetched item {}", item_id);
-                HttpResponse::Ok().json(item)
-            },
-            None => {
-                info!("Item {} not found", item_id);
-                HttpResponse::NotFound().json("アイテムが見つかりません")
-            },
-        }
+        let item = data.service.find_by_id(item_id).await?;
+        info!("Fetched item {}", item_id);
+        Ok(HttpResponse::Ok().json(item))
     }
 
     pub async fn create_item(
         data: web::Data<ItemHandler>,
         item: web::Json<CreateItemRequest>,
-    ) -> impl Responder {
-        let new_item = data.service.create(item.into_inner()).await;
+    ) -> ActixResult<impl Responder> {
+        let new_item = data.service.create(item.into_inner()).await?;
         info!("Created item {}", new_item.id);
-        HttpResponse::Created().json(new_item)
+        Ok(HttpResponse::Created().json(new_item))
     }
 
     pub async fn update_item(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
         item: web::Json<UpdateItemRequest>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        match data.service.update(item_id, item.into_inner()).await {
-            Some(updated_item) => {
-                info!("Updated item {}", item_id);
-                HttpResponse::Ok().json(updated_item)
-            },
-            None => {
-                info!("Item {} not found for update", item_id);
-                HttpResponse::NotFound().json("アイテムが見つかりません")
-            },
-        }
+        let updated_item = data.service.update(item_id, item.into_inner()).await?;
+        info!("Updated item {}", item_id);
+        Ok(HttpResponse::Ok().json(updated_item))
     }
 
     pub async fn delete_item(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        if data.service.delete(item_id).await {
-            info!("Deleted item {}", item_id);
-            HttpResponse::Ok().json("アイテムを削除しました")
-        } else {
-            info!("Item {} not found for deletion", item_id);
-            HttpResponse::NotFound().json("アイテムが見つかりません")
-        }
+        data.service.delete(item_id).await?;
+        info!("Deleted item {}", item_id);
+        Ok(HttpResponse::Ok().json("アイテムを削除しました"))
     }
     
     // New handlers for product deletion API
@@ -96,95 +78,76 @@ impl ItemHandler {
     pub async fn logical_delete_item(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        if data.service.logical_delete(item_id).await {
-            info!("Logically deleted item {}", item_id);
-            HttpResponse::Ok().json("アイテムを論理削除しました")
-        } else {
-            info!("Item {} not found for logical deletion", item_id);
-            HttpResponse::NotFound().json("アイテムが見つかりません")
-        }
+        data.service.logical_delete(item_id).await?;
+        info!("Logically deleted item {}", item_id);
+        Ok(HttpResponse::Ok().json("アイテムを論理削除しました"))
     }
     
     pub async fn physical_delete_item(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        if data.service.physical_delete(item_id).await {
-            info!("Physically deleted item {}", item_id);
-            HttpResponse::Ok().json("アイテムを物理削除しました")
-        } else {
-            info!("Item {} not found for physical deletion", item_id);
-            HttpResponse::NotFound().json("アイテムが見つかりません")
-        }
+        data.service.physical_delete(item_id).await?;
+        info!("Physically deleted item {}", item_id);
+        Ok(HttpResponse::Ok().json("アイテムを物理削除しました"))
     }
     
     pub async fn restore_item(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        if data.service.restore(item_id).await {
-            info!("Restored item {}", item_id);
-            HttpResponse::Ok().json("アイテムを復元しました")
-        } else {
-            info!("Item {} not found for restoration", item_id);
-            HttpResponse::NotFound().json("アイテムが見つかりません")
-        }
+        data.service.restore(item_id).await?;
+        info!("Restored item {}", item_id);
+        Ok(HttpResponse::Ok().json("アイテムを復元しました"))
     }
     
     pub async fn validate_item_deletion(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        match data.service.validate_deletion(item_id).await {
-            Some(validation) => {
-                info!("Validated deletion for item {}", item_id);
-                HttpResponse::Ok().json(validation)
-            },
-            None => {
-                info!("Item {} not found for deletion validation", item_id);
-                HttpResponse::NotFound().json("アイテムが見つかりません")
-            },
-        }
+        let validation = data.service.validate_deletion(item_id).await?;
+        info!("Validated deletion for item {}", item_id);
+        Ok(HttpResponse::Ok().json(validation))
     }
     
     pub async fn batch_delete_items(
         data: web::Data<ItemHandler>,
         req: web::Json<BatchDeleteRequest>,
-    ) -> impl Responder {
-        let result = data.service.batch_delete(req.into_inner()).await;
+    ) -> ActixResult<impl Responder> {
+        let result = data.service.batch_delete(req.into_inner()).await?;
         info!("Batch deleted {} items", result.successful_ids.len());
-        HttpResponse::Ok().json(result)
+        Ok(HttpResponse::Ok().json(result))
     }
     
     pub async fn get_deleted_items(
         data: web::Data<ItemHandler>,
-    ) -> impl Responder {
-        let deleted_items = data.service.find_deleted().await;
+    ) -> ActixResult<impl Responder> {
+        let deleted_items = data.service.find_deleted().await?;
         info!("Fetched {} deleted items", deleted_items.len());
-        HttpResponse::Ok().json(deleted_items)
+        Ok(HttpResponse::Ok().json(deleted_items))
     }
     
     pub async fn get_item_deletion_log(
         data: web::Data<ItemHandler>,
         path: web::Path<u64>,
-    ) -> impl Responder {
+    ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        let logs = data.service.get_deletion_logs(Some(item_id)).await;
+        let logs = data.service.get_deletion_logs(Some(item_id)).await?;
         info!("Fetched {} deletion logs for item {}", logs.len(), item_id);
-        HttpResponse::Ok().json(logs)
+        Ok(HttpResponse::Ok().json(logs))
     }
     
     pub async fn get_deletion_logs(
         data: web::Data<ItemHandler>,
-    ) -> impl Responder {
-        let logs = data.service.get_deletion_logs(None).await;
+    ) -> ActixResult<impl Responder> {
+        let logs = data.service.get_deletion_logs(None).await?;
         info!("Fetched {} deletion logs", logs.len());
-        HttpResponse::Ok().json(logs)
+        Ok(HttpResponse::Ok().json(logs))
     }
 }
 

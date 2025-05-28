@@ -5,38 +5,44 @@ use crate::application::dto::item_dto::{
 };
 use std::sync::Mutex;
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
+use crate::{AppError, AppResult};
 
 pub struct ItemService {
-    repository: domain::repository::item_repository::ItemRepositoryImpl,
+    repository: std::sync::Arc<dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync>,
     counter: Mutex<u64>,
 }
 
 impl ItemService {
-    pub fn new(repository: domain::repository::item_repository::ItemRepositoryImpl) -> Self {
+    pub fn new(repository: std::sync::Arc<dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync>) -> Self {
         Self {
             repository,
             counter: Mutex::new(0),
         }
     }
 
-    pub async fn find_all(&self) -> Vec<ItemResponse> {
-        let items = self.repository.find_all().await;
+    pub async fn find_all(&self) -> AppResult<Vec<ItemResponse>> {
+        let items = self.repository.find_all().await?;
         increment_success_counter("item", "find_all");
-        items.into_iter().map(|item| self.to_response(item)).collect()
+        Ok(items.into_iter().map(|item| self.to_response(item)).collect())
     }
 
-    pub async fn find_by_id(&self, id: u64) -> Option<ItemResponse> {
-        let item = self.repository.find_by_id(id).await;
-        if item.is_some() {
-            increment_success_counter("item", "find_by_id");
-        } else {
-            increment_error_counter("item", "find_by_id");
+    pub async fn find_by_id(&self, id: u64) -> AppResult<ItemResponse> {
+        let item = self.repository.find_by_id(id).await?;
+        match item {
+            Some(item) => {
+                increment_success_counter("item", "find_by_id");
+                Ok(self.to_response(item))
+            },
+            None => {
+                increment_error_counter("item", "find_by_id");
+                Err(AppError::NotFound(format!("Item with id {} not found", id)))
+            }
         }
-        item.map(|item| self.to_response(item))
     }
 
-    pub async fn create(&self, req: CreateItemRequest) -> ItemResponse {
-        let mut counter = self.counter.lock().unwrap();
+    pub async fn create(&self, req: CreateItemRequest) -> AppResult<ItemResponse> {
+        let mut counter = self.counter.lock()
+            .map_err(|_| AppError::InternalServerError("Failed to acquire lock".to_string()))?;
         let id = *counter;
         *counter += 1;
 
@@ -48,91 +54,76 @@ impl ItemService {
             deleted_at: None,
         };
 
-        let created_item = self.repository.create(item).await;
+        let created_item = self.repository.create(item).await?;
         increment_success_counter("item", "create");
-        self.to_response(created_item)
+        Ok(self.to_response(created_item))
     }
 
-    pub async fn update(&self, id: u64, req: UpdateItemRequest) -> Option<ItemResponse> {
-        if let Some(mut item) = self.repository.find_by_id(id).await {
-            if let Some(name) = req.name {
-                item.name = name;
-            }
-            if let Some(description) = req.description {
-                item.description = Some(description);
-            }
-            let updated = self.repository.update(item).await;
-            if updated.is_some() {
+    pub async fn update(&self, id: u64, req: UpdateItemRequest) -> AppResult<ItemResponse> {
+        let item_opt = self.repository.find_by_id(id).await?;
+        match item_opt {
+            Some(mut item) => {
+                if let Some(name) = req.name {
+                    item.name = name;
+                }
+                if let Some(description) = req.description {
+                    item.description = Some(description);
+                }
+                let updated = self.repository.update(item).await?;
                 increment_success_counter("item", "update");
-            } else {
+                Ok(self.to_response(updated))
+            },
+            None => {
                 increment_error_counter("item", "update");
+                Err(AppError::NotFound(format!("Item with id {} not found", id)))
             }
-            updated.map(|item| self.to_response(item))
-        } else {
-            increment_error_counter("item", "update");
-            None
         }
     }
 
-    pub async fn delete(&self, id: u64) -> bool {
-        let result = self.repository.delete(id).await;
-        if result {
-            increment_success_counter("item", "delete");
-        } else {
-            increment_error_counter("item", "delete");
-        }
-        result
+    pub async fn delete(&self, id: u64) -> AppResult<()> {
+        self.repository.delete(id).await?;
+        increment_success_counter("item", "delete");
+        Ok(())
     }
     
     // New methods for product deletion API
     
-    pub async fn logical_delete(&self, id: u64) -> bool {
-        let result = self.repository.logical_delete(id).await;
-        if result {
-            increment_success_counter("item", "logical_delete");
-        } else {
-            increment_error_counter("item", "logical_delete");
-        }
-        result
+    pub async fn logical_delete(&self, id: u64) -> AppResult<()> {
+        self.repository.logical_delete(id).await?;
+        increment_success_counter("item", "logical_delete");
+        Ok(())
     }
     
-    pub async fn physical_delete(&self, id: u64) -> bool {
-        let result = self.repository.physical_delete(id).await;
-        if result {
-            increment_success_counter("item", "physical_delete");
-        } else {
-            increment_error_counter("item", "physical_delete");
-        }
-        result
+    pub async fn physical_delete(&self, id: u64) -> AppResult<()> {
+        self.repository.physical_delete(id).await?;
+        increment_success_counter("item", "physical_delete");
+        Ok(())
     }
     
-    pub async fn restore(&self, id: u64) -> bool {
-        let result = self.repository.restore(id).await;
-        if result {
-            increment_success_counter("item", "restore");
-        } else {
-            increment_error_counter("item", "restore");
-        }
-        result
+    pub async fn restore(&self, id: u64) -> AppResult<()> {
+        self.repository.restore(id).await?;
+        increment_success_counter("item", "restore");
+        Ok(())
     }
     
-    pub async fn find_deleted(&self) -> Vec<ItemResponse> {
-        let items = self.repository.find_deleted().await;
+    pub async fn find_deleted(&self) -> AppResult<Vec<ItemResponse>> {
+        let items = self.repository.find_deleted().await?;
         increment_success_counter("item", "find_deleted");
-        items.into_iter().map(|item| self.to_response(item)).collect()
+        Ok(items.into_iter().map(|item| self.to_response(item)).collect())
     }
     
-    pub async fn validate_deletion(&self, id: u64) -> Option<DeletionValidationResponse> {
+    pub async fn validate_deletion(&self, id: u64) -> AppResult<DeletionValidationResponse> {
         // First check if the item exists
-        if self.repository.find_by_id(id).await.is_none() {
+        let item_opt = self.repository.find_by_id(id).await?;
+        if item_opt.is_none() {
             increment_error_counter("item", "validate_deletion");
-            return None;
+            return Err(AppError::NotFound(format!("Item with id {} not found", id)));
         }
         
-        let validation = self.repository.validate_deletion(id).await;
+        let validation = self.repository.validate_deletion(id).await?;
         increment_success_counter("item", "validate_deletion");
         
-        Some(DeletionValidationResponse {
+        Ok(DeletionValidationResponse {
             can_delete: validation.can_delete,
             related_orders: validation.related_data.related_orders,
             related_reviews: validation.related_data.related_reviews,
@@ -140,11 +131,11 @@ impl ItemService {
         })
     }
     
-    pub async fn batch_delete(&self, req: BatchDeleteRequest) -> BatchDeleteResponse {
+    pub async fn batch_delete(&self, req: BatchDeleteRequest) -> AppResult<BatchDeleteResponse> {
         let is_physical = req.is_physical.unwrap_or(false);
         let all_ids = req.ids.clone();
         
-        let successful_ids = self.repository.batch_delete(req.ids, is_physical).await;
+        let successful_ids = self.repository.batch_delete(req.ids, is_physical).await?;
         let failed_ids: Vec<u64> = all_ids.into_iter()
             .filter(|id| !successful_ids.contains(id))
             .collect();
@@ -156,17 +147,17 @@ impl ItemService {
             increment_error_counter("item", "batch_delete");
         }
         
-        BatchDeleteResponse {
+        Ok(BatchDeleteResponse {
             successful_ids,
             failed_ids,
-        }
+        })
     }
     
-    pub async fn get_deletion_logs(&self, item_id: Option<u64>) -> Vec<DeletionLogResponse> {
-        let logs = self.repository.get_deletion_logs(item_id).await;
+    pub async fn get_deletion_logs(&self, item_id: Option<u64>) -> AppResult<Vec<DeletionLogResponse>> {
+        let logs = self.repository.get_deletion_logs(item_id).await?;
         increment_success_counter("item", "get_deletion_logs");
         
-        logs.into_iter()
+        Ok(logs.into_iter()
             .map(|log| DeletionLogResponse {
                 id: log.id,
                 item_id: log.item_id,
@@ -179,7 +170,7 @@ impl ItemService {
                 deleted_at: log.deleted_at,
                 deleted_by: log.deleted_by,
             })
-            .collect()
+            .collect())
     }
     
     // Helper method to convert domain Item to ItemResponse DTO

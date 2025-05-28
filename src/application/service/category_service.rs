@@ -62,8 +62,8 @@ impl CategoryService {
         }
     }
 
-    pub async fn find_by_parent_id(&self, parent_id: Option<&str>, include_inactive: bool) -> CategoriesResponse {
-        let categories = self.repository.find_by_parent_id(parent_id, include_inactive).await;
+    pub async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> CategoriesResponse {
+        let categories = self.repository.find_by_parent_id(parent_id.clone(), include_inactive).await;
         
         let mut category_list = Vec::new();
         for category in &categories {
@@ -91,7 +91,7 @@ impl CategoryService {
     }
 
     pub async fn find_children(&self, id: &str, include_inactive: bool) -> CategoriesResponse {
-        self.find_by_parent_id(Some(id), include_inactive).await
+        self.find_by_parent_id(Some(id.to_string()), include_inactive).await
     }
 
     pub async fn find_path(&self, id: &str) -> Result<CategoryPathResponse, CategoryError> {
@@ -215,10 +215,11 @@ impl CategoryService {
     }
 
     pub async fn move_category(&self, id: &str, req: MoveCategoryRequest) -> Result<CategoryResponse, CategoryError> {
-        match self.repository.move_category(id, req.parent_id.as_deref(), req.sort_order).await {
+        let parent_id = req.parent_id.clone();
+        match self.repository.move_category(id, req.parent_id, req.sort_order).await {
             Ok(moved_category) => {
                 increment_success_counter("category", "move");
-                info!("Moved category {} to parent {:?} with sort order {}", id, req.parent_id, req.sort_order);
+                info!("Moved category {} to parent {:?} with sort order {}", id, parent_id, req.sort_order);
                 Ok(moved_category.into())
             }
             Err(e) => {
@@ -254,7 +255,7 @@ mod tests {
 
         mock_repo
             .expect_find_by_id()
-            .with(eq("cat_123"))
+            .with(eq("cat_123".to_string()))
             .return_once(move |_| Some(category.clone()));
 
         let service = CategoryService::new(Arc::new(mock_repo));
@@ -272,7 +273,7 @@ mod tests {
         
         mock_repo
             .expect_find_by_id()
-            .with(eq("cat_999"))
+            .with(eq("cat_999".to_string()))
             .return_once(|_| None);
 
         let service = CategoryService::new(Arc::new(mock_repo));
@@ -374,7 +375,7 @@ mod tests {
 
         mock_repo
             .expect_find_by_id()
-            .with(eq("cat_123"))
+            .with(eq("cat_123".to_string()))
             .return_once(move |_| Some(existing_category));
 
         mock_repo
@@ -403,7 +404,7 @@ mod tests {
         
         mock_repo
             .expect_delete()
-            .with(eq("cat_123"))
+            .with(eq("cat_123".to_string()))
             .return_once(|_| Ok(true));
 
         let service = CategoryService::new(Arc::new(mock_repo));
@@ -419,7 +420,7 @@ mod tests {
         
         mock_repo
             .expect_delete()
-            .with(eq("cat_123"))
+            .with(eq("cat_123".to_string()))
             .return_once(|_| Err(CategoryError::HasChildren("子カテゴリが存在するため削除できません".to_string())));
 
         let service = CategoryService::new(Arc::new(mock_repo));
@@ -449,7 +450,7 @@ mod tests {
 
         mock_repo
             .expect_move_category()
-            .with(eq("cat_123"), eq(Some("cat_parent")), eq(2))
+            .with(eq("cat_123".to_string()), eq(Some("cat_parent".to_string())), eq(2))
             .return_once(move |_, _, _| Ok(moved_category));
 
         let request = MoveCategoryRequest {
@@ -479,7 +480,7 @@ mod tests {
         // Mock the path finding
         mock_repo
             .expect_find_path()
-            .with(eq("cat_grandchild"))
+            .with(eq("cat_grandchild".to_string()))
             .return_once(move |_| Ok(path));
 
         // Mock the category finding for enriching path
@@ -518,17 +519,17 @@ mod tests {
 
         mock_repo
             .expect_find_by_id()
-            .with(eq("cat_root"))
+            .with(eq("cat_root".to_string()))
             .return_once(move |_| Some(root_category));
 
         mock_repo
             .expect_find_by_id()
-            .with(eq("cat_child"))
+            .with(eq("cat_child".to_string()))
             .return_once(move |_| Some(child_category));
 
         mock_repo
             .expect_find_by_id()
-            .with(eq("cat_grandchild"))
+            .with(eq("cat_grandchild".to_string()))
             .return_once(move |_| Some(grandchild_category));
 
         let service = CategoryService::new(Arc::new(mock_repo));

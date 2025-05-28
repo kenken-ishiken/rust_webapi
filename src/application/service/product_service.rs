@@ -63,7 +63,7 @@ impl ProductService {
     pub async fn find_by_sku(&self, sku: &str) -> Result<ProductResponse, ProductError> {
         match self.repository.find_by_sku(sku).await {
             Some(product) => {
-                let id = &product.id;
+                let id = product.id.clone();
                 let mut response = ProductResponse::from(product);
                 
                 // Populate related data
@@ -227,7 +227,7 @@ impl ProductService {
         }
 
         if let Some(description) = request.description {
-            product.update_description(description);
+            product.update_description(Some(description));
         }
 
         if let Some(sku) = request.sku {
@@ -235,7 +235,7 @@ impl ProductService {
         }
 
         if let Some(brand) = request.brand {
-            product.update_brand(brand);
+            product.update_brand(Some(brand));
         }
 
         if let Some(status) = request.status {
@@ -243,7 +243,7 @@ impl ProductService {
         }
 
         if let Some(category_id) = request.category_id {
-            product.update_category(category_id);
+            product.update_category(Some(category_id));
         }
 
         if let Some(dimensions_req) = request.dimensions {
@@ -256,7 +256,7 @@ impl ProductService {
         }
 
         if let Some(weight) = request.weight {
-            product.update_weight(weight)?;
+            product.update_weight(Some(weight))?;
         }
 
         if let Some(shipping_info_req) = request.shipping_info {
@@ -307,7 +307,7 @@ impl ProductService {
         }
 
         if let Some(description) = request.description {
-            product.update_description(description);
+            product.update_description(Some(description));
         }
 
         if let Some(status) = request.status {
@@ -315,7 +315,7 @@ impl ProductService {
         }
 
         if let Some(category_id) = request.category_id {
-            product.update_category(category_id);
+            product.update_category(Some(category_id));
         }
 
         // Update the product
@@ -331,11 +331,11 @@ impl ProductService {
                 }
                 
                 if let Some(list_price) = price_patch.list_price {
-                    new_price.list_price = list_price;
+                    new_price.list_price = Some(list_price);
                 }
                 
                 if let Some(discount_price) = price_patch.discount_price {
-                    new_price.discount_price = discount_price;
+                    new_price.discount_price = Some(discount_price);
                 }
 
                 new_price.validate()?;
@@ -355,7 +355,7 @@ impl ProductService {
                 }
                 
                 if let Some(alert_threshold) = inventory_patch.alert_threshold {
-                    current_inventory.alert_threshold = alert_threshold;
+                    current_inventory.alert_threshold = Some(alert_threshold);
                 }
                 
                 if let Some(track_inventory) = inventory_patch.track_inventory {
@@ -575,8 +575,8 @@ impl ProductService {
         }
 
         // Update status if provided
-        if let Some(status) = update_item.status {
-            product.update_status(status);
+        if let Some(ref status) = update_item.status {
+            product.update_status(status.clone());
         }
 
         // Update the product
@@ -592,11 +592,11 @@ impl ProductService {
                 }
                 
                 if let Some(list_price) = price_patch.list_price {
-                    new_price.list_price = list_price;
+                    new_price.list_price = Some(list_price);
                 }
                 
                 if let Some(discount_price) = price_patch.discount_price {
-                    new_price.discount_price = discount_price;
+                    new_price.discount_price = Some(discount_price);
                 }
 
                 new_price.validate()?;
@@ -616,7 +616,7 @@ impl ProductService {
                 }
                 
                 if let Some(alert_threshold) = inventory_patch.alert_threshold {
-                    current_inventory.alert_threshold = alert_threshold;
+                    current_inventory.alert_threshold = Some(alert_threshold);
                 }
                 
                 if let Some(track_inventory) = inventory_patch.track_inventory {
