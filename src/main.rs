@@ -51,6 +51,7 @@ use crate::presentation::api::product_handler::{ProductHandler, configure_produc
 
 // gRPC imports
 use crate::presentation::grpc::user_service::{UserServiceImpl, UserServiceServer};
+use crate::presentation::grpc::item_service::{ItemServiceImpl, ItemServiceServer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -107,6 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // gRPCサービスの作成
     let grpc_user_service = UserServiceImpl::new(user_service.clone());
+    let grpc_item_service = ItemServiceImpl::new(item_service.clone());
 
     // HTTPサーバーの設定
     let http_server = HttpServer::new(move || {
@@ -176,6 +178,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // gRPCサーバーの設定
     let grpc_server = Server::builder()
         .add_service(UserServiceServer::new(grpc_user_service))
+        .add_service(ItemServiceServer::new(grpc_item_service))
         .serve("127.0.0.1:50051".parse().unwrap());
 
     // 両方のサーバーを並行して実行
