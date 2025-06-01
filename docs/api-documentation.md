@@ -134,16 +134,21 @@ curl -X POST "http://localhost:8081/auth/realms/rust-webapi/protocol/openid-conn
 ## エンドポイント一覧
 
 ### 商品管理
-- `GET /api/products` - 商品一覧取得
+- `GET /api/products` - 商品一覧取得・検索
 - `POST /api/products` - 商品作成
 - `GET /api/products/{id}` - 商品詳細取得
+- `GET /api/products/sku/{sku}` - SKUによる商品取得
 - `PUT /api/products/{id}` - 商品更新
+- `PATCH /api/products/{id}` - 商品部分更新
 - `DELETE /api/products/{id}` - 商品論理削除
 - `DELETE /api/products/{id}/permanent` - 商品物理削除
 - `POST /api/products/{id}/restore` - 商品復元
 - `GET /api/products/{id}/deletion-check` - 削除可能性チェック
 - `DELETE /api/products/batch` - 商品一括削除
 - `GET /api/products/deleted` - 削除済み商品一覧
+- `GET /api/products/{id}/history` - 商品変更履歴
+- `GET /api/products/reports/low-stock` - 在庫少商品レポート
+- `GET /api/products/reports/out-of-stock` - 在庫切れ商品レポート
 
 ### カテゴリ管理
 - `GET /api/categories` - カテゴリ一覧取得
@@ -159,7 +164,19 @@ curl -X POST "http://localhost:8081/auth/realms/rust-webapi/protocol/openid-conn
 - `PUT /api/users/{id}` - ユーザー更新
 - `DELETE /api/users/{id}` - ユーザー削除
 
+### アイテム管理
+- `GET /api/items` - アイテム一覧取得
+- `POST /api/items` - アイテム作成
+- `GET /api/items/{id}` - アイテム詳細取得
+- `PUT /api/items/{id}` - アイテム更新
+- `DELETE /api/items/{id}` - アイテム削除
+
+### 削除ログ管理
+- `GET /api/deletion-logs` - 全削除ログ取得
+- `GET /api/products/{id}/deletion-log` - 商品削除ログ取得
+
 ### システム
+- `GET /` - ルートエンドポイント
 - `GET /api/health` - ヘルスチェック
 - `GET /api/metrics` - Prometheusメトリクス
 

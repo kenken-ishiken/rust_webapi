@@ -57,16 +57,31 @@ curl http://localhost:8080/
 
 プロジェクトに関する詳細なドキュメントは以下を参照してください：
 
+### 基本ドキュメント
 - [API リファレンス](docs/api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例、curl使用例
+- [API 仕様書](docs/api-documentation.md) - REST API の包括的な仕様とエンドポイント一覧
 - [アーキテクチャガイド](docs/architecture-guide.md) - システム設計、データフロー、コンポーネント構成
 - [開発ガイド](docs/development-guide.md) - 開発環境のセットアップ、テスト、デバッグ
+- [開発ワークフロー](docs/development-testing.md) - テスト戦略、コーディング規約、CI/CD
+
+### 運用・デプロイ
 - [運用ガイド](docs/operations-guide.md) - デプロイ、監視、バックアップ、スケーリング
+- [デプロイ・運用ガイド](docs/deployment-operations.md) - 本番環境でのデプロイと運用
 - [Keycloakセットアップガイド](docs/keycloak-setup.md) - Keycloak認証サーバーの設定と連携方法
+
+### システム設計・データベース
+- [データベーススキーマ](docs/database-schema.md) - データベース設計と関係性
+- [詳細アーキテクチャ](docs/architecture-detailed.md) - 深掘りしたアーキテクチャ解説
+
+### プロジェクト管理
+- [要件管理ガイド](docs/requirement-management-guide.md) - 要件定義の管理方法
+- [要件セットアップ例](docs/requirement-setup-examples.md) - 実践的な要件管理の例
 
 その他の重要なドキュメント：
 - [可観測性ガイド](o11y.md) - ログ、メトリクス、トレーシングの実装と運用
 - [Kubernetesデプロイガイド](k8s/README.md) - Kubernetes環境へのデプロイ手順
 - [統合テストガイド](tests/README.md) - Testcontainersを使用した統合テスト
+- [スクリプトガイド](scripts/README.md) - 開発・運用で使用する補助スクリプト
 
 ## プロジェクト構造
 
