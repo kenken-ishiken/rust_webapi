@@ -503,16 +503,16 @@ impl From<ProductError> for ProductErrorResponse {
                 "商品が見つかりません".to_string(),
                 None,
             ),
-            ProductError::CategoryNotFound => (
-                "CATEGORY_NOT_FOUND".to_string(),
-                "指定されたカテゴリが存在しません".to_string(),
-                None,
-            ),
-            ProductError::InsufficientPermissions => (
-                "INSUFFICIENT_PERMISSIONS".to_string(),
-                "編集権限がありません".to_string(),
-                None,
-            ),
+            // ProductError::CategoryNotFound => (
+            //     "CATEGORY_NOT_FOUND".to_string(),
+            //     "指定されたカテゴリが存在しません".to_string(),
+            //     None,
+            // ),
+            // ProductError::InsufficientPermissions => (
+            //     "INSUFFICIENT_PERMISSIONS".to_string(),
+            //     "編集権限がありません".to_string(),
+            //     None,
+            // ),
             _ => (
                 "INTERNAL_ERROR".to_string(),
                 error.to_string(),

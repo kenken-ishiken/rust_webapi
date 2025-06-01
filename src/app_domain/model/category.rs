@@ -25,9 +25,9 @@ impl CategoryPath {
         Self { path, depth }
     }
 
-    pub fn is_valid_depth(&self) -> bool {
-        self.depth <= 5
-    }
+    // pub fn is_valid_depth(&self) -> bool {
+    //     self.depth <= 5
+    // }
 
     pub fn contains(&self, category_id: &str) -> bool {
         self.path.contains(&category_id.to_string())
@@ -134,7 +134,7 @@ pub enum CategoryError {
     CircularReference(String),
     MaxDepthExceeded(String),
     HasChildren(String),
-    HasProducts(String),
+    // HasProducts(String),
 }
 
 impl std::fmt::Display for CategoryError {
@@ -147,7 +147,7 @@ impl std::fmt::Display for CategoryError {
             CategoryError::CircularReference(msg) => write!(f, "Circular reference detected: {}", msg),
             CategoryError::MaxDepthExceeded(msg) => write!(f, "Maximum depth exceeded: {}", msg),
             CategoryError::HasChildren(msg) => write!(f, "Category has children: {}", msg),
-            CategoryError::HasProducts(msg) => write!(f, "Category has products: {}", msg),
+            // CategoryError::HasProducts(msg) => write!(f, "Category has products: {}", msg),
         }
     }
 }
@@ -301,7 +301,7 @@ mod tests {
         
         assert_eq!(path.path.len(), 3);
         assert_eq!(path.depth, 3);
-        assert!(path.is_valid_depth());
+        // assert!(path.is_valid_depth());
         assert!(path.contains("cat_2"));
         assert!(!path.contains("cat_4"));
     }
@@ -317,7 +317,7 @@ mod tests {
         ]);
         
         assert_eq!(path.depth, 5);
-        assert!(path.is_valid_depth());
+        // assert!(path.is_valid_depth());
         
         let path_too_deep = CategoryPath::new(vec![
             "cat_1".to_string(),
@@ -329,6 +329,6 @@ mod tests {
         ]);
         
         assert_eq!(path_too_deep.depth, 6);
-        assert!(!path_too_deep.is_valid_depth());
+        // assert!(!path_too_deep.is_valid_depth());
     }
 }

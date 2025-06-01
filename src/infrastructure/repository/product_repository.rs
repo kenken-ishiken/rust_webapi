@@ -190,62 +190,62 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn find_all(&self, 
-        category_id: Option<&str>,
-        status: Option<&str>,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> Vec<Product> {
-        let mut query = "SELECT id, name, description, sku, brand, status, category_id, 
-                               width, height, depth, weight, shipping_class, free_shipping, shipping_fee,
-                               created_at, updated_at 
-                         FROM products WHERE 1=1".to_string();
+    // async fn find_all(&self,
+    //     category_id: Option<&str>,
+    //     status: Option<&str>,
+    //     limit: Option<i64>,
+    //     offset: Option<i64>,
+    // ) -> Vec<Product> {
+    //     let mut query = "SELECT id, name, description, sku, brand, status, category_id,
+    //                            width, height, depth, weight, shipping_class, free_shipping, shipping_fee,
+    //                            created_at, updated_at
+    //                      FROM products WHERE 1=1".to_string();
         
-        let mut param_index = 1;
+    //     let mut param_index = 1;
 
-        if let Some(_cat_id) = category_id {
-            query.push_str(&format!(" AND category_id = ${}", param_index));
-            param_index += 1;
-        }
+    //     if let Some(_cat_id) = category_id {
+    //         query.push_str(&format!(" AND category_id = ${}", param_index));
+    //         param_index += 1;
+    //     }
 
-        if let Some(_status_val) = status {
-            query.push_str(&format!(" AND status = ${}", param_index));
-            param_index += 1;
-        }
+    //     if let Some(_status_val) = status {
+    //         query.push_str(&format!(" AND status = ${}", param_index));
+    //         param_index += 1;
+    //     }
 
-        query.push_str(" ORDER BY created_at DESC");
+    //     query.push_str(" ORDER BY created_at DESC");
 
-        if let Some(_limit_val) = limit {
-            query.push_str(&format!(" LIMIT ${}", param_index));
-            param_index += 1;
-        }
+    //     if let Some(_limit_val) = limit {
+    //         query.push_str(&format!(" LIMIT ${}", param_index));
+    //         param_index += 1;
+    //     }
 
-        if let Some(_offset_val) = offset {
-            query.push_str(&format!(" OFFSET ${}", param_index));
-        }
+    //     if let Some(_offset_val) = offset {
+    //         query.push_str(&format!(" OFFSET ${}", param_index));
+    //     }
 
-        let mut sqlx_query = sqlx::query(&query);
-        if let Some(cat_id) = category_id {
-            sqlx_query = sqlx_query.bind(cat_id);
-        }
-        if let Some(status_val) = status {
-            sqlx_query = sqlx_query.bind(status_val);
-        }
-        if let Some(limit_val) = limit {
-            sqlx_query = sqlx_query.bind(limit_val);
-        }
-        if let Some(offset_val) = offset {
-            sqlx_query = sqlx_query.bind(offset_val);
-        }
+    //     let mut sqlx_query = sqlx::query(&query);
+    //     if let Some(cat_id) = category_id {
+    //         sqlx_query = sqlx_query.bind(cat_id);
+    //     }
+    //     if let Some(status_val) = status {
+    //         sqlx_query = sqlx_query.bind(status_val);
+    //     }
+    //     if let Some(limit_val) = limit {
+    //         sqlx_query = sqlx_query.bind(limit_val);
+    //     }
+    //     if let Some(offset_val) = offset {
+    //         sqlx_query = sqlx_query.bind(offset_val);
+    //     }
 
-        match sqlx_query.fetch_all(&self.pool).await {
-            Ok(rows) => rows.iter().map(Self::row_to_product).collect(),
-            Err(e) => {
-                error!("Error finding products: {}", e);
-                vec![]
-            }
-        }
-    }
+    //     match sqlx_query.fetch_all(&self.pool).await {
+    //         Ok(rows) => rows.iter().map(Self::row_to_product).collect(),
+    //         Err(e) => {
+    //             error!("Error finding products: {}", e);
+    //             vec![]
+    //         }
+    //     }
+    // }
 
     async fn create(&self, product: Product) -> Result<Product, ProductError> {
         let mut tx = self.pool.begin().await
@@ -422,29 +422,29 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn get_price_history(&self, product_id: &str, limit: Option<i64>) -> Vec<Price> {
-        let mut query = "SELECT selling_price, list_price, discount_price, currency, tax_included,
-                               effective_from, effective_until
-                         FROM product_prices 
-                         WHERE product_id = $1 
-                         ORDER BY created_at DESC".to_string();
+    // async fn get_price_history(&self, product_id: &str, limit: Option<i64>) -> Vec<Price> {
+    //     let mut query = "SELECT selling_price, list_price, discount_price, currency, tax_included,
+    //                            effective_from, effective_until
+    //                      FROM product_prices
+    //                      WHERE product_id = $1
+    //                      ORDER BY created_at DESC".to_string();
 
-        if let Some(limit_val) = limit {
-            query.push_str(&format!(" LIMIT {}", limit_val));
-        }
+    //     if let Some(limit_val) = limit {
+    //         query.push_str(&format!(" LIMIT {}", limit_val));
+    //     }
 
-        match sqlx::query(&query)
-            .bind(product_id)
-            .fetch_all(&self.pool)
-            .await
-        {
-            Ok(rows) => rows.iter().map(Self::row_to_price).collect(),
-            Err(e) => {
-                error!("Error getting price history for product {}: {}", product_id, e);
-                vec![]
-            }
-        }
-    }
+    //     match sqlx::query(&query)
+    //         .bind(product_id)
+    //         .fetch_all(&self.pool)
+    //         .await
+    //     {
+    //         Ok(rows) => rows.iter().map(Self::row_to_price).collect(),
+    //         Err(e) => {
+    //             error!("Error getting price history for product {}: {}", product_id, e);
+    //             vec![]
+    //         }
+    //     }
+    // }
 
     async fn update_price(&self, product_id: &str, price: Price) -> Result<Price, ProductError> {
         // Validate price before updating
@@ -514,47 +514,47 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn reserve_inventory(&self, product_id: &str, quantity: i32) -> Result<(), ProductError> {
-        if quantity <= 0 {
-            return Err(ProductError::InvalidInventoryQuantity);
-        }
+    // async fn reserve_inventory(&self, product_id: &str, quantity: i32) -> Result<(), ProductError> {
+    //     if quantity <= 0 {
+    //         return Err(ProductError::InvalidInventoryQuantity);
+    //     }
 
-        let query = "UPDATE product_inventory 
-                     SET reserved_quantity = reserved_quantity + $2
-                     WHERE product_id = $1 AND quantity >= reserved_quantity + $2";
+    //     let query = "UPDATE product_inventory
+    //                  SET reserved_quantity = reserved_quantity + $2
+    //                  WHERE product_id = $1 AND quantity >= reserved_quantity + $2";
 
-        match sqlx::query(query)
-            .bind(product_id)
-            .bind(quantity)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(result) if result.rows_affected() > 0 => Ok(()),
-            Ok(_) => Err(ProductError::InvalidInventoryQuantity),
-            Err(e) => Err(ProductError::DatabaseError(e.to_string())),
-        }
-    }
+    //     match sqlx::query(query)
+    //         .bind(product_id)
+    //         .bind(quantity)
+    //         .execute(&self.pool)
+    //         .await
+    //     {
+    //         Ok(result) if result.rows_affected() > 0 => Ok(()),
+    //         Ok(_) => Err(ProductError::InvalidInventoryQuantity),
+    //         Err(e) => Err(ProductError::DatabaseError(e.to_string())),
+    //     }
+    // }
 
-    async fn release_inventory(&self, product_id: &str, quantity: i32) -> Result<(), ProductError> {
-        if quantity <= 0 {
-            return Err(ProductError::InvalidInventoryQuantity);
-        }
+    // async fn release_inventory(&self, product_id: &str, quantity: i32) -> Result<(), ProductError> {
+    //     if quantity <= 0 {
+    //         return Err(ProductError::InvalidInventoryQuantity);
+    //     }
 
-        let query = "UPDATE product_inventory 
-                     SET reserved_quantity = GREATEST(0, reserved_quantity - $2)
-                     WHERE product_id = $1";
+    //     let query = "UPDATE product_inventory
+    //                  SET reserved_quantity = GREATEST(0, reserved_quantity - $2)
+    //                  WHERE product_id = $1";
 
-        match sqlx::query(query)
-            .bind(product_id)
-            .bind(quantity)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(result) if result.rows_affected() > 0 => Ok(()),
-            Ok(_) => Err(ProductError::ProductNotFound),
-            Err(e) => Err(ProductError::DatabaseError(e.to_string())),
-        }
-    }
+    //     match sqlx::query(query)
+    //         .bind(product_id)
+    //         .bind(quantity)
+    //         .execute(&self.pool)
+    //         .await
+    //     {
+    //         Ok(result) if result.rows_affected() > 0 => Ok(()),
+    //         Ok(_) => Err(ProductError::ProductNotFound),
+    //         Err(e) => Err(ProductError::DatabaseError(e.to_string())),
+    //     }
+    // }
 
     async fn get_images(&self, product_id: &str) -> Vec<ProductImage> {
         let query = "SELECT id, url, alt_text, sort_order, is_main
@@ -802,25 +802,25 @@ impl ProductRepository for PostgresProductRepository {
         Ok(())
     }
 
-    async fn remove_tags(&self, product_id: &str, tags: Vec<String>) -> Result<(), ProductError> {
-        if tags.is_empty() {
-            return Ok(());
-        }
+    // async fn remove_tags(&self, product_id: &str, tags: Vec<String>) -> Result<(), ProductError> {
+    //     if tags.is_empty() {
+    //         return Ok(());
+    //     }
 
-        let placeholders: Vec<String> = (1..=tags.len()).map(|i| format!("${}", i + 1)).collect();
-        let query = format!("DELETE FROM product_tags WHERE product_id = $1 AND tag IN ({})", 
-                           placeholders.join(", "));
+    //     let placeholders: Vec<String> = (1..=tags.len()).map(|i| format!("${}", i + 1)).collect();
+    //     let query = format!("DELETE FROM product_tags WHERE product_id = $1 AND tag IN ({})",
+    //                        placeholders.join(", "));
 
-        let mut sqlx_query = sqlx::query(&query).bind(product_id);
-        for tag in tags {
-            sqlx_query = sqlx_query.bind(tag);
-        }
+    //     let mut sqlx_query = sqlx::query(&query).bind(product_id);
+    //     for tag in tags {
+    //         sqlx_query = sqlx_query.bind(tag);
+    //     }
 
-        match sqlx_query.execute(&self.pool).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(ProductError::DatabaseError(e.to_string())),
-        }
-    }
+    //     match sqlx_query.execute(&self.pool).await {
+    //         Ok(_) => Ok(()),
+    //         Err(e) => Err(ProductError::DatabaseError(e.to_string())),
+    //     }
+    // }
 
     async fn replace_tags(&self, product_id: &str, tags: Vec<String>) -> Result<(), ProductError> {
         let mut tx = self.pool.begin().await
@@ -900,37 +900,37 @@ impl ProductRepository for PostgresProductRepository {
         Ok(())
     }
 
-    async fn set_attribute(&self, product_id: &str, name: &str, value: &str) -> Result<(), ProductError> {
-        let query = "INSERT INTO product_attributes (product_id, attribute_name, attribute_value) 
-                     VALUES ($1, $2, $3)
-                     ON CONFLICT (product_id, attribute_name) 
-                     DO UPDATE SET attribute_value = $3, updated_at = NOW()";
+    // async fn set_attribute(&self, product_id: &str, name: &str, value: &str) -> Result<(), ProductError> {
+    //     let query = "INSERT INTO product_attributes (product_id, attribute_name, attribute_value)
+    //                  VALUES ($1, $2, $3)
+    //                  ON CONFLICT (product_id, attribute_name)
+    //                  DO UPDATE SET attribute_value = $3, updated_at = NOW()";
 
-        match sqlx::query(query)
-            .bind(product_id)
-            .bind(name)
-            .bind(value)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(ProductError::DatabaseError(e.to_string())),
-        }
-    }
+    //     match sqlx::query(query)
+    //         .bind(product_id)
+    //         .bind(name)
+    //         .bind(value)
+    //         .execute(&self.pool)
+    //         .await
+    //     {
+    //         Ok(_) => Ok(()),
+    //         Err(e) => Err(ProductError::DatabaseError(e.to_string())),
+    //     }
+    // }
 
-    async fn remove_attribute(&self, product_id: &str, name: &str) -> Result<(), ProductError> {
-        let query = "DELETE FROM product_attributes WHERE product_id = $1 AND attribute_name = $2";
+    // async fn remove_attribute(&self, product_id: &str, name: &str) -> Result<(), ProductError> {
+    //     let query = "DELETE FROM product_attributes WHERE product_id = $1 AND attribute_name = $2";
 
-        match sqlx::query(query)
-            .bind(product_id)
-            .bind(name)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(ProductError::DatabaseError(e.to_string())),
-        }
-    }
+    //     match sqlx::query(query)
+    //         .bind(product_id)
+    //         .bind(name)
+    //         .execute(&self.pool)
+    //         .await
+    //     {
+    //         Ok(_) => Ok(()),
+    //         Err(e) => Err(ProductError::DatabaseError(e.to_string())),
+    //     }
+    // }
 
     async fn get_history(&self, 
         product_id: &str, 
@@ -981,157 +981,157 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn add_history_entry(&self, 
-        product_id: &str,
-        field_name: &str,
-        old_value: Option<&str>,
-        new_value: Option<&str>,
-        changed_by: Option<&str>,
-        reason: Option<&str>,
-    ) -> Result<(), ProductError> {
-        let query = "INSERT INTO product_history (product_id, field_name, old_value, new_value, changed_by, reason)
-                     VALUES ($1, $2, $3, $4, $5, $6)";
+    // async fn add_history_entry(&self,
+    //     product_id: &str,
+    //     field_name: &str,
+    //     old_value: Option<&str>,
+    //     new_value: Option<&str>,
+    //     changed_by: Option<&str>,
+    //     reason: Option<&str>,
+    // ) -> Result<(), ProductError> {
+    //     let query = "INSERT INTO product_history (product_id, field_name, old_value, new_value, changed_by, reason)
+    //                  VALUES ($1, $2, $3, $4, $5, $6)";
 
-        match sqlx::query(query)
-            .bind(product_id)
-            .bind(field_name)
-            .bind(old_value)
-            .bind(new_value)
-            .bind(changed_by)
-            .bind(reason)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(ProductError::DatabaseError(e.to_string())),
-        }
-    }
+    //     match sqlx::query(query)
+    //         .bind(product_id)
+    //         .bind(field_name)
+    //         .bind(old_value)
+    //         .bind(new_value)
+    //         .bind(changed_by)
+    //         .bind(reason)
+    //         .execute(&self.pool)
+    //         .await
+    //     {
+    //         Ok(_) => Ok(()),
+    //         Err(e) => Err(ProductError::DatabaseError(e.to_string())),
+    //     }
+    // }
 
-    async fn update_batch(&self, updates: Vec<(String, Product)>) -> Result<Vec<Product>, ProductError> {
-        let mut results = Vec::new();
-        let mut tx = self.pool.begin().await
-            .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
+    // async fn update_batch(&self, updates: Vec<(String, Product)>) -> Result<Vec<Product>, ProductError> {
+    //     let mut results = Vec::new();
+    //     let mut tx = self.pool.begin().await
+    //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
-        for (id, product) in updates {
-            let query = "UPDATE products 
-                         SET name = $2, description = $3, sku = $4, brand = $5, status = $6, category_id = $7,
-                             width = $8, height = $9, depth = $10, weight = $11, 
-                             shipping_class = $12, free_shipping = $13, shipping_fee = $14, updated_at = NOW()
-                         WHERE id = $1";
+    //     for (id, product) in updates {
+    //         let query = "UPDATE products
+    //                      SET name = $2, description = $3, sku = $4, brand = $5, status = $6, category_id = $7,
+    //                          width = $8, height = $9, depth = $10, weight = $11,
+    //                          shipping_class = $12, free_shipping = $13, shipping_fee = $14, updated_at = NOW()
+    //                      WHERE id = $1";
 
-            let width = product.dimensions.as_ref().map(|d| d.width);
-            let height = product.dimensions.as_ref().map(|d| d.height);
-            let depth = product.dimensions.as_ref().map(|d| d.depth);
+    //         let width = product.dimensions.as_ref().map(|d| d.width);
+    //         let height = product.dimensions.as_ref().map(|d| d.height);
+    //         let depth = product.dimensions.as_ref().map(|d| d.depth);
 
-            let result = sqlx::query(query)
-                .bind(&id)
-                .bind(&product.name)
-                .bind(&product.description)
-                .bind(&product.sku)
-                .bind(&product.brand)
-                .bind(product.status.to_string())
-                .bind(&product.category_id)
-                .bind(width)
-                .bind(height)
-                .bind(depth)
-                .bind(product.weight)
-                .bind(&product.shipping_info.shipping_class)
-                .bind(product.shipping_info.free_shipping)
-                .bind(product.shipping_info.shipping_fee)
-                .execute(&mut *tx)
-                .await;
+    //         let result = sqlx::query(query)
+    //             .bind(&id)
+    //             .bind(&product.name)
+    //             .bind(&product.description)
+    //             .bind(&product.sku)
+    //             .bind(&product.brand)
+    //             .bind(product.status.to_string())
+    //             .bind(&product.category_id)
+    //             .bind(width)
+    //             .bind(height)
+    //             .bind(depth)
+    //             .bind(product.weight)
+    //             .bind(&product.shipping_info.shipping_class)
+    //             .bind(product.shipping_info.free_shipping)
+    //             .bind(product.shipping_info.shipping_fee)
+    //             .execute(&mut *tx)
+    //             .await;
 
-            match result {
-                Ok(_) => results.push(product),
-                Err(e) => {
-                    let _ = tx.rollback().await;
-                    return Err(ProductError::DatabaseError(e.to_string()));
-                }
-            }
-        }
+    //         match result {
+    //             Ok(_) => results.push(product),
+    //             Err(e) => {
+    //                 let _ = tx.rollback().await;
+    //                 return Err(ProductError::DatabaseError(e.to_string()));
+    //             }
+    //         }
+    //     }
 
-        tx.commit().await
-            .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
+    //     tx.commit().await
+    //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
         
-        Ok(results)
-    }
+    //     Ok(results)
+    // }
 
-    async fn update_prices_batch(&self, updates: Vec<(String, Price)>) -> Result<Vec<Price>, ProductError> {
-        let mut results = Vec::new();
-        let mut tx = self.pool.begin().await
-            .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
+    // async fn update_prices_batch(&self, updates: Vec<(String, Price)>) -> Result<Vec<Price>, ProductError> {
+    //     let mut results = Vec::new();
+    //     let mut tx = self.pool.begin().await
+    //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
-        for (product_id, price) in updates {
-            price.validate()?;
+    //     for (product_id, price) in updates {
+    //         price.validate()?;
 
-            let query = "INSERT INTO product_prices (product_id, selling_price, list_price, discount_price, 
-                                                   currency, tax_included, effective_from, effective_until)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
+    //         let query = "INSERT INTO product_prices (product_id, selling_price, list_price, discount_price,
+    //                                                currency, tax_included, effective_from, effective_until)
+    //                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
 
-            let result = sqlx::query(query)
-                .bind(&product_id)
-                .bind(price.selling_price)
-                .bind(price.list_price)
-                .bind(price.discount_price)
-                .bind(&price.currency)
-                .bind(price.tax_included)
-                .bind(price.effective_from)
-                .bind(price.effective_until)
-                .execute(&mut *tx)
-                .await;
+    //         let result = sqlx::query(query)
+    //             .bind(&product_id)
+    //             .bind(price.selling_price)
+    //             .bind(price.list_price)
+    //             .bind(price.discount_price)
+    //             .bind(&price.currency)
+    //             .bind(price.tax_included)
+    //             .bind(price.effective_from)
+    //             .bind(price.effective_until)
+    //             .execute(&mut *tx)
+    //             .await;
 
-            match result {
-                Ok(_) => results.push(price),
-                Err(e) => {
-                    let _ = tx.rollback().await;
-                    return Err(ProductError::DatabaseError(e.to_string()));
-                }
-            }
-        }
+    //         match result {
+    //             Ok(_) => results.push(price),
+    //             Err(e) => {
+    //                 let _ = tx.rollback().await;
+    //                 return Err(ProductError::DatabaseError(e.to_string()));
+    //             }
+    //         }
+    //     }
 
-        tx.commit().await
-            .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
+    //     tx.commit().await
+    //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
         
-        Ok(results)
-    }
+    //     Ok(results)
+    // }
 
-    async fn update_inventory_batch(&self, updates: Vec<(String, Inventory)>) -> Result<Vec<Inventory>, ProductError> {
-        let mut results = Vec::new();
-        let mut tx = self.pool.begin().await
-            .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
+    // async fn update_inventory_batch(&self, updates: Vec<(String, Inventory)>) -> Result<Vec<Inventory>, ProductError> {
+    //     let mut results = Vec::new();
+    //     let mut tx = self.pool.begin().await
+    //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
-        for (product_id, inventory) in updates {
-            inventory.validate()?;
+    //     for (product_id, inventory) in updates {
+    //         inventory.validate()?;
 
-            let query = "UPDATE product_inventory 
-                         SET quantity = $2, reserved_quantity = $3, alert_threshold = $4, 
-                             track_inventory = $5, allow_backorder = $6, updated_at = NOW()
-                         WHERE product_id = $1";
+    //         let query = "UPDATE product_inventory
+    //                      SET quantity = $2, reserved_quantity = $3, alert_threshold = $4,
+    //                          track_inventory = $5, allow_backorder = $6, updated_at = NOW()
+    //                      WHERE product_id = $1";
 
-            let result = sqlx::query(query)
-                .bind(&product_id)
-                .bind(inventory.quantity)
-                .bind(inventory.reserved_quantity)
-                .bind(inventory.alert_threshold)
-                .bind(inventory.track_inventory)
-                .bind(inventory.allow_backorder)
-                .execute(&mut *tx)
-                .await;
+    //         let result = sqlx::query(query)
+    //             .bind(&product_id)
+    //             .bind(inventory.quantity)
+    //             .bind(inventory.reserved_quantity)
+    //             .bind(inventory.alert_threshold)
+    //             .bind(inventory.track_inventory)
+    //             .bind(inventory.allow_backorder)
+    //             .execute(&mut *tx)
+    //             .await;
 
-            match result {
-                Ok(_) => results.push(inventory),
-                Err(e) => {
-                    let _ = tx.rollback().await;
-                    return Err(ProductError::DatabaseError(e.to_string()));
-                }
-            }
-        }
+    //         match result {
+    //             Ok(_) => results.push(inventory),
+    //             Err(e) => {
+    //                 let _ = tx.rollback().await;
+    //                 return Err(ProductError::DatabaseError(e.to_string()));
+    //             }
+    //         }
+    //     }
 
-        tx.commit().await
-            .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
+    //     tx.commit().await
+    //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
         
-        Ok(results)
-    }
+    //     Ok(results)
+    // }
 
     #[allow(clippy::too_many_arguments)]
     async fn search(&self, 
@@ -1252,31 +1252,31 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn find_by_category_recursive(&self, category_id: &str) -> Vec<Product> {
-        // This would require a recursive CTE to find all subcategories
-        // For simplicity, just finding direct children for now
-        let query = "SELECT p.id, p.name, p.description, p.sku, p.brand, p.status, p.category_id, 
-                           p.width, p.height, p.depth, p.weight, p.shipping_class, p.free_shipping, p.shipping_fee,
-                           p.created_at, p.updated_at 
-                     FROM products p
-                     WHERE p.category_id = $1 
-                        OR p.category_id IN (
-                            SELECT id FROM categories WHERE parent_id = $1
-                        )
-                     ORDER BY p.created_at DESC";
+    // async fn find_by_category_recursive(&self, category_id: &str) -> Vec<Product> {
+    //     // This would require a recursive CTE to find all subcategories
+    //     // For simplicity, just finding direct children for now
+    //     let query = "SELECT p.id, p.name, p.description, p.sku, p.brand, p.status, p.category_id,
+    //                        p.width, p.height, p.depth, p.weight, p.shipping_class, p.free_shipping, p.shipping_fee,
+    //                        p.created_at, p.updated_at
+    //                  FROM products p
+    //                  WHERE p.category_id = $1
+    //                     OR p.category_id IN (
+    //                         SELECT id FROM categories WHERE parent_id = $1
+    //                     )
+    //                  ORDER BY p.created_at DESC";
 
-        match sqlx::query(query)
-            .bind(category_id)
-            .fetch_all(&self.pool)
-            .await
-        {
-            Ok(rows) => rows.iter().map(Self::row_to_product).collect(),
-            Err(e) => {
-                error!("Error finding products by category {}: {}", category_id, e);
-                vec![]
-            }
-        }
-    }
+    //     match sqlx::query(query)
+    //         .bind(category_id)
+    //         .fetch_all(&self.pool)
+    //         .await
+    //     {
+    //         Ok(rows) => rows.iter().map(Self::row_to_product).collect(),
+    //         Err(e) => {
+    //             error!("Error finding products by category {}: {}", category_id, e);
+    //             vec![]
+    //         }
+    //     }
+    // }
 
     async fn find_low_stock_products(&self, threshold: Option<i32>) -> Vec<(Product, Inventory)> {
         let default_threshold = threshold.unwrap_or(10);

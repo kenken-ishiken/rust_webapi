@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use mockall::automock;
 use crate::app_domain::model::category::{Category, CategoryPath, CategoryTree, CategoryError};
 
+#[cfg(test)]
 pub use mockall::predicate;
 
 #[automock]
@@ -10,7 +11,7 @@ pub trait CategoryRepository: Send + Sync {
     async fn find_all(&self, include_inactive: bool) -> Vec<Category>;
     async fn find_by_id(&self, id: &str) -> Option<Category>;
     async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> Vec<Category>;
-    async fn find_children(&self, id: &str, include_inactive: bool) -> Vec<Category>;
+    // async fn find_children(&self, id: &str, include_inactive: bool) -> Vec<Category>;
     async fn find_path(&self, id: &str) -> Result<CategoryPath, CategoryError>;
     async fn find_tree(&self, include_inactive: bool) -> Vec<CategoryTree>;
     async fn exists_by_name_and_parent(&self, name: &str, parent_id: Option<String>, exclude_id: Option<String>) -> bool;
@@ -19,7 +20,7 @@ pub trait CategoryRepository: Send + Sync {
     async fn delete(&self, id: &str) -> Result<bool, CategoryError>;
     async fn move_category(&self, id: &str, new_parent_id: Option<String>, new_sort_order: i32) -> Result<Category, CategoryError>;
     async fn count_children(&self, id: &str) -> i64;
-    async fn count_products(&self, id: &str) -> i64;
+    // async fn count_products(&self, id: &str) -> i64;
     async fn validate_depth(&self, parent_id: Option<String>) -> Result<(), CategoryError>;
     async fn validate_circular_reference(&self, id: &str, new_parent_id: Option<String>) -> Result<(), CategoryError>;
 }
