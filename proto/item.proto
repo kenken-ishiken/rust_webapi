@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package item;
+
+import "google/protobuf/timestamp.proto";
+
+// Item model
+message Item {
+  uint64 id = 1;
+  string name = 2;
+  optional string description = 3;
+  bool deleted = 4;
+  optional google.protobuf.Timestamp deleted_at = 5;
+}
+
+// Deletion type enum
+enum DeletionType {
+  DELETION_TYPE_UNSPECIFIED = 0;
+  DELETION_TYPE_LOGICAL = 1;
+  DELETION_TYPE_PHYSICAL = 2;
+  DELETION_TYPE_RESTORE = 3;
+}
+
+// Related data count
+message RelatedDataCount {
+  int64 related_orders = 1;
+  int64 related_reviews = 2;
+  int64 related_categories = 3;
+}
+
+// Deletion validation
+message DeletionValidation {
+  bool can_delete = 1;
+  RelatedDataCount related_data = 2;
+}
+
+// Deletion log
+message DeletionLog {
+  uint64 id = 1;
+  uint64 item_id = 2;
+  string item_name = 3;
+  DeletionType deletion_type = 4;
+  google.protobuf.Timestamp deleted_at = 5;
+  string deleted_by = 6;
+}
+
+// Request messages
+message GetItemsRequest {}
+
+message GetItemRequest {
+  uint64 id = 1;
+}
+
+message CreateItemRequest {
+  string name = 1;
+  optional string description = 2;
+}
+
+message UpdateItemRequest {
+  uint64 id = 1;
+  optional string name = 2;
+  optional string description = 3;
+}
+
+message DeleteItemRequest {
+  uint64 id = 1;
+}
+
+message LogicalDeleteItemRequest {
+  uint64 id = 1;
+}
+
+message PhysicalDeleteItemRequest {
+  uint64 id = 1;
+}
+
+message RestoreItemRequest {
+  uint64 id = 1;
+}
+
+message ValidateItemDeletionRequest {
+  uint64 id = 1;
+}
+
+message BatchDeleteItemsRequest {
+  repeated uint64 ids = 1;
+}
+
+message GetDeletedItemsRequest {}
+
+message GetItemDeletionLogRequest {
+  uint64 id = 1;
+}
+
+message GetDeletionLogsRequest {}
+
+// Response messages
+message GetItemsResponse {
+  repeated Item items = 1;
+}
+
+message GetItemResponse {
+  Item item = 1;
+}
+
+message CreateItemResponse {
+  Item item = 1;
+}
+
+message UpdateItemResponse {
+  Item item = 1;
+}
+
+message DeleteItemResponse {
+  bool success = 1;
+}
+
+message LogicalDeleteItemResponse {
+  bool success = 1;
+}
+
+message PhysicalDeleteItemResponse {
+  bool success = 1;
+}
+
+message RestoreItemResponse {
+  bool success = 1;
+}
+
+message ValidateItemDeletionResponse {
+  DeletionValidation validation = 1;
+}
+
+message BatchDeleteItemsResponse {
+  repeated bool results = 1;
+}
+
+message GetDeletedItemsResponse {
+  repeated Item items = 1;
+}
+
+message GetItemDeletionLogResponse {
+  repeated DeletionLog logs = 1;
+}
+
+message GetDeletionLogsResponse {
+  repeated DeletionLog logs = 1;
+}
+
+// Item service definition
+service ItemService {
+  rpc GetItems(GetItemsRequest) returns (GetItemsResponse);
+  rpc GetItem(GetItemRequest) returns (GetItemResponse);
+  rpc CreateItem(CreateItemRequest) returns (CreateItemResponse);
+  rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  rpc LogicalDeleteItem(LogicalDeleteItemRequest) returns (LogicalDeleteItemResponse);
+  rpc PhysicalDeleteItem(PhysicalDeleteItemRequest) returns (PhysicalDeleteItemResponse);
+  rpc RestoreItem(RestoreItemRequest) returns (RestoreItemResponse);
+  rpc ValidateItemDeletion(ValidateItemDeletionRequest) returns (ValidateItemDeletionResponse);
+  rpc BatchDeleteItems(BatchDeleteItemsRequest) returns (BatchDeleteItemsResponse);
+  rpc GetDeletedItems(GetDeletedItemsRequest) returns (GetDeletedItemsResponse);
+  rpc GetItemDeletionLog(GetItemDeletionLogRequest) returns (GetItemDeletionLogResponse);
+  rpc GetDeletionLogs(GetDeletionLogsRequest) returns (GetDeletionLogsResponse);
+}

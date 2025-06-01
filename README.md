@@ -13,6 +13,7 @@
 
 ## 特徴
 - **RESTful API**：CRUD 操作を HTTP/JSON で提供  
+- **gRPC API**：高性能なバイナリプロトコルでのAPI提供（ポート50051）
 - **ドメイン駆動設計**：多層アーキテクチャ（domain, application, infrastructure, presentation）
 - **高速**：`tokio` と `actix-web` による非同期 I/O  
 - **型安全**：Rust の型システムでリクエスト／レスポンスを保証  
@@ -60,6 +61,7 @@ curl http://localhost:8080/
 ### 基本ドキュメント
 - [API リファレンス](docs/api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例、curl使用例
 - [API 仕様書](docs/api-documentation.md) - REST API の包括的な仕様とエンドポイント一覧
+- [gRPC API 仕様書](docs/grpc-api.md) - gRPC API の仕様とエンドポイント一覧
 - [アーキテクチャガイド](docs/architecture-guide.md) - システム設計、データフロー、コンポーネント構成
 - [開発ガイド](docs/development-guide.md) - 開発環境のセットアップ、テスト、デバッグ
 - [開発ワークフロー](docs/development-testing.md) - テスト戦略、コーディング規約、CI/CD
