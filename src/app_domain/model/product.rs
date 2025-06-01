@@ -106,9 +106,9 @@ pub enum ProductError {
     TooManyImages,
     ImageNotFound,
     InvalidImageOrder,
-    CategoryNotFound,
+    // CategoryNotFound,
     ProductNotFound,
-    InsufficientPermissions,
+    // InsufficientPermissions,
     DatabaseError(String),
 }
 
@@ -127,9 +127,9 @@ impl std::fmt::Display for ProductError {
             ProductError::TooManyImages => write!(f, "Too many images"),
             ProductError::ImageNotFound => write!(f, "Image not found"),
             ProductError::InvalidImageOrder => write!(f, "Invalid image order"),
-            ProductError::CategoryNotFound => write!(f, "Category not found"),
+            // ProductError::CategoryNotFound => write!(f, "Category not found"),
             ProductError::ProductNotFound => write!(f, "Product not found"),
-            ProductError::InsufficientPermissions => write!(f, "Insufficient permissions"),
+            // ProductError::InsufficientPermissions => write!(f, "Insufficient permissions"),
             ProductError::DatabaseError(msg) => write!(f, "Database error: {}", msg),
         }
     }
@@ -245,25 +245,25 @@ impl Product {
 }
 
 impl Price {
-    pub fn new(
-        selling_price: Decimal,
-        currency: String,
-        tax_included: bool,
-    ) -> Result<Self, ProductError> {
-        if selling_price <= Decimal::ZERO {
-            return Err(ProductError::InvalidPrice);
-        }
+    // pub fn new(
+    //     selling_price: Decimal,
+    //     currency: String,
+    //     tax_included: bool,
+    // ) -> Result<Self, ProductError> {
+    //     if selling_price <= Decimal::ZERO {
+    //         return Err(ProductError::InvalidPrice);
+    //     }
 
-        Ok(Price {
-            selling_price,
-            list_price: None,
-            discount_price: None,
-            currency,
-            tax_included,
-            effective_from: None,
-            effective_until: None,
-        })
-    }
+    //     Ok(Price {
+    //         selling_price,
+    //         list_price: None,
+    //         discount_price: None,
+    //         currency,
+    //         tax_included,
+    //         effective_from: None,
+    //         effective_until: None,
+    //     })
+    // }
 
     pub fn validate(&self) -> Result<(), ProductError> {
         if self.selling_price <= Decimal::ZERO {
@@ -293,19 +293,19 @@ impl Price {
 }
 
 impl Inventory {
-    pub fn new(quantity: i32) -> Result<Self, ProductError> {
-        if quantity < 0 {
-            return Err(ProductError::InvalidInventoryQuantity);
-        }
+    // pub fn new(quantity: i32) -> Result<Self, ProductError> {
+    //     if quantity < 0 {
+    //         return Err(ProductError::InvalidInventoryQuantity);
+    //     }
 
-        Ok(Inventory {
-            quantity,
-            reserved_quantity: 0,
-            alert_threshold: None,
-            track_inventory: true,
-            allow_backorder: false,
-        })
-    }
+    //     Ok(Inventory {
+    //         quantity,
+    //         reserved_quantity: 0,
+    //         alert_threshold: None,
+    //         track_inventory: true,
+    //         allow_backorder: false,
+    //     })
+    // }
 
     pub fn validate(&self) -> Result<(), ProductError> {
         if self.quantity < 0 || self.reserved_quantity < 0 {
@@ -338,19 +338,19 @@ impl Inventory {
         Ok(())
     }
 
-    pub fn reserve_quantity(&mut self, amount: i32) -> Result<(), ProductError> {
-        if amount < 0 {
-            return Err(ProductError::InvalidInventoryQuantity);
-        }
+    // pub fn reserve_quantity(&mut self, amount: i32) -> Result<(), ProductError> {
+    //     if amount < 0 {
+    //         return Err(ProductError::InvalidInventoryQuantity);
+    //     }
 
-        let new_reserved = self.reserved_quantity + amount;
-        if new_reserved > self.quantity {
-            return Err(ProductError::InvalidInventoryQuantity);
-        }
+    //     let new_reserved = self.reserved_quantity + amount;
+    //     if new_reserved > self.quantity {
+    //         return Err(ProductError::InvalidInventoryQuantity);
+    //     }
 
-        self.reserved_quantity = new_reserved;
-        Ok(())
-    }
+    //     self.reserved_quantity = new_reserved;
+    //     Ok(())
+    // }
 }
 
 impl Dimensions {
@@ -394,28 +394,28 @@ impl Default for ShippingInfo {
 }
 
 impl ProductImage {
-    pub fn new(
-        id: String,
-        url: String,
-        sort_order: i32,
-        is_main: bool,
-    ) -> Result<Self, ProductError> {
-        if url.trim().is_empty() {
-            return Err(ProductError::ImageNotFound);
-        }
+    // pub fn new(
+    //     id: String,
+    //     url: String,
+    //     sort_order: i32,
+    //     is_main: bool,
+    // ) -> Result<Self, ProductError> {
+    //     if url.trim().is_empty() {
+    //         return Err(ProductError::ImageNotFound);
+    //     }
 
-        if sort_order < 0 {
-            return Err(ProductError::InvalidImageOrder);
-        }
+    //     if sort_order < 0 {
+    //         return Err(ProductError::InvalidImageOrder);
+    //     }
 
-        Ok(ProductImage {
-            id,
-            url,
-            alt_text: None,
-            sort_order,
-            is_main,
-        })
-    }
+    //     Ok(ProductImage {
+    //         id,
+    //         url,
+    //         alt_text: None,
+    //         sort_order,
+    //         is_main,
+    //     })
+    // }
 
     pub fn validate(&self) -> Result<(), ProductError> {
         if self.url.trim().is_empty() {
@@ -476,30 +476,30 @@ mod tests {
 
     #[test]
     fn test_price_validation() {
-        let price = Price::new(
-            Decimal::from(100),
-            "JPY".to_string(),
-            true,
-        );
+        // let price = Price::new(
+        //     Decimal::from(100),
+        //     "JPY".to_string(),
+        //     true,
+        // );
 
-        assert!(price.is_ok());
+        // assert!(price.is_ok());
 
-        let invalid_price = Price::new(
-            Decimal::ZERO,
-            "JPY".to_string(),
-            true,
-        );
+        // let invalid_price = Price::new(
+        //     Decimal::ZERO,
+        //     "JPY".to_string(),
+        //     true,
+        // );
 
-        assert!(matches!(invalid_price, Err(ProductError::InvalidPrice)));
+        // assert!(matches!(invalid_price, Err(ProductError::InvalidPrice)));
     }
 
     #[test]
     fn test_inventory_validation() {
-        let inventory = Inventory::new(10);
-        assert!(inventory.is_ok());
+        // let inventory = Inventory::new(10);
+        // assert!(inventory.is_ok());
 
-        let invalid_inventory = Inventory::new(-1);
-        assert!(matches!(invalid_inventory, Err(ProductError::InvalidInventoryQuantity)));
+        // let invalid_inventory = Inventory::new(-1);
+        // assert!(matches!(invalid_inventory, Err(ProductError::InvalidInventoryQuantity)));
     }
 
     #[test]

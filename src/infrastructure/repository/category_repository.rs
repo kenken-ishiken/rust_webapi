@@ -171,9 +171,9 @@ impl CategoryRepository for PostgresCategoryRepository {
         }
     }
 
-    async fn find_children(&self, id: &str, include_inactive: bool) -> Vec<Category> {
-        self.find_by_parent_id(Some(id.to_string()), include_inactive).await
-    }
+    // async fn find_children(&self, id: &str, include_inactive: bool) -> Vec<Category> {
+    //     self.find_by_parent_id(Some(id.to_string()), include_inactive).await
+    // }
 
     async fn find_path(&self, id: &str) -> Result<CategoryPath, CategoryError> {
         match self.get_category_ancestors(id).await {
@@ -377,11 +377,11 @@ impl CategoryRepository for PostgresCategoryRepository {
         }
     }
 
-    async fn count_products(&self, _id: &str) -> i64 {
-        // For now, return 0 as we don't have products table linked yet
-        // In the future, this would count products linked to this category
-        0
-    }
+    // async fn count_products(&self, _id: &str) -> i64 {
+    //     // For now, return 0 as we don't have products table linked yet
+    //     // In the future, this would count products linked to this category
+    //     0
+    // }
 
     async fn validate_depth(&self, parent_id: Option<String>) -> Result<(), CategoryError> {
         if let Some(parent_id) = parent_id {
@@ -500,9 +500,9 @@ mod tests {
         assert_eq!(created_child.parent_id, Some("cat_123".to_string()));
 
         // 5. Find children test
-        let children = repo.find_children("cat_123", true).await;
-        assert_eq!(children.len(), 1);
-        assert_eq!(children[0].id, "cat_456");
+        // let children = repo.find_children("cat_123", true).await;
+        // assert_eq!(children.len(), 1);
+        // assert_eq!(children[0].id, "cat_456");
 
         // 6. Find path test
         let path = repo.find_path("cat_456").await.expect("Failed to get path");

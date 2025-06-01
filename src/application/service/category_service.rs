@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use tracing::{info, error};
 
-use crate::app_domain::model::category::{Category, CategoryError, CategoryPath};
+use crate::app_domain::model::category::{Category, CategoryError};
+#[cfg(test)]
+use crate::app_domain::model::category::CategoryPath;
 use crate::app_domain::repository::category_repository::CategoryRepository;
 use crate::application::dto::category_dto::{
     CreateCategoryRequest, UpdateCategoryRequest, MoveCategoryRequest,

@@ -1,6 +1,6 @@
 use thiserror::Error;
 use actix_web::{error::ResponseError, HttpResponse};
-use std::fmt;
+// use std::fmt;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -10,26 +10,26 @@ pub enum AppError {
     #[error("Not found: {0}")]
     NotFound(String),
     
-    #[error("Bad request: {0}")]
-    BadRequest(String),
+    // #[error("Bad request: {0}")]
+    // BadRequest(String),
     
-    #[error("Unauthorized: {0}")]
-    Unauthorized(String),
+    // #[error("Unauthorized: {0}")]
+    // Unauthorized(String),
     
-    #[error("Forbidden: {0}")]
-    Forbidden(String),
+    // #[error("Forbidden: {0}")]
+    // Forbidden(String),
     
-    #[error("Conflict: {0}")]
-    Conflict(String),
+    // #[error("Conflict: {0}")]
+    // Conflict(String),
     
     #[error("Internal server error: {0}")]
     InternalServerError(String),
     
-    #[error("Service unavailable: {0}")]
-    ServiceUnavailable(String),
+    // #[error("Service unavailable: {0}")]
+    // ServiceUnavailable(String),
     
-    #[error("Validation error: {0}")]
-    ValidationError(String),
+    // #[error("Validation error: {0}")]
+    // ValidationError(String),
     
     #[error("Authentication error: {0}")]
     AuthenticationError(String),
@@ -54,26 +54,26 @@ impl ResponseError for AppError {
                 "not_found",
                 msg.clone(),
             ),
-            AppError::BadRequest(msg) => (
-                actix_web::http::StatusCode::BAD_REQUEST,
-                "bad_request",
-                msg.clone(),
-            ),
-            AppError::Unauthorized(msg) => (
-                actix_web::http::StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                msg.clone(),
-            ),
-            AppError::Forbidden(msg) => (
-                actix_web::http::StatusCode::FORBIDDEN,
-                "forbidden",
-                msg.clone(),
-            ),
-            AppError::Conflict(msg) => (
-                actix_web::http::StatusCode::CONFLICT,
-                "conflict",
-                msg.clone(),
-            ),
+            // AppError::BadRequest(msg) => (
+            //     actix_web::http::StatusCode::BAD_REQUEST,
+            //     "bad_request",
+            //     msg.clone(),
+            // ),
+            // AppError::Unauthorized(msg) => (
+            //     actix_web::http::StatusCode::UNAUTHORIZED,
+            //     "unauthorized",
+            //     msg.clone(),
+            // ),
+            // AppError::Forbidden(msg) => (
+            //     actix_web::http::StatusCode::FORBIDDEN,
+            //     "forbidden",
+            //     msg.clone(),
+            // ),
+            // AppError::Conflict(msg) => (
+            //     actix_web::http::StatusCode::CONFLICT,
+            //     "conflict",
+            //     msg.clone(),
+            // ),
             AppError::InternalServerError(msg) => {
                 tracing::error!("Internal server error: {}", msg);
                 (
@@ -82,16 +82,16 @@ impl ResponseError for AppError {
                     "サーバーエラーが発生しました".to_string(),
                 )
             },
-            AppError::ServiceUnavailable(msg) => (
-                actix_web::http::StatusCode::SERVICE_UNAVAILABLE,
-                "service_unavailable",
-                msg.clone(),
-            ),
-            AppError::ValidationError(msg) => (
-                actix_web::http::StatusCode::BAD_REQUEST,
-                "validation_error",
-                msg.clone(),
-            ),
+            // AppError::ServiceUnavailable(msg) => (
+            //     actix_web::http::StatusCode::SERVICE_UNAVAILABLE,
+            //     "service_unavailable",
+            //     msg.clone(),
+            // ),
+            // AppError::ValidationError(msg) => (
+            //     actix_web::http::StatusCode::BAD_REQUEST,
+            //     "validation_error",
+            //     msg.clone(),
+            // ),
             AppError::AuthenticationError(msg) => (
                 actix_web::http::StatusCode::UNAUTHORIZED,
                 "authentication_error",
@@ -120,25 +120,25 @@ pub type AppResult<T> = Result<T, AppError>;
 
 // Conversion helpers
 impl AppError {
-    pub fn not_found(entity: &str, id: impl fmt::Display) -> Self {
-        AppError::NotFound(format!("{} with id {} not found", entity, id))
-    }
+    // pub fn not_found(entity: &str, id: impl fmt::Display) -> Self {
+    //     AppError::NotFound(format!("{} with id {} not found", entity, id))
+    // }
     
-    pub fn bad_request(msg: impl Into<String>) -> Self {
-        AppError::BadRequest(msg.into())
-    }
+    // pub fn bad_request(msg: impl Into<String>) -> Self {
+    //     AppError::BadRequest(msg.into())
+    // }
     
-    pub fn unauthorized(msg: impl Into<String>) -> Self {
-        AppError::Unauthorized(msg.into())
-    }
+    // pub fn unauthorized(msg: impl Into<String>) -> Self {
+    //     AppError::Unauthorized(msg.into())
+    // }
     
-    pub fn internal_error(msg: impl Into<String>) -> Self {
-        AppError::InternalServerError(msg.into())
-    }
+    // pub fn internal_error(msg: impl Into<String>) -> Self {
+    //     AppError::InternalServerError(msg.into())
+    // }
     
-    pub fn validation_error(msg: impl Into<String>) -> Self {
-        AppError::ValidationError(msg.into())
-    }
+    // pub fn validation_error(msg: impl Into<String>) -> Self {
+    //     AppError::ValidationError(msg.into())
+    // }
 }
 
 // Convert from other error types

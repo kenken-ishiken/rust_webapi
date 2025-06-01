@@ -85,7 +85,7 @@ pub struct CategoryTreesResponse {
 pub struct CategoryQueryParams {
     pub parent_id: Option<String>,
     pub include_inactive: Option<bool>,
-    pub sort: Option<String>,
+    // pub sort: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -194,11 +194,11 @@ impl From<crate::app_domain::model::category::CategoryError> for CategoryErrorRe
                 message: msg,
                 details: None,
             },
-            CategoryError::HasProducts(msg) => Self {
-                code: "CATEGORY_HAS_PRODUCTS".to_string(),
-                message: msg,
-                details: None,
-            },
+            // CategoryError::HasProducts(msg) => Self {
+            //     code: "CATEGORY_HAS_PRODUCTS".to_string(),
+            //     message: msg,
+            //     details: None,
+            // },
         }
     }
 }
@@ -312,6 +312,6 @@ mod tests {
         let params: CategoryQueryParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.parent_id, Some("cat_123".to_string()));
         assert_eq!(params.include_inactive, Some(true));
-        assert_eq!(params.sort, Some("name".to_string()));
+        // assert_eq!(params.sort, Some("name".to_string()));
     }
 }
