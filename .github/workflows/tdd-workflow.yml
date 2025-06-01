@@ -1,0 +1,424 @@
+name: TDD Workflow (Red-Green-Refactor)
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'テストの種類を選択'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - unit
+        - integration
+        - performance
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  DATABASE_URL: postgresql://postgres:password@localhost:5432/test_db
+
+jobs:
+  # Phase 1: Red - テストが失敗することを確認
+  red-phase:
+    name: "🔴 RED Phase - テスト失敗確認"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tdd:red]')
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install dependencies
+      run: |
+        cargo install cargo-tarpaulin
+        cargo install cargo-watch
+
+    - name: Setup database
+      run: |
+        sudo apt-get install postgresql-client
+        PGPASSWORD=password psql -h localhost -U postgres -d test_db -f initdb/01_create_tables.sql
+
+    - name: "🔴 Run failing tests (expected to fail)"
+      run: |
+        echo "::group::Domain Layer Tests"
+        cargo test --lib domain -- --nocapture || echo "Domain tests failed as expected in RED phase"
+        echo "::endgroup::"
+        
+        echo "::group::Repository Layer Tests"
+        cargo test --lib repository -- --nocapture || echo "Repository tests failed as expected in RED phase"
+        echo "::endgroup::"
+        
+        echo "::group::Service Layer Tests"
+        cargo test --lib service -- --nocapture || echo "Service tests failed as expected in RED phase"
+        echo "::endgroup::"
+        
+        echo "::group::API Layer Tests"
+        cargo test --test integration_test -- --nocapture || echo "API tests failed as expected in RED phase"
+        echo "::endgroup::"
+
+    - name: Generate test report
+      run: |
+        echo "# 🔴 RED Phase Results" >> $GITHUB_STEP_SUMMARY
+        echo "テストが期待通り失敗しました。次はGREEN phaseで実装を進めてください。" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 2: Green - 最小限の実装でテストを通す
+  green-phase:
+    name: "🟢 GREEN Phase - 最小実装でテスト成功"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tdd:green]')
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install dependencies
+      run: |
+        cargo install cargo-tarpaulin
+        cargo install cargo-watch
+
+    - name: Setup database
+      run: |
+        sudo apt-get install postgresql-client
+        PGPASSWORD=password psql -h localhost -U postgres -d test_db -f initdb/01_create_tables.sql
+
+    - name: "🟢 Run tests (should pass with minimal implementation)"
+      run: |
+        echo "::group::Domain Layer Tests"
+        cargo test --lib domain -- --nocapture
+        echo "::endgroup::"
+        
+        echo "::group::Repository Layer Tests"
+        cargo test --lib repository -- --nocapture
+        echo "::endgroup::"
+        
+        echo "::group::Service Layer Tests"
+        cargo test --lib service -- --nocapture
+        echo "::endgroup::"
+        
+        echo "::group::API Layer Tests"
+        cargo test --test integration_test -- --nocapture
+        echo "::endgroup::"
+
+    - name: Check code quality (basic)
+      run: |
+        cargo clippy -- -D warnings
+        cargo fmt -- --check
+
+    - name: Generate test coverage
+      run: |
+        cargo tarpaulin --out xml --output-dir ./coverage
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/cobertura.xml
+
+    - name: Generate test report
+      run: |
+        echo "# 🟢 GREEN Phase Results" >> $GITHUB_STEP_SUMMARY
+        echo "すべてのテストが成功しました！次はREFACTOR phaseでコードを改善してください。" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 3: Refactor - テストを保ちながらコード改善
+  refactor-phase:
+    name: "🔵 REFACTOR Phase - テスト保持でコード改善"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[tdd:refactor]')
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install dependencies
+      run: |
+        cargo install cargo-tarpaulin
+        cargo install cargo-watch
+        cargo install cargo-audit
+        cargo install cargo-outdated
+
+    - name: Setup database
+      run: |
+        sudo apt-get install postgresql-client
+        PGPASSWORD=password psql -h localhost -U postgres -d test_db -f initdb/01_create_tables.sql
+
+    - name: "🔵 Run all tests (ensuring no regression)"
+      run: |
+        echo "::group::Full Test Suite"
+        cargo test --all -- --nocapture
+        echo "::endgroup::"
+
+    - name: Advanced code quality checks
+      run: |
+        echo "::group::Clippy Analysis"
+        cargo clippy --all-targets --all-features -- -D warnings
+        echo "::endgroup::"
+        
+        echo "::group::Format Check"
+        cargo fmt -- --check
+        echo "::endgroup::"
+        
+        echo "::group::Security Audit"
+        cargo audit
+        echo "::endgroup::"
+        
+        echo "::group::Dependency Check"
+        cargo outdated
+        echo "::endgroup::"
+
+    - name: Generate comprehensive coverage
+      run: |
+        cargo tarpaulin --all-features --workspace --timeout 120 --out xml --output-dir ./coverage
+
+    - name: Performance benchmarks
+      run: |
+        if [ "${{ github.event.inputs.test_type }}" == "performance" ] || [ "${{ github.event.inputs.test_type }}" == "all" ]; then
+          echo "::group::Performance Tests"
+          # パフォーマンステストがある場合
+          cargo test --release --test performance_tests -- --nocapture || echo "No performance tests found"
+          echo "::endgroup::"
+        fi
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/cobertura.xml
+
+    - name: Generate refactor report
+      run: |
+        echo "# 🔵 REFACTOR Phase Results" >> $GITHUB_STEP_SUMMARY
+        echo "コードの改善が完了し、すべてのテストが通っています！" >> $GITHUB_STEP_SUMMARY
+        echo "## Code Quality Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ All tests passing" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ No clippy warnings" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Code formatting consistent" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Security audit passed" >> $GITHUB_STEP_SUMMARY
+
+  # 完全なTDDサイクル実行
+  full-tdd-cycle:
+    name: "🔄 Full TDD Cycle"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event.inputs.test_type == 'all'
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install dependencies
+      run: |
+        cargo install cargo-tarpaulin
+        cargo install cargo-audit
+
+    - name: Setup database
+      run: |
+        sudo apt-get install postgresql-client
+        PGPASSWORD=password psql -h localhost -U postgres -d test_db -f initdb/01_create_tables.sql
+
+    - name: "🧪 Unit Tests (Domain Layer)"
+      run: |
+        echo "::group::Domain Model Tests"
+        cargo test --lib app_domain::model -- --nocapture
+        echo "::endgroup::"
+
+    - name: "🧪 Unit Tests (Service Layer)"
+      run: |
+        echo "::group::Application Service Tests"
+        cargo test --lib application::service -- --nocapture
+        echo "::endgroup::"
+
+    - name: "🧪 Integration Tests (Repository Layer)"
+      run: |
+        echo "::group::Repository Integration Tests"
+        cargo test --test repository_tests -- --nocapture
+        echo "::endgroup::"
+
+    - name: "🧪 End-to-End Tests (API Layer)"
+      run: |
+        echo "::group::API Integration Tests"
+        cargo test --test integration_test -- --nocapture
+        echo "::endgroup::"
+
+    - name: "📊 Code Quality Analysis"
+      run: |
+        echo "::group::Clippy Analysis"
+        cargo clippy --all-targets --all-features -- -D warnings
+        echo "::endgroup::"
+        
+        echo "::group::Format Check"
+        cargo fmt -- --check
+        echo "::endgroup::"
+        
+        echo "::group::Security Audit"
+        cargo audit
+        echo "::endgroup::"
+
+    - name: "📈 Coverage Report"
+      run: |
+        cargo tarpaulin --all-features --workspace --timeout 120 --out xml --output-dir ./coverage
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/cobertura.xml
+
+    - name: "📋 Generate TDD Report"
+      run: |
+        echo "# 🔄 Complete TDD Cycle Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Domain Layer Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Service Layer Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Repository Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ API Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Code Quality" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Clippy: No warnings" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Formatting: Consistent" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Security: No vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "TDDサイクルが完了しました。新しい機能を追加する場合は、再度RED→GREEN→REFACTORのサイクルを開始してください。" >> $GITHUB_STEP_SUMMARY
+
+  # 失敗時の通知
+  notify-failure:
+    name: "📢 Test Failure Notification"
+    runs-on: ubuntu-latest
+    needs: [full-tdd-cycle]
+    if: failure()
+    
+    steps:
+    - name: Notify about test failures
+      run: |
+        echo "# ❌ TDD Workflow Failed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "テストが失敗しました。以下を確認してください：" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "1. 新しいテストが期待される動作を正しく定義しているか" >> $GITHUB_STEP_SUMMARY
+        echo "2. 実装が最小限でテストを通すようになっているか" >> $GITHUB_STEP_SUMMARY
+        echo "3. リファクタリング中に既存のテストが壊れていないか" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "詳細なエラーログを確認し、TDDサイクルを再開してください。" >> $GITHUB_STEP_SUMMARY

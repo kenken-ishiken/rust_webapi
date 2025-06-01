@@ -1,0 +1,357 @@
+# TDD Workflow Configuration
+# このファイルはTDD（テスト駆動開発）ワークフローの設定を定義します
+
+metadata:
+  name: "Rust WebAPI TDD Workflow"
+  version: "1.0.0"
+  description: "Test-Driven Development workflow configuration for Rust WebAPI project"
+  last_updated: "2025-06-01"
+  maintainer: "GitHub Copilot Agent"
+
+# TDDの基本サイクル定義
+tdd_cycle:
+  phases:
+    red:
+      name: "Red Phase"
+      description: "失敗するテストを書く"
+      emoji: "🔴"
+      objectives:
+        - "新機能の要件を明確にする"
+        - "期待される動作をテストで定義する"
+        - "テストが失敗することを確認する"
+      success_criteria:
+        - "テストが期待通り失敗する"
+        - "テストコードが要件を正確に表現している"
+        - "テスト名が意図を明確に示している"
+      
+    green:
+      name: "Green Phase"
+      description: "最小限のコードでテストを通す"
+      emoji: "🟢"
+      objectives:
+        - "テストを通すための最小限のコードを実装する"
+        - "美しさより動作を優先する"
+        - "すべてのテストが成功するまで実装を継続する"
+      success_criteria:
+        - "すべてのテストが成功する"
+        - "実装が最小限である"
+        - "新しいテストによって既存機能が壊れていない"
+      
+    refactor:
+      name: "Refactor Phase"
+      description: "テストを保ちながらコードを改善する"
+      emoji: "🔵"
+      objectives:
+        - "コードの可読性を向上させる"
+        - "重複を除去する"
+        - "パフォーマンスを最適化する"
+        - "設計パターンを適用する"
+      success_criteria:
+        - "すべてのテストが引き続き成功する"
+        - "コードの可読性が向上している"
+        - "重複が除去されている"
+        - "コード品質メトリクスが改善している"
+
+# レイヤー別テスト戦略
+test_strategy:
+  layers:
+    domain:
+      name: "Domain Layer"
+      description: "ビジネスロジックとドメインモデル"
+      test_types:
+        - unit_tests
+      test_patterns:
+        - "Given-When-Then structure"
+        - "Result type error handling"
+        - "Value object validation"
+        - "Domain rules enforcement"
+      tools:
+        - "cargo test --lib"
+        - "assert_matches!"
+        - "Custom error types"
+      
+    application:
+      name: "Application Layer"
+      description: "アプリケーションサービスとユースケース"
+      test_types:
+        - unit_tests
+        - integration_tests
+      test_patterns:
+        - "Mock repositories"
+        - "Service orchestration"
+        - "Error propagation"
+        - "Transaction boundaries"
+      tools:
+        - "mockall"
+        - "tokio::test"
+        - "Arc<dyn Repository>"
+      
+    infrastructure:
+      name: "Infrastructure Layer"
+      description: "データベース、外部API、ファイルシステム"
+      test_types:
+        - integration_tests
+        - contract_tests
+      test_patterns:
+        - "Database transactions"
+        - "Connection pooling"
+        - "External service mocking"
+        - "Configuration testing"
+      tools:
+        - "sqlx::test"
+        - "testcontainers"
+        - "wiremock"
+      
+    presentation:
+      name: "Presentation Layer"
+      description: "REST API、GraphQL、WebSocket"
+      test_types:
+        - integration_tests
+        - end_to_end_tests
+      test_patterns:
+        - "HTTP request/response testing"
+        - "Authentication/authorization"
+        - "Input validation"
+        - "Error response format"
+      tools:
+        - "axum-test"
+        - "reqwest"
+        - "serde_json::json!"
+
+# テスト実行設定
+test_execution:
+  commands:
+    unit_tests:
+      command: "cargo test --lib"
+      description: "ライブラリ内の単体テストを実行"
+      timeout: 60
+      parallel: true
+      
+    integration_tests:
+      command: "cargo test --test integration_test"
+      description: "統合テストを実行"
+      timeout: 120
+      parallel: false
+      requires_database: true
+      
+    all_tests:
+      command: "cargo test"
+      description: "すべてのテストを実行"
+      timeout: 180
+      parallel: true
+      
+    coverage:
+      command: "cargo tarpaulin --all-features --workspace --timeout 120"
+      description: "テストカバレッジを生成"
+      timeout: 300
+      output_formats:
+        - xml
+        - html
+        - lcov
+      
+    watch_tests:
+      command: "cargo watch -x test"
+      description: "ファイル変更時に自動でテストを実行"
+      continuous: true
+      
+    specific_test:
+      command: "cargo test {test_name}"
+      description: "特定のテストを実行"
+      parameters:
+        - test_name
+
+# コード品質チェック
+quality_checks:
+  linting:
+    clippy:
+      command: "cargo clippy --all-targets --all-features -- -D warnings"
+      description: "Rust linter"
+      required: true
+      
+  formatting:
+    rustfmt:
+      command: "cargo fmt -- --check"
+      description: "コードフォーマットチェック"
+      required: true
+      
+  security:
+    audit:
+      command: "cargo audit"
+      description: "脆弱性監査"
+      required: true
+      
+  dependencies:
+    outdated:
+      command: "cargo outdated"
+      description: "依存関係の更新チェック"
+      required: false
+
+# パフォーマンステスト
+performance_tests:
+  types:
+    unit_performance:
+      description: "個別関数のパフォーマンステスト"
+      threshold_ms: 100
+      tools:
+        - "std::time::Instant"
+        - "criterion"
+        
+    load_testing:
+      description: "APIエンドポイントの負荷テスト"
+      tools:
+        - "k6"
+        - "artillery"
+      scenarios:
+        - name: "smoke_test"
+          virtual_users: 1
+          duration: "30s"
+        - name: "load_test"
+          virtual_users: 10
+          duration: "2m"
+        - name: "stress_test"
+          virtual_users: 50
+          duration: "5m"
+
+# 環境設定
+environments:
+  test:
+    database_url: "postgresql://postgres:password@localhost:5432/test_db"
+    redis_url: "redis://localhost:6379/1"
+    log_level: "debug"
+    port: 3001
+    
+  ci:
+    database_url: "postgresql://postgres:password@localhost:5432/test_db"
+    log_level: "info"
+    parallel_jobs: 4
+    timeout_multiplier: 2
+
+# ベストプラクティス
+best_practices:
+  test_naming:
+    patterns:
+      - "test_{action}_{condition}_{expected_result}"
+      - "test_{feature}_{scenario}"
+    examples:
+      - "test_create_product_with_valid_data_should_succeed"
+      - "test_create_product_with_empty_name_should_fail"
+      
+  test_structure:
+    pattern: "Given-When-Then"
+    sections:
+      given:
+        description: "テストの前提条件を設定"
+        keywords: ["Given", "Setup", "Arrange"]
+      when:
+        description: "テスト対象の動作を実行"
+        keywords: ["When", "Act", "Execute"]
+      then:
+        description: "結果を検証"
+        keywords: ["Then", "Assert", "Verify"]
+        
+  error_handling:
+    patterns:
+      - "Result<T, E> for recoverable errors"
+      - "panic! only for programming errors"
+      - "Custom error types with thiserror"
+      - "assert_matches! for error pattern matching"
+      
+  mock_usage:
+    guidelines:
+      - "Use mocks for external dependencies"
+      - "Avoid mocking value objects"
+      - "Mock at the boundary of your system"
+      - "Keep mocks simple and focused"
+
+# GitHub Copilot Agent向けプロンプト
+copilot_prompts:
+  generate_test:
+    template: |
+      /generate test for {function_or_class} following TDD workflow
+      - Include positive and negative test cases
+      - Follow the project's error handling patterns
+      - Use Given-When-Then structure
+      - Use assert_matches! for error cases
+      
+  implement_code:
+    template: |
+      /implement the minimum code to make these tests pass:
+      {test_code}
+      
+      Follow the project's coding standards and error handling patterns.
+      
+  refactor_code:
+    template: |
+      /refactor this code while keeping all tests passing:
+      {code}
+      
+      Improve readability, remove duplication, and enhance performance.
+
+# 自動化設定
+automation:
+  pre_commit_hooks:
+    - name: "format_check"
+      command: "cargo fmt -- --check"
+    - name: "clippy_check"
+      command: "cargo clippy -- -D warnings"
+    - name: "test_run"
+      command: "cargo test --all"
+      
+  continuous_integration:
+    triggers:
+      - "push to main/develop branches"
+      - "pull request to main/develop"
+      - "manual workflow dispatch"
+    steps:
+      - "setup_environment"
+      - "install_dependencies"
+      - "run_tests"
+      - "quality_checks"
+      - "generate_reports"
+      
+  notifications:
+    success:
+      message: "✅ TDD workflow completed successfully!"
+    failure:
+      message: "❌ TDD workflow failed. Check logs for details."
+      actions:
+        - "Review test failures"
+        - "Check code quality issues"
+        - "Verify environment setup"
+
+# メトリクス収集
+metrics:
+  test_metrics:
+    - "test_count"
+    - "test_duration"
+    - "test_success_rate"
+    - "coverage_percentage"
+    
+  code_metrics:
+    - "lines_of_code"
+    - "cyclomatic_complexity"
+    - "technical_debt_ratio"
+    - "duplication_percentage"
+    
+  performance_metrics:
+    - "build_time"
+    - "test_execution_time"
+    - "memory_usage"
+    - "cpu_usage"
+
+# 学習リソース
+learning_resources:
+  books:
+    - "Test-Driven Development by Kent Beck"
+    - "Growing Object-Oriented Software, Guided by Tests"
+    - "The Rust Programming Language (Testing chapter)"
+    
+  online_resources:
+    - "Rust Testing Guide: https://doc.rust-lang.org/book/ch11-00-testing.html"
+    - "TDD with Rust: https://rust-lang-nursery.github.io/edition-guide/"
+    - "Rust Testing Best Practices"
+    
+  tools_documentation:
+    - "cargo test: https://doc.rust-lang.org/cargo/commands/cargo-test.html"
+    - "mockall: https://docs.rs/mockall/"
+    - "tarpaulin: https://github.com/xd009642/tarpaulin"

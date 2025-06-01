@@ -1,0 +1,510 @@
+# 要件定義ワークフロー設定
+# GitHub Issueを使用した要件定義の作業フローを定義します
+
+metadata:
+  name: "要件定義ワークフロー"
+  version: "1.0.0"
+  description: "GitHub Issueを使用した要件定義から実装完了までのワークフロー"
+  last_updated: "2025-06-01"
+  maintainer: "Development Team"
+
+# ワークフローの基本設定
+workflow:
+  name: "Requirement Definition Workflow"
+  description: "要件定義からリリースまでの開発プロセス"
+  
+  # フェーズ定義
+  phases:
+    requirement_analysis:
+      name: "要件分析フェーズ"
+      emoji: "📋"
+      description: "要件の収集・分析・文書化"
+      duration_days: 2-5
+      participants:
+        - "Product Owner"
+        - "Tech Lead"
+        - "UI/UX Designer"
+      
+      tasks:
+        - name: "要件収集"
+          checklist:
+            - "ステークホルダーへのヒアリング"
+            - "ユースケースの洗い出し"
+            - "競合調査・技術調査"
+            - "制約条件の整理"
+        
+        - name: "要件分析"
+          checklist:
+            - "機能要件の詳細化"
+            - "非機能要件の定義"
+            - "API仕様の設計"
+            - "データベース設計"
+        
+        - name: "Issue作成"
+          checklist:
+            - "要件定義テンプレートの記入"
+            - "適切なラベルの設定"
+            - "優先度の設定"
+            - "担当者のアサイン"
+      
+      deliverables:
+        - "要件定義Issue"
+        - "API設計書"
+        - "データベース設計書"
+        - "テスト計画書"
+      
+      exit_criteria:
+        - "すべての必須項目が記載されている"
+        - "ステークホルダーの承認を得ている"
+        - "技術的な実現可能性が確認されている"
+        - "工数見積もりが妥当である"
+
+    design_review:
+      name: "設計レビューフェーズ"
+      emoji: "🔍"
+      description: "要件定義の妥当性確認とレビュー"
+      duration_days: 1-2
+      participants:
+        - "Tech Lead"
+        - "Senior Developers"
+        - "Product Owner"
+        - "DevOps Engineer"
+      
+      tasks:
+        - name: "技術レビュー"
+          checklist:
+            - "アーキテクチャの妥当性確認"
+            - "パフォーマンス要件の実現可能性"
+            - "セキュリティ要件の適切性"
+            - "既存システムとの整合性"
+        
+        - name: "ビジネスレビュー"
+          checklist:
+            - "ビジネス価値の確認"
+            - "優先度の妥当性"
+            - "リソース配分の適切性"
+            - "リリース計画との整合性"
+        
+        - name: "承認プロセス"
+          checklist:
+            - "レビュー結果の記録"
+            - "修正事項の反映"
+            - "最終承認の取得"
+            - "実装フェーズへの移行判定"
+      
+      deliverables:
+        - "レビュー結果レポート"
+        - "承認済み要件定義"
+        - "実装計画書"
+      
+      exit_criteria:
+        - "すべてのレビュー項目が完了している"
+        - "指摘事項が解決されている"
+        - "関係者全員が承認している"
+        - "実装開始の準備が整っている"
+
+    implementation:
+      name: "実装フェーズ"
+      emoji: "⚙️"
+      description: "TDDによる機能実装"
+      duration_days: 5-15
+      participants:
+        - "Developers"
+        - "QA Engineers"
+      
+      tasks:
+        - name: "開発環境準備"
+          checklist:
+            - "ブランチの作成"
+            - "開発環境のセットアップ"
+            - "必要な依存関係の追加"
+            - "CI/CDパイプラインの更新"
+        
+        - name: "TDD実装サイクル"
+          checklist:
+            - "🔴 Red: 失敗テストの作成"
+            - "🟢 Green: 最小限の実装"
+            - "🔵 Refactor: コード改善"
+            - "継続的な品質チェック"
+        
+        - name: "統合テスト"
+          checklist:
+            - "APIテストの実行"
+            - "データベーステストの実行"
+            - "パフォーマンステストの実行"
+            - "セキュリティテストの実行"
+      
+      deliverables:
+        - "実装済みコード"
+        - "テストコード"
+        - "テスト実行結果"
+        - "API仕様書の更新"
+      
+      exit_criteria:
+        - "すべてのテストが成功している"
+        - "コードカバレッジが90%以上"
+        - "Clippyの警告が0個"
+        - "パフォーマンス要件を満たしている"
+
+    testing_validation:
+      name: "テスト・検証フェーズ"
+      emoji: "🧪"
+      description: "統合テストと受け入れテスト"
+      duration_days: 2-5
+      participants:
+        - "QA Engineers"
+        - "Product Owner"
+        - "Developers"
+      
+      tasks:
+        - name: "機能テスト"
+          checklist:
+            - "受け入れ条件の確認"
+            - "エンドツーエンドテスト"
+            - "ユーザビリティテスト"
+            - "回帰テストの実行"
+        
+        - name: "非機能テスト"
+          checklist:
+            - "パフォーマンステスト"
+            - "セキュリティテスト"
+            - "可用性テスト"
+            - "スケーラビリティテスト"
+        
+        - name: "受け入れテスト"
+          checklist:
+            - "Product Ownerによる確認"
+            - "ステークホルダーレビュー"
+            - "本番環境での動作確認"
+            - "運用手順の確認"
+      
+      deliverables:
+        - "テスト実行レポート"
+        - "不具合レポート"
+        - "受け入れテスト結果"
+        - "運用手順書"
+      
+      exit_criteria:
+        - "すべての受け入れ条件を満たしている"
+        - "クリティカルな不具合が0件"
+        - "Product Ownerが承認している"
+        - "本番リリースの準備が完了している"
+
+    deployment:
+      name: "デプロイメントフェーズ"
+      emoji: "🚀"
+      description: "本番環境への展開とリリース"
+      duration_days: 1-2
+      participants:
+        - "DevOps Engineer"
+        - "Tech Lead"
+        - "Support Team"
+      
+      tasks:
+        - name: "デプロイ準備"
+          checklist:
+            - "デプロイメント計画の確認"
+            - "ロールバック手順の準備"
+            - "監視・アラートの設定"
+            - "ドキュメントの更新"
+        
+        - name: "デプロイ実行"
+          checklist:
+            - "ステージング環境での最終確認"
+            - "本番環境へのデプロイ"
+            - "動作確認テストの実行"
+            - "監視メトリクスの確認"
+        
+        - name: "リリース後対応"
+          checklist:
+            - "リリースノートの公開"
+            - "ユーザーへの通知"
+            - "サポート体制の準備"
+            - "フィードバック収集の開始"
+      
+      deliverables:
+        - "リリースノート"
+        - "デプロイメントレポート"
+        - "監視ダッシュボード"
+        - "サポートドキュメント"
+      
+      exit_criteria:
+        - "本番環境で正常に動作している"
+        - "監視・アラートが正常に動作している"
+        - "ユーザーへの通知が完了している"
+        - "サポート体制が整っている"
+
+# GitHub Issue管理設定
+github_settings:
+  labels:
+    requirement_status:
+      - name: "status/draft"
+        color: "d4c5f9"
+        description: "ドラフト状態の要件定義"
+      - name: "status/review"
+        color: "bfd4f2"
+        description: "レビュー中の要件定義"
+      - name: "status/approved"
+        color: "c5f467"
+        description: "承認済みの要件定義"
+      - name: "status/in-progress"
+        color: "f9c513"
+        description: "実装中の要件定義"
+      - name: "status/testing"
+        color: "ff9500"
+        description: "テスト中の要件定義"
+      - name: "status/done"
+        color: "28a745"
+        description: "完了した要件定義"
+    
+    requirement_type:
+      - name: "type/feature"
+        color: "1f77b4"
+        description: "新機能"
+      - name: "type/enhancement"
+        color: "ff7f0e"
+        description: "機能拡張"
+      - name: "type/bugfix"
+        color: "d62728"
+        description: "バグ修正"
+      - name: "type/refactor"
+        color: "9467bd"
+        description: "リファクタリング"
+    
+    priority:
+      - name: "priority/critical"
+        color: "b60205"
+        description: "クリティカル"
+      - name: "priority/high"
+        color: "d93f0b"
+        description: "高優先度"
+      - name: "priority/medium"
+        color: "fbca04"
+        description: "中優先度"
+      - name: "priority/low"
+        color: "0e8a16"
+        description: "低優先度"
+    
+    component:
+      - name: "component/api"
+        color: "006b75"
+        description: "API関連"
+      - name: "component/database"
+        color: "5319e7"
+        description: "データベース関連"
+      - name: "component/auth"
+        color: "e7298a"
+        description: "認証関連"
+      - name: "component/frontend"
+        color: "1b9e77"
+        description: "フロントエンド関連"
+
+  templates:
+    requirement_definition: ".github/ISSUE_TEMPLATE/requirement-definition.md"
+    bug_report: ".github/ISSUE_TEMPLATE/bug_report.md"
+    feature_request: ".github/ISSUE_TEMPLATE/feature_request.md"
+
+# GH CLI コマンド設定
+gh_commands:
+  create_requirement_issue:
+    command: "gh issue create"
+    options:
+      - "--template requirement-definition.md"
+      - "--label requirement,needs-analysis"
+      - "--assignee @me"
+    example: |
+      gh issue create \
+        --title "[REQ] ユーザー認証API" \
+        --template requirement-definition.md \
+        --label requirement,needs-analysis,component/api,priority/high \
+        --assignee developer1
+
+  list_requirements:
+    command: "gh issue list"
+    options:
+      - "--label requirement"
+      - "--state all"
+    example: |
+      gh issue list --label requirement --state all
+
+  update_status:
+    command: "gh issue edit"
+    examples:
+      draft_to_review: |
+        gh issue edit 123 \
+          --remove-label status/draft \
+          --add-label status/review
+      
+      approved: |
+        gh issue edit 123 \
+          --remove-label status/review \
+          --add-label status/approved
+      
+      in_progress: |
+        gh issue edit 123 \
+          --remove-label status/approved \
+          --add-label status/in-progress
+      
+      testing: |
+        gh issue edit 123 \
+          --remove-label status/in-progress \
+          --add-label status/testing
+      
+      done: |
+        gh issue edit 123 \
+          --remove-label status/testing \
+          --add-label status/done \
+          --state closed
+
+# 自動化設定
+automation:
+  triggers:
+    requirement_created:
+      event: "issues.opened"
+      conditions:
+        - "has_label: requirement"
+      actions:
+        - "add_to_project_board"
+        - "assign_reviewer"
+        - "notify_team"
+    
+    requirement_approved:
+      event: "issues.labeled"
+      conditions:
+        - "label_added: status/approved"
+      actions:
+        - "create_implementation_branch"
+        - "update_project_board"
+        - "notify_developers"
+    
+    implementation_complete:
+      event: "pull_request.merged"
+      conditions:
+        - "linked_to_requirement_issue"
+      actions:
+        - "update_issue_status"
+        - "trigger_testing_phase"
+        - "notify_qa_team"
+
+# 品質チェック設定
+quality_gates:
+  requirement_definition:
+    mandatory_fields:
+      - "概要"
+      - "機能要件"
+      - "受け入れ条件"
+      - "テスト計画"
+    
+    review_checklist:
+      - "要件が明確に定義されている"
+      - "受け入れ条件が具体的である"
+      - "非機能要件が適切に定義されている"
+      - "実装計画が現実的である"
+    
+    approval_criteria:
+      - "Product Ownerの承認"
+      - "Tech Leadの承認"
+      - "工数見積もりの合意"
+
+  implementation:
+    quality_metrics:
+      - "テストカバレッジ >= 90%"
+      - "Clippyの警告 = 0"
+      - "パフォーマンステスト合格"
+      - "セキュリティテスト合格"
+    
+    review_process:
+      - "コードレビューの完了"
+      - "設計レビューの完了"
+      - "テストレビューの完了"
+
+# 通知設定
+notifications:
+  slack:
+    channels:
+      requirements: "#requirements"
+      development: "#development"
+      qa: "#qa"
+      releases: "#releases"
+    
+    events:
+      - "requirement_created"
+      - "requirement_approved"
+      - "implementation_started"
+      - "testing_phase_started"
+      - "requirement_completed"
+
+  email:
+    stakeholders:
+      - "product-owner@example.com"
+      - "tech-lead@example.com"
+      - "qa-lead@example.com"
+    
+    events:
+      - "requirement_approved"
+      - "critical_issues"
+      - "release_completed"
+
+# メトリクス・レポート設定
+metrics:
+  requirement_metrics:
+    - "作成から承認までの期間"
+    - "実装完了までの期間"
+    - "要件変更の頻度"
+    - "不具合発生率"
+  
+  quality_metrics:
+    - "テストカバレッジ"
+    - "コード品質スコア"
+    - "パフォーマンス指標"
+    - "セキュリティスコア"
+  
+  productivity_metrics:
+    - "開発速度"
+    - "リードタイム"
+    - "デプロイ頻度"
+    - "MTTR（平均復旧時間）"
+
+# ベストプラクティス
+best_practices:
+  requirement_writing:
+    - "明確で検証可能な受け入れ条件を書く"
+    - "ビジネス価値を明確にする"
+    - "技術的制約を考慮する"
+    - "テストしやすい形で要件を記述する"
+  
+  issue_management:
+    - "適切なラベルを使用する"
+    - "定期的にステータスを更新する"
+    - "関連Issueをリンクする"
+    - "完了時に成果物を記録する"
+  
+  collaboration:
+    - "ステークホルダーを適切に巻き込む"
+    - "透明性を保つ"
+    - "フィードバックを積極的に求める"
+    - "知識の共有を促進する"
+
+# トラブルシューティング
+troubleshooting:
+  common_issues:
+    requirement_unclear:
+      problem: "要件が不明確で実装に進めない"
+      solutions:
+        - "ステークホルダーと再度詳細を確認"
+        - "プロトタイプを作成して要件を明確化"
+        - "受け入れ条件を具体化"
+    
+    scope_creep:
+      problem: "実装中に要件が拡大する"
+      solutions:
+        - "変更管理プロセスの適用"
+        - "影響分析の実施"
+        - "優先度の再評価"
+    
+    quality_issues:
+      problem: "品質要件を満たせない"
+      solutions:
+        - "テスト戦略の見直し"
+        - "追加のコードレビュー"
+        - "リファクタリングの実施"
