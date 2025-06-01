@@ -3,7 +3,6 @@ use mockall::automock;
 use domain::model::item::{Item, DeletionValidation, DeletionLog};
 use crate::infrastructure::error::AppResult;
 
-pub use mockall::predicate;
 
 #[automock]
 #[async_trait]

@@ -284,7 +284,7 @@ mod tests {
                 item.description == Some("New Description".to_string()) &&
                 !item.deleted
             }))
-            .return_once(|_| Ok(created_item.clone()));
+            .return_once(move |_| Ok(created_item.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
         let result = service.create(req).await.unwrap();

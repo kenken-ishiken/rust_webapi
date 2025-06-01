@@ -159,7 +159,8 @@ mod tests {
     use mockall::predicate::*;
     use std::sync::Arc;
     use crate::infrastructure::auth::keycloak::KeycloakClaims;
-    use crate::app_domain::repository::item_repository::{ItemRepository, MockItemRepository};
+    use crate::app_domain::repository::item_repository::MockItemRepository;
+    use crate::infrastructure::error::AppError;
     use chrono::Utc;
 
 
@@ -229,7 +230,7 @@ mod tests {
 
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_all()
-            .return_once(move || items.clone());
+            .return_once(move || Ok(items.clone()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -254,7 +255,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(move |_| Some(item.clone()));
+            .return_once(move |_| Ok(Some(item.clone())));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -271,7 +272,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
-            .return_once(|_| None);
+            .return_once(|_| Ok(None));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -300,7 +301,7 @@ mod tests {
 
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_create()
-            .return_once(move |_| created_item.clone());
+            .return_once(move |_| Ok(created_item.clone()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -330,16 +331,16 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(|_| Some(Item {
+            .return_once(|_| Ok(Some(Item {
                 id: 1,
                 name: "Original Item".to_string(),
                 description: None,
                 deleted: false,
                 deleted_at: None,
-            }));
+            })));
 
         mock_repo.expect_update()
-            .return_once(move |_| Some(updated_item.clone()));
+            .return_once(move |_| Ok(updated_item.clone()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -362,7 +363,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(999u64))
-            .return_once(|_| None);
+            .return_once(|_| Ok(None));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -380,7 +381,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_delete()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -397,7 +398,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_delete()
             .with(eq(999u64))
-            .return_once(|_| false);
+            .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -416,7 +417,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_logical_delete()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -433,7 +434,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_physical_delete()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -450,7 +451,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_restore()
             .with(eq(1u64))
-            .return_once(|_| true);
+            .return_once(|_| Ok(()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -476,17 +477,17 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_by_id()
             .with(eq(1u64))
-            .return_once(|_| Some(Item {
+            .return_once(|_| Ok(Some(Item {
                 id: 1,
                 name: "Test Item".to_string(),
                 description: None,
                 deleted: false,
                 deleted_at: None,
-            }));
+            })));
             
         mock_repo.expect_validate_deletion()
             .with(eq(1u64))
-            .return_once(move |_| validation);
+            .return_once(move |_| Ok(validation));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -508,7 +509,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_batch_delete()
             .with(eq(vec![1, 2, 3]), eq(false))
-            .return_once(move |_, _| vec![1, 3]);
+            .return_once(move |_, _| Ok(vec![1, 3]));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -541,7 +542,7 @@ mod tests {
 
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_find_deleted()
-            .return_once(move || deleted_items.clone());
+            .return_once(move || Ok(deleted_items.clone()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));
@@ -577,7 +578,7 @@ mod tests {
         let mut mock_repo = MockItemRepository::new();
         mock_repo.expect_get_deletion_logs()
             .with(eq(None))
-            .return_once(move |_| logs.clone());
+            .return_once(move |_| Ok(logs.clone()));
 
         let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(ItemHandler::new(service));

@@ -951,12 +951,12 @@ impl ProductRepository for PostgresProductRepository {
 
         query.push_str(" ORDER BY changed_at DESC");
 
-        if let Some(limit_val) = limit {
+        if limit.is_some() {
             query.push_str(&format!(" LIMIT ${}", param_index));
             param_index += 1;
         }
 
-        if let Some(offset_val) = offset {
+        if offset.is_some() {
             query.push_str(&format!(" OFFSET ${}", param_index));
         }
 

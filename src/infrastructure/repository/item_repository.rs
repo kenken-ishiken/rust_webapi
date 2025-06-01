@@ -509,16 +509,18 @@ mod tests {
             id: 1,
             name: "Test Item".to_string(),
             description: Some("Test Description".to_string()),
+            deleted: false,
+            deleted_at: None,
         };
         
         // 1. アイテム作成のテスト
-        let created_item = repo.create(item.clone()).await;
+        let created_item = repo.create(item.clone()).await.unwrap();
         assert_eq!(created_item.id, item.id);
         assert_eq!(created_item.name, item.name);
         assert_eq!(created_item.description, item.description);
         
         // 2. 単一アイテム取得のテスト
-        let found_item = repo.find_by_id(1).await;
+        let found_item = repo.find_by_id(1).await.unwrap();
         assert!(found_item.is_some());
         let found_item = found_item.unwrap();
         assert_eq!(found_item.id, item.id);
@@ -526,11 +528,11 @@ mod tests {
         assert_eq!(found_item.description, item.description);
         
         // 3. 存在しないアイテム取得のテスト
-        let not_found = repo.find_by_id(999).await;
+        let not_found = repo.find_by_id(999).await.unwrap();
         assert!(not_found.is_none());
         
         // 4. 全アイテム取得のテスト
-        let all_items = repo.find_all().await;
+        let all_items = repo.find_all().await.unwrap();
         assert_eq!(all_items.len(), 1);
         assert_eq!(all_items[0].id, item.id);
         
@@ -539,24 +541,26 @@ mod tests {
             id: 1,
             name: "Updated Item".to_string(),
             description: Some("Updated Description".to_string()),
+            deleted: false,
+            deleted_at: None,
         };
         
         let result = repo.update(updated_item.clone()).await;
-        assert!(result.is_some());
+        assert!(result.is_ok());
         let result = result.unwrap();
         assert_eq!(result.name, "Updated Item");
         assert_eq!(result.description, Some("Updated Description".to_string()));
         
         // 6. アイテム削除のテスト
         let deleted = repo.delete(1).await;
-        assert!(deleted);
+        assert!(deleted.is_ok());
         
         // 削除後の検証
-        let all_items_after_delete = repo.find_all().await;
+        let all_items_after_delete = repo.find_all().await.unwrap();
         assert_eq!(all_items_after_delete.len(), 0);
         
         // 7. 存在しないアイテムの削除テスト
         let not_deleted = repo.delete(999).await;
-        assert!(!not_deleted);
+        assert!(not_deleted.is_err());
     }
 }

@@ -1,6 +1,6 @@
 use domain::model::item::Item;
 use rust_webapi::app_domain::repository::item_repository::{ItemRepository, MockItemRepository};
-use rust_webapi::app_domain::repository::item_repository::predicate::*;
+use mockall::predicate::*;
 use rust_webapi::infrastructure::error::AppError;
 
 #[tokio::test]

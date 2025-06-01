@@ -5,7 +5,6 @@ use domain::repository::user_repository::UserRepository;
 use rust_webapi::infrastructure::repository::item_repository::PostgresItemRepository;
 use rust_webapi::infrastructure::repository::user_repository::PostgresUserRepository;
 use helpers::postgres::PostgresContainer;
-use rust_webapi::infrastructure::error::AppError;
 
 mod helpers;
 
@@ -145,7 +144,7 @@ async fn test_postgres_repository_null_and_empty_values() {
         deleted_at: None,
     };
     
-    let created = repo.create(item_null).await;
+    let created = repo.create(item_null).await.unwrap();
     assert_eq!(created.description, None);
     
     // Test with empty name (edge case)
@@ -157,7 +156,7 @@ async fn test_postgres_repository_null_and_empty_values() {
         deleted_at: None,
     };
     
-    let created = repo.create(item_empty_name).await;
+    let created = repo.create(item_empty_name).await.unwrap();
     assert_eq!(created.name, "");
     
     // Test with empty description
@@ -169,21 +168,21 @@ async fn test_postgres_repository_null_and_empty_values() {
         deleted_at: None,
     };
     
-    let created = repo.create(item_empty_desc).await;
+    let created = repo.create(item_empty_desc).await.unwrap();
     assert_eq!(created.description, Some("".to_string()));
     
     // Verify all items can be retrieved correctly
-    let all_items = repo.find_all().await;
+    let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 3);
     
     // Find and verify each item
-    let item1 = repo.find_by_id(1).await.unwrap();
+    let item1 = repo.find_by_id(1).await.unwrap().unwrap();
     assert_eq!(item1.description, None);
     
-    let item2 = repo.find_by_id(2).await.unwrap();
+    let item2 = repo.find_by_id(2).await.unwrap().unwrap();
     assert_eq!(item2.name, "");
     
-    let item3 = repo.find_by_id(3).await.unwrap();
+    let item3 = repo.find_by_id(3).await.unwrap().unwrap();
     assert_eq!(item3.description, Some("".to_string()));
 }
 
@@ -207,12 +206,12 @@ async fn test_postgres_repository_special_characters() {
         deleted_at: None,
     };
     
-    let created = repo.create(item).await;
+    let created = repo.create(item).await.unwrap();
     assert_eq!(created.name, malicious_name);
     assert_eq!(created.description, Some(malicious_description.to_string()));
     
     // Verify the table still exists and item was stored safely
-    let found = repo.find_by_id(1).await;
+    let found = repo.find_by_id(1).await.unwrap();
     assert!(found.is_some());
     
     // Test with various special characters
@@ -221,9 +220,11 @@ async fn test_postgres_repository_special_characters() {
         id: 2,
         name: format!("Special chars: {}", special_chars),
         description: Some(format!("Description with: {}", special_chars)),
+        deleted: false,
+        deleted_at: None,
     };
     
-    let created = repo.create(item_special.clone()).await;
+    let created = repo.create(item_special.clone()).await.unwrap();
     assert_eq!(created.name, item_special.name);
     assert_eq!(created.description, item_special.description);
 }
@@ -245,10 +246,10 @@ async fn test_postgres_repository_boundary_values() {
         deleted_at: None,
     };
     
-    let created = repo.create(item_zero).await;
+    let created = repo.create(item_zero).await.unwrap();
     assert_eq!(created.id, 0);
     
-    let found = repo.find_by_id(0).await;
+    let found = repo.find_by_id(0).await.unwrap();
     assert!(found.is_some());
     assert_eq!(found.unwrap().id, 0);
     
@@ -263,10 +264,10 @@ async fn test_postgres_repository_boundary_values() {
         deleted_at: None,
     };
     
-    let created = repo.create(item_max).await;
+    let created = repo.create(item_max).await.unwrap();
     assert_eq!(created.id, max_safe_id);
     
-    let found = repo.find_by_id(max_safe_id).await;
+    let found = repo.find_by_id(max_safe_id).await.unwrap();
     assert!(found.is_some());
     assert_eq!(found.unwrap().id, max_safe_id);
 }
@@ -292,6 +293,8 @@ async fn test_postgres_repository_concurrent_operations() {
                 id: i,
                 name: format!("Concurrent Item {}", i),
                 description: Some(format!("Concurrent Description {}", i)),
+                deleted: false,
+                deleted_at: None,
             };
             repo_clone.create(item).await
         });
@@ -305,7 +308,7 @@ async fn test_postgres_repository_concurrent_operations() {
     }
     
     // Verify all items were inserted
-    let all_items = repo.find_all().await;
+    let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 50);
     
     // Test concurrent reads
@@ -321,7 +324,7 @@ async fn test_postgres_repository_concurrent_operations() {
     
     // Verify all reads succeed
     for (i, handle) in read_handles.into_iter().enumerate() {
-        let result = handle.await.unwrap();
+        let result = handle.await.unwrap().unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().id, (i + 1) as u64);
     }
@@ -336,6 +339,8 @@ async fn test_postgres_repository_concurrent_operations() {
                 id: i,
                 name: format!("Updated Concurrent Item {}", i),
                 description: Some(format!("Updated Concurrent Description {}", i)),
+                deleted: false,
+                deleted_at: None,
             };
             repo_clone.update(updated_item).await
         });
@@ -345,12 +350,12 @@ async fn test_postgres_repository_concurrent_operations() {
     // Wait for all updates to complete
     for handle in update_handles {
         let result = handle.await.unwrap();
-        assert!(result.is_some());
+        assert!(result.is_ok());
     }
     
     // Verify updates
     for i in 1..=25 {
-        let found = repo.find_by_id(i).await;
+        let found = repo.find_by_id(i).await.unwrap();
         assert!(found.is_some());
         let item = found.unwrap();
         assert_eq!(item.name, format!("Updated Concurrent Item {}", i));
@@ -370,9 +375,11 @@ async fn test_postgres_repository_transaction_behavior() {
         id: 1,
         name: "Original Item".to_string(),
         description: Some("Original Description".to_string()),
+        deleted: false,
+        deleted_at: None,
     };
     
-    let created = repo.create(item1).await;
+    let created = repo.create(item1).await.unwrap();
     assert_eq!(created.id, 1);
     
     // Test that updates are atomic
@@ -380,13 +387,15 @@ async fn test_postgres_repository_transaction_behavior() {
         id: 1,
         name: "Updated Item".to_string(),
         description: Some("Updated Description".to_string()),
+        deleted: false,
+        deleted_at: None,
     };
     
     let update_result = repo.update(updated_item.clone()).await;
-    assert!(update_result.is_some());
+    assert!(update_result.is_ok());
     
     // Verify the update was applied completely
-    let found = repo.find_by_id(1).await;
+    let found = repo.find_by_id(1).await.unwrap();
     assert!(found.is_some());
     let found_item = found.unwrap();
     assert_eq!(found_item.name, "Updated Item");
@@ -394,12 +403,12 @@ async fn test_postgres_repository_transaction_behavior() {
     
     // Test that deletes are atomic
     let deleted = repo.delete(1).await;
-    assert!(deleted);
+    assert!(deleted.is_ok());
     
     // Verify the item is completely gone
-    let not_found = repo.find_by_id(1).await;
+    let not_found = repo.find_by_id(1).await.unwrap();
     assert!(not_found.is_none());
     
-    let all_items = repo.find_all().await;
+    let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 0);
 }
