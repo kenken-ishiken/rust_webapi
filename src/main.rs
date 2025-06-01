@@ -8,6 +8,8 @@ use std::sync::Arc;
 use dotenvy::dotenv;
 // Tracing for structured logging
 use tracing::{info, error};
+// gRPC imports
+use tonic::transport::Server;
 use tracing_actix_web::TracingLogger;
 use sqlx::postgres::PgPoolOptions;
 
@@ -47,8 +49,11 @@ use crate::infrastructure::repository::product_repository::PostgresProductReposi
 use crate::application::service::product_service::ProductService;
 use crate::presentation::api::product_handler::{ProductHandler, configure_product_routes};
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+// gRPC imports
+use crate::presentation::grpc::user_service::{UserServiceImpl, UserServiceServer};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 環境変数の読み込み
     dotenv().ok();
 
@@ -98,10 +103,13 @@ async fn main() -> std::io::Result<()> {
     let category_handler = web::Data::new(CategoryHandler::new(category_service.clone()));
     let product_handler = web::Data::new(ProductHandler::new(product_service.clone()));
 
-    info!("サーバーを開始します: http://127.0.0.1:8080");
+    info!("サーバーを開始します: HTTP: http://127.0.0.1:8080, gRPC: http://127.0.0.1:50051");
 
-    // HTTPサーバーの設定と起動
-    HttpServer::new(move || {
+    // gRPCサービスの作成
+    let grpc_user_service = UserServiceImpl::new(user_service.clone());
+
+    // HTTPサーバーの設定
+    let http_server = HttpServer::new(move || {
         App::new()
             .app_data(item_handler.clone())
             .app_data(user_handler.clone())
@@ -163,7 +171,27 @@ async fn main() -> std::io::Result<()> {
             .configure(configure_category_routes)
             .configure(configure_product_routes)
     })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+    .bind("127.0.0.1:8080")?;
+
+    // gRPCサーバーの設定
+    let grpc_server = Server::builder()
+        .add_service(UserServiceServer::new(grpc_user_service))
+        .serve("127.0.0.1:50051".parse().unwrap());
+
+    // 両方のサーバーを並行して実行
+    let result = tokio::try_join!(
+        http_server.run(),
+        grpc_server
+    );
+
+    match result {
+        Ok(_) => {
+            info!("サーバーが正常に停止しました");
+            Ok(())
+        }
+        Err(e) => {
+            error!("サーバーエラー: {}", e);
+            Err(e.into())
+        }
+    }
 }
