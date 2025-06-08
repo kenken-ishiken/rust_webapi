@@ -62,6 +62,8 @@ impl PostgresContainer {
 
     pub async fn create_pool(&self) -> Pool<Postgres> {
         let mut retries = 0;
+        const MAX_RETRIES: usize = 10;
+        
         loop {
             match PgPoolOptions::new()
                 .max_connections(5)
@@ -84,9 +86,24 @@ impl PostgresContainer {
                             }
                         }
                     }
-                    if ready_ok { break pool } else { retries += 1; continue }
+                    if ready_ok { 
+                        break pool 
+                    } else { 
+                        retries += 1; 
+                        if retries >= MAX_RETRIES {
+                            panic!("Failed to connect to Postgres after {} retries", MAX_RETRIES);
+                        }
+                        continue;
+                    }
                 },
-                Err(e) => panic!("Failed to create database pool after retries: {}", e),
+                Err(e) => {
+                    retries += 1;
+                    if retries >= MAX_RETRIES {
+                        panic!("Failed to create database pool after {} retries: {}", MAX_RETRIES, e);
+                    }
+                    eprintln!("Failed to create pool (attempt {}): {}", retries, e);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                },
             }
         }
     }
