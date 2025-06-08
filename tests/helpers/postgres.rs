@@ -60,6 +60,20 @@ impl PostgresContainer {
         )
     }
 
+    /// Asynchronously creates and returns a PostgreSQL connection pool with retry logic.
+    ///
+    /// Attempts to establish a connection pool to the managed PostgreSQL container, retrying up to 10 times if the connection fails or the database is not ready. Panics if unable to connect after the maximum retries.
+    ///
+    /// # Returns
+    /// A `sqlx::Pool<Postgres>` connected to the test container.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let container = PostgresContainer::new();
+    /// let pool = tokio_test::block_on(container.create_pool());
+    /// assert!(pool.acquire().is_ok());
+    /// ```
     pub async fn create_pool(&self) -> Pool<Postgres> {
         let mut retries = 0;
         const MAX_RETRIES: usize = 10;
@@ -108,6 +122,20 @@ impl PostgresContainer {
         }
     }
 
+    /// Creates the `users` and `items` tables in the database if they do not already exist.
+    ///
+    /// This method ensures the required tables for testing are present by executing
+    /// `CREATE TABLE IF NOT EXISTS` statements for both tables. Panics if table creation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use sqlx::{Pool, Postgres};
+    /// # async fn example(pool: Pool<Postgres>, container: &PostgresContainer) {
+    /// container.run_migrations(&pool).await;
+    /// // The `users` and `items` tables are now available for use.
+    /// # }
+    /// ```
     pub async fn run_migrations(&self, pool: &Pool<Postgres>) {
         // For this test, we'll create only the tables needed by the test
         // The full migration file has complex statements that need special handling
