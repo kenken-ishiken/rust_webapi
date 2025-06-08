@@ -1,0 +1,115 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Rust WebAPI プロジェクト構造ガイド
+
+このプロジェクトは、クラウドネイティブな実運用を想定したRust製REST APIサーバーです。ドメイン駆動設計（DDD）に基づく多層アーキテクチャを採用しています。
+
+## プロジェクト構成
+
+### メインエントリポイント
+- [main.rs](mdc:src/main.rs) - アプリケーションのエントリポイント、HTTPとgRPCサーバーの起動
+- [lib.rs](mdc:src/lib.rs) - ライブラリクレートの定義
+- [Cargo.toml](mdc:Cargo.toml) - プロジェクト設定と依存関係
+
+### アーキテクチャ層
+
+#### ドメイン層
+- `src/app_domain/` - アプリケーション固有のドメインモデル
+- `crates/domain/` - 共通ドメインロジック
+- エンティティ、値オブジェクト、リポジトリインターフェースを定義
+
+#### アプリケーション層
+- `src/application/` - ユースケース、サービス、DTO
+- ビジネスロジックの調整とトランザクション管理
+
+#### インフラストラクチャ層
+- `src/infrastructure/` - 外部システムとの連携
+  - `auth/` - 認証・認可（Keycloak連携）
+  - `repository/` - データベースアクセス実装
+  - `metrics/` - Prometheusメトリクス
+  - `tracing/` - 分散トレーシング設定
+
+#### プレゼンテーション層
+- `src/presentation/` - API層
+  - `api/` - REST APIハンドラー
+  - `grpc/` - gRPCサービス実装
+
+### 設定・運用ファイル
+
+#### Docker・Kubernetes
+- [Dockerfile](mdc:Dockerfile) - コンテナイメージ定義
+- [docker-compose.yml](mdc:docker-compose.yml) - ローカル開発環境
+- `k8s/` - Kubernetes マニフェスト
+  - `base/` - 共通設定
+  - `overlays/` - 環境別設定（dev, staging, prod）
+
+#### データベース
+- `initdb/` - PostgreSQL初期化スクリプト
+
+#### 可観測性
+- [o11y.md](mdc:o11y.md) - 可観測性ガイド（ログ、メトリクス、トレーシング）
+
+#### テスト・品質管理
+- `tests/` - 統合テスト
+- `k6/` - パフォーマンステスト
+- [TESTING_IMPROVEMENTS.md](mdc:TESTING_IMPROVEMENTS.md) - テスト改善ガイド
+
+#### ドキュメント
+- [README.md](mdc:README.md) - プロジェクト概要
+- [CONTRIBUTING.md](mdc:CONTRIBUTING.md) - コントリビューションガイド
+- [CLAUDE.md](mdc:CLAUDE.md) - AI開発支援ガイド
+
+## 主要な技術スタック
+
+### Webフレームワーク
+- `actix-web` - HTTP サーバー
+- `tonic` - gRPC サーバー
+
+### データベース
+- `sqlx` - PostgreSQL 非同期クライアント
+
+### 可観測性
+- `tracing` - 構造化ログ
+- `prometheus` - メトリクス収集
+- `opentelemetry` - 分散トレーシング
+
+### 認証
+- `jsonwebtoken` - JWT処理
+- Keycloak連携
+
+## 開発ワークフロー
+
+1. **ドメインモデル設計** - `src/app_domain/model/`でエンティティ定義
+2. **リポジトリインターフェース** - `src/app_domain/repository/`でトレイト定義
+3. **ユースケース実装** - `src/application/service/`でビジネスロジック
+4. **インフラ実装** - `src/infrastructure/repository/`でDB実装
+5. **API実装** - `src/presentation/api/`でHTTPハンドラー
+6. **テスト作成** - 各層でのユニット・統合テスト
+
+## コーディング規約
+
+- **命名規則**: snake_case（関数・変数）、PascalCase（型）
+- **エラー処理**: `Result`型の使用、適切なエラー変換
+- **非同期処理**: `async/await`の適切な使用
+- **ドキュメント**: 公開APIには必ずドキュメンテーションコメント
+- **テスト**: TDD（テスト駆動開発）の実践
+
+## 実行方法
+
+```bash
+# ローカル実行
+cargo run
+
+# Docker Compose実行
+docker-compose up -d
+
+# テスト実行
+cargo test
+
+# フォーマット・Lint
+cargo fmt
+cargo clippy
+```

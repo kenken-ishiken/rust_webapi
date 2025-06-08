@@ -1,0 +1,525 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# API開発ガイド
+
+このドキュメントは、REST APIとgRPC APIの開発における具体的なガイドラインを提供します。
+
+## REST API開発
+
+### エンドポイント設計
+
+#### リソース指向URL
+```rust
+// 良い例: リソース指向
+GET    /api/users           // ユーザー一覧
+POST   /api/users           // ユーザー作成
+GET    /api/users/{id}      // 特定ユーザー取得
+PUT    /api/users/{id}      // ユーザー更新
+DELETE /api/users/{id}      // ユーザー削除
+
+// 悪い例: 動詞を含む
+POST   /api/createUser      // ❌
+GET    /api/getUserById     // ❌
+```
+
+#### ハンドラー実装パターン
+```rust
+use actix_web::{web, HttpResponse, Result};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+    
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateUserResponse {
+    pub id: String,
+    pub name: String,
+    pub email: String,
+    pub created_at: String,
+}
+
+/// ユーザー作成ハンドラ
+#[post("/users")]
+pub async fn create_user(
+    data: web::Data<AppState>,
+    payload: web::Json<CreateUserRequest>,
+) -> Result<HttpResponse, ApiError> {
+    // バリデーション
+    payload.validate()
+        .map_err(|e| ApiError::ValidationError(e.to_string()))?;
+    
+    // ユースケース実行
+    let input = CreateUserInput {
+        name: payload.name.clone(),
+        email: payload.email.clone(),
+    };
+    
+    let user = data.user_service
+        .create_user(input)
+        .await
+        .map_err(|e| ApiError::Internal(e))?;
+    
+    // レスポンス作成
+    let response = CreateUserResponse {
+        id: user.id,
+        name: user.name,
+        email: user.email.value().to_string(),
+        created_at: user.created_at.to_rfc3339(),
+    };
+    
+    Ok(HttpResponse::Created().json(response))
+}
+```
+
+### エラーハンドリング
+
+#### 統一されたエラーレスポンス
+```rust
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
+    pub timestamp: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ApiError {
+    #[error("バリデーションエラー: {0}")]
+    ValidationError(String),
+    
+    #[error("認証エラー")]
+    Unauthorized,
+    
+    #[error("権限エラー")]
+    Forbidden,
+    
+    #[error("リソースが見つかりません: {0}")]
+    NotFound(String),
+    
+    #[error("内部サーバーエラー: {0}")]
+    Internal(String),
+}
+
+impl ResponseError for ApiError {
+    fn error_response(&self) -> HttpResponse {
+        let status = self.status_code();
+        let error_response = ErrorResponse {
+            code: self.code().to_string(),
+            message: self.to_string(),
+            details: self.details(),
+            timestamp: Utc::now().to_rfc3339(),
+        };
+        
+        HttpResponse::build(status).json(error_response)
+    }
+    
+    fn status_code(&self) -> StatusCode {
+        match self {
+            ApiError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            ApiError::Unauthorized => StatusCode::UNAUTHORIZED,
+            ApiError::Forbidden => StatusCode::FORBIDDEN,
+            ApiError::NotFound(_) => StatusCode::NOT_FOUND,
+            ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+```
+
+### 認証・認可
+
+#### JWT認証ミドルウェア
+```rust
+use actix_web_httpauth::extractors::bearer::BearerAuth;
+
+pub async fn jwt_auth(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let token = credentials.token();
+    
+    match verify_jwt_token(token).await {
+        Ok(claims) => {
+            req.extensions_mut().insert(claims);
+            Ok(req)
+        }
+        Err(e) => {
+            let error = ApiError::Unauthorized;
+            Err((error.into(), req))
+        }
+    }
+}
+
+// ハンドラーでの使用
+pub async fn protected_endpoint(
+    claims: web::ReqData<JwtClaims>,
+) -> Result<HttpResponse, ApiError> {
+    let user_id = &claims.sub;
+    // 認証済みユーザーの処理
+    Ok(HttpResponse::Ok().json("Protected data"))
+}
+```
+
+### ページネーション
+
+#### クエリパラメータ
+```rust
+#[derive(Debug, Deserialize)]
+pub struct PaginationQuery {
+    #[serde(default = "default_page")]
+    pub page: u32,
+    
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+    
+    pub sort: Option<String>,
+    pub order: Option<SortOrder>,
+}
+
+fn default_page() -> u32 { 1 }
+fn default_limit() -> u32 { 20 }
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub pagination: PaginationInfo,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaginationInfo {
+    pub page: u32,
+    pub limit: u32,
+    pub total: u64,
+    pub total_pages: u32,
+    pub has_next: bool,
+    pub has_prev: bool,
+}
+
+pub async fn get_users(
+    query: web::Query<PaginationQuery>,
+) -> Result<HttpResponse, ApiError> {
+    let offset = (query.page - 1) * query.limit;
+    
+    let (users, total) = tokio::try_join!(
+        user_service.find_with_pagination(offset, query.limit),
+        user_service.count_total()
+    )?;
+    
+    let total_pages = (total as f64 / query.limit as f64).ceil() as u32;
+    
+    let response = PaginatedResponse {
+        data: users,
+        pagination: PaginationInfo {
+            page: query.page,
+            limit: query.limit,
+            total,
+            total_pages,
+            has_next: query.page < total_pages,
+            has_prev: query.page > 1,
+        },
+    };
+    
+    Ok(HttpResponse::Ok().json(response))
+}
+```
+
+## gRPC API開発
+
+### プロトコルバッファ定義
+```protobuf
+// proto/user.proto
+syntax = "proto3";
+
+package user.v1;
+
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message CreateUserRequest {
+  string name = 1;
+  string email = 2;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+```
+
+### gRPCサービス実装
+```rust
+use tonic::{Request, Response, Status};
+use crate::proto::user_service_server::UserService;
+use crate::proto::{CreateUserRequest, CreateUserResponse, User};
+
+pub struct UserServiceImpl {
+    user_service: Arc<crate::application::service::UserService>,
+}
+
+impl UserServiceImpl {
+    pub fn new(user_service: Arc<crate::application::service::UserService>) -> Self {
+        Self { user_service }
+    }
+}
+
+#[tonic::async_trait]
+impl UserService for UserServiceImpl {
+    async fn create_user(
+        &self,
+        request: Request<CreateUserRequest>,
+    ) -> Result<Response<CreateUserResponse>, Status> {
+        let req = request.into_inner();
+        
+        // バリデーション
+        if req.name.is_empty() {
+            return Err(Status::invalid_argument("名前は必須です"));
+        }
+        
+        // ユースケース実行
+        let input = crate::application::dto::CreateUserInput {
+            name: req.name,
+            email: req.email,
+        };
+        
+        let user = self.user_service
+            .create_user(input)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        
+        // レスポンス作成
+        let response = CreateUserResponse {
+            user: Some(User {
+                id: user.id,
+                name: user.name,
+                email: user.email.value().to_string(),
+                created_at: user.created_at.to_rfc3339(),
+                updated_at: user.updated_at.to_rfc3339(),
+            }),
+        };
+        
+        Ok(Response::new(response))
+    }
+}
+```
+
+### gRPCエラーハンドリング
+```rust
+impl From<crate::domain::error::Error> for Status {
+    fn from(error: crate::domain::error::Error) -> Self {
+        match error {
+            Error::InvalidEmail => Status::invalid_argument("無効なメールアドレス"),
+            Error::UserNotFound(_) => Status::not_found("ユーザーが見つかりません"),
+            Error::DatabaseError(_) => Status::internal("データベースエラー"),
+            _ => Status::internal("内部エラー"),
+        }
+    }
+}
+```
+
+## API テスト
+
+### 統合テスト
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{test, App};
+    use serde_json::json;
+
+    #[actix_rt::test]
+    async fn test_create_user_success() {
+        // テスト用アプリケーション設定
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(get_test_app_state().await))
+                .service(create_user)
+        ).await;
+        
+        // リクエスト作成
+        let req = test::TestRequest::post()
+            .uri("/api/users")
+            .set_json(&json!({
+                "name": "テストユーザー",
+                "email": "test@example.com"
+            }))
+            .to_request();
+        
+        // レスポンス検証
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        
+        let body: CreateUserResponse = test::read_body_json(resp).await;
+        assert_eq!(body.name, "テストユーザー");
+        assert_eq!(body.email, "test@example.com");
+    }
+    
+    #[actix_rt::test]
+    async fn test_create_user_validation_error() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(get_test_app_state().await))
+                .service(create_user)
+        ).await;
+        
+        let req = test::TestRequest::post()
+            .uri("/api/users")
+            .set_json(&json!({
+                "name": "",  // 空の名前
+                "email": "invalid-email"  // 無効なメール
+            }))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+}
+```
+
+## 手動テストとデバッグ (curl)
+
+`curl` を使用して、起動中のAPIサーバーに対して手動でリクエストを送信し、動作確認を行うことができます。
+
+### 前提
+- サーバーが起動している (例: `http://127.0.0.1:8080`)
+- Keycloak連携が有効な場合、有効なJWTトークンを取得済みであること
+
+### JWTトークン取得 (Keycloak)
+```bash
+# Keycloakからトークン取得
+curl -X POST \
+  http://localhost:8081/realms/rust-webapi/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'client_id=api-client&username=testuser&password=password&grant_type=password'
+```
+上記のコマンドで取得した `access_token` を以下の `{JWT_TOKEN}` 部分で使用します。
+
+### 基本的なエンドポイント確認
+```bash
+# ヘルスチェック
+curl -i http://127.0.0.1:8080/api/health
+
+# メトリクス取得
+curl -i http://127.0.0.1:8080/api/metrics
+```
+
+### Users API 操作例
+```bash
+# ユーザー作成
+curl -i -X POST http://127.0.0.1:8080/api/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {JWT_TOKEN}" \
+  -d '{"name":"テスト太郎","email":"test.taro@example.com"}'
+
+# ユーザー一覧取得
+curl -i http://127.0.0.1:8080/api/users \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+
+# 特定ユーザー取得 (idは適宜置き換えてください)
+curl -i http://127.0.0.1:8080/api/users/{id} \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+
+# ユーザー削除 (idは適宜置き換えてください)
+curl -i -X DELETE http://127.0.0.1:8080/api/users/{id} \
+  -H "Authorization: Bearer {JWT_TOKEN}"
+```
+
+## API ドキュメント
+
+### OpenAPI仕様
+```rust
+use utoipa::{OpenApi, ToSchema};
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        create_user,
+        get_user,
+        list_users,
+        update_user,
+        delete_user
+    ),
+    components(
+        schemas(CreateUserRequest, CreateUserResponse, User, ErrorResponse)
+    ),
+    tags(
+        (name = "users", description = "ユーザー管理API")
+    )
+)]
+pub struct ApiDoc;
+
+/// ユーザー作成
+#[utoipa::path(
+    post,
+    path = "/api/users",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 201, description = "ユーザー作成成功", body = CreateUserResponse),
+        (status = 400, description = "バリデーションエラー", body = ErrorResponse),
+        (status = 500, description = "内部サーバーエラー", body = ErrorResponse)
+    ),
+    tag = "users"
+)]
+pub async fn create_user(/* ... */) -> Result<HttpResponse, ApiError> {
+    // 実装
+}
+```
+
+## パフォーマンス最適化
+
+### レスポンス圧縮
+```rust
+use actix_web::middleware::Compress;
+
+App::new()
+    .wrap(Compress::default())
+    .service(/* ... */)
+```
+
+### キャッシュ制御
+```rust
+pub async fn get_user_cached(
+    path: web::Path<String>,
+    cache: web::Data<Cache>,
+) -> Result<HttpResponse, ApiError> {
+    let user_id = path.into_inner();
+    
+    // キャッシュから取得を試行
+    if let Some(cached_user) = cache.get(&user_id).await? {
+        return Ok(HttpResponse::Ok()
+            .insert_header(("Cache-Control", "public, max-age=300"))
+            .json(cached_user));
+    }
+    
+    // データベースから取得
+    let user = user_service.find_by_id(&user_id).await?;
+    
+    // キャッシュに保存
+    cache.set(&user_id, &user, Duration::from_secs(300)).await?;
+    
+    Ok(HttpResponse::Ok()
+        .insert_header(("Cache-Control", "public, max-age=300"))
+        .json(user))
+}
+```
