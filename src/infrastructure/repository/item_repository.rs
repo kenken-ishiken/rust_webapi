@@ -459,11 +459,12 @@ impl ItemRepository for PostgresItemRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testcontainers_modules::postgres;
+    use testcontainers::{clients::Cli, Container};
+    use testcontainers_modules::postgres::{self, Postgres};
 
-    async fn setup_postgres() -> PgPool {
+    async fn setup_postgres() -> (PgPool, Container<'static, Postgres>) {
         // PostgreSQLコンテナの起動（デフォルト設定で実行）
-        let docker = testcontainers::clients::Cli::default();
+        let docker = Box::leak(Box::new(Cli::default()));
         let container = docker.run(postgres::Postgres::default());
 
         // PostgreSQLへの接続情報の取得
@@ -476,7 +477,12 @@ mod tests {
         );
 
         let mut retries = 0;
-        loop {
+        let max_retries = 10;
+        let pool = loop {
+            if retries >= max_retries {
+                panic!("Failed to connect to Postgres after {} retries", max_retries);
+            }
+            
             match sqlx::postgres::PgPoolOptions::new()
                 .max_connections(5)
                 .acquire_timeout(std::time::Duration::from_secs(5))
@@ -492,15 +498,21 @@ mod tests {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
                 },
-                Err(e) => panic!("Failed to connect to Postgres after retries: {}", e),
+                Err(e) => {
+                    retries += 1;
+                    eprintln!("Failed to connect to Postgres: {}, retrying... (attempt {})", e, retries);
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
             }
-        }
+        };
+        
+        (pool, container)
     }
     
     #[tokio::test]
     async fn test_postgres_crud_operations() {
         // PostgreSQLコンテナの初期化
-        let pool = setup_postgres().await;
+        let (pool, _container) = setup_postgres().await;
         
         // リポジトリの作成とテーブルの初期化
         let repo = PostgresItemRepository::new(pool.clone());
@@ -510,7 +522,9 @@ mod tests {
             "CREATE TABLE IF NOT EXISTS items (
                 id BIGINT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
-                description TEXT
+                description TEXT,
+                deleted BOOLEAN DEFAULT FALSE,
+                deleted_at TIMESTAMP WITH TIME ZONE
             )"
         )
         .execute(&pool)

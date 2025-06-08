@@ -194,11 +194,12 @@ impl UserRepository for PostgresUserRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testcontainers_modules::postgres;
+    use testcontainers::{clients::Cli, Container};
+    use testcontainers_modules::postgres::{self, Postgres};
 
-    async fn setup_postgres() -> PgPool {
+    async fn setup_postgres() -> (PgPool, Container<'static, Postgres>) {
         // PostgreSQLコンテナの起動（デフォルト設定で実行）
-        let docker = testcontainers::clients::Cli::default();
+        let docker = Box::leak(Box::new(Cli::default()));
         let container = docker.run(postgres::Postgres::default());
 
         // PostgreSQLへの接続情報の取得
@@ -211,28 +212,42 @@ mod tests {
         );
 
         let mut retries = 0;
-        loop {
+        let max_retries = 10;
+        let pool = loop {
+            if retries >= max_retries {
+                panic!("Failed to connect to Postgres after {} retries", max_retries);
+            }
+            
             match sqlx::postgres::PgPoolOptions::new()
                 .max_connections(5)
                 .acquire_timeout(std::time::Duration::from_secs(5))
                 .connect(&conn_str)
                 .await
             {
-                Ok(pool) => break pool,
-                Err(e) if retries < 5 => {
+                Ok(pool) => {
+                    if sqlx::query("SELECT 1").execute(&pool).await.is_ok() {
+                        break pool;
+                    } else {
+                        retries += 1;
+                        eprintln!("Postgres ping failed, retrying... (attempt {})", retries);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                },
+                Err(e) => {
                     retries += 1;
-                    eprintln!("Postgres not ready yet (attempt {}): {}", retries, e);
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    eprintln!("Failed to connect to Postgres: {}, retrying... (attempt {})", e, retries);
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }
-                Err(e) => panic!("Failed to connect to Postgres after retries: {}", e),
             }
-        }
+        };
+        
+        (pool, container)
     }
     
     #[tokio::test]
     async fn test_postgres_crud_operations() {
         // PostgreSQLコンテナの初期化
-        let pool = setup_postgres().await;
+        let (pool, _container) = setup_postgres().await;
         
         // リポジトリの作成とテーブルの初期化
         let repo = PostgresUserRepository::new(pool.clone());

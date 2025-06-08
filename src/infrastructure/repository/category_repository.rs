@@ -431,10 +431,11 @@ impl CategoryRepository for PostgresCategoryRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use testcontainers_modules::postgres;
+    use testcontainers::{clients::Cli, Container};
+    use testcontainers_modules::postgres::{self, Postgres};
 
-    async fn setup_postgres() -> PgPool {
-        let docker = testcontainers::clients::Cli::default();
+    async fn setup_postgres() -> (PgPool, Container<'static, Postgres>) {
+        let docker = Box::leak(Box::new(Cli::default()));
         let container = docker.run(postgres::Postgres::default());
         let host_port = container.get_host_port_ipv4(5432);
 
@@ -444,7 +445,12 @@ mod tests {
         );
 
         let mut retries = 0;
-        loop {
+        let max_retries = 10;
+        let pool = loop {
+            if retries >= max_retries {
+                panic!("Failed to connect to Postgres after {} retries", max_retries);
+            }
+            
             match sqlx::postgres::PgPoolOptions::new()
                 .max_connections(5)
                 .acquire_timeout(std::time::Duration::from_secs(5))
@@ -461,14 +467,20 @@ mod tests {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
                 },
-                Err(e) => panic!("Failed to connect to Postgres after retries: {}", e),
+                Err(e) => {
+                    retries += 1;
+                    eprintln!("Failed to connect to Postgres: {}, retrying... (attempt {})", e, retries);
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
             }
-        }
+        };
+        
+        (pool, container)
     }
 
     #[tokio::test]
     async fn test_postgres_category_crud_operations() {
-        let pool = setup_postgres().await;
+        let (pool, _container) = setup_postgres().await;
         let repo = PostgresCategoryRepository::new(pool.clone());
         
         // Create the table
@@ -546,7 +558,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_category_validation() {
-        let pool = setup_postgres().await;
+        let (pool, _container) = setup_postgres().await;
         let repo = PostgresCategoryRepository::new(pool.clone());
         
         repo.init_table().await.expect("Failed to create categories table");
