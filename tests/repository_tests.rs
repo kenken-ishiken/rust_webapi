@@ -9,7 +9,6 @@ use rust_webapi::infrastructure::repository::item_repository::PostgresItemReposi
 use rust_webapi::infrastructure::repository::user_repository::PostgresUserRepository;
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_item_repository() {
     // Create a PostgreSQL container
     let postgres = PostgresContainer::new();
@@ -82,7 +81,6 @@ async fn test_postgres_item_repository() {
 
 // Test batch operations
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_batch_operations() {
     // Create a PostgreSQL container
     let postgres = PostgresContainer::new();
@@ -147,7 +145,6 @@ async fn test_postgres_batch_operations() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_user_repository() {
     // Create a PostgreSQL container
     let postgres = PostgresContainer::new();

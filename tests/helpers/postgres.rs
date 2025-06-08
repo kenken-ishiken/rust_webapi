@@ -61,12 +61,34 @@ impl PostgresContainer {
     }
 
     pub async fn create_pool(&self) -> Pool<Postgres> {
-        PgPoolOptions::new()
-            .max_connections(5)
-            .acquire_timeout(Duration::from_secs(3))
-            .connect(&self.connection_string())
-            .await
-            .expect("Failed to create database pool")
+        let mut retries = 0;
+        loop {
+            match PgPoolOptions::new()
+                .max_connections(5)
+                .acquire_timeout(Duration::from_secs(5))
+                .connect(&self.connection_string())
+                .await
+            {
+                Ok(pool) => {
+                    // Verify the connection is ready by running a simple query
+                    let mut ready_ok = false;
+                    for _ in 0..5 {
+                        match sqlx::query("SELECT 1").execute(&pool).await {
+                            Ok(_) => {
+                                ready_ok = true;
+                                break;
+                            }
+                            Err(e) => {
+                                eprintln!("Postgres not ready yet (ping): {}", e);
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                            }
+                        }
+                    }
+                    if ready_ok { break pool } else { retries += 1; continue }
+                },
+                Err(e) => panic!("Failed to create database pool after retries: {}", e),
+            }
+        }
     }
 
     pub async fn run_migrations(&self, pool: &Pool<Postgres>) {

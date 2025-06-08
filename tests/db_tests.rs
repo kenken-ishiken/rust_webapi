@@ -4,7 +4,6 @@ use helpers::postgres::PostgresContainer;
 use sqlx::Row;
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_container() {
     // Create a PostgreSQL container
     let postgres = PostgresContainer::new();

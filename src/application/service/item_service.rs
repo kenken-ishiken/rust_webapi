@@ -41,10 +41,13 @@ impl ItemService {
     }
 
     pub async fn create(&self, req: CreateItemRequest) -> AppResult<ItemResponse> {
-        let mut counter = self.counter.lock()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire lock".to_string()))?;
-        let id = *counter;
-        *counter += 1;
+        let id = {
+            let mut counter = self.counter.lock()
+                .map_err(|_| AppError::InternalServerError("Failed to acquire lock".to_string()))?;
+            let id = *counter;
+            *counter += 1;
+            id
+        };
 
         let item = Item {
             id,

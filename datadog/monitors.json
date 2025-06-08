@@ -1,0 +1,161 @@
+[
+  {
+    "name": "Rust Web API - High Error Rate",
+    "type": "query alert",
+    "query": "avg(last_5m):(sum:prometheus.api_error_count{service:rust_webapi}.as_rate() / (sum:prometheus.api_success_count{service:rust_webapi}.as_rate() + sum:prometheus.api_error_count{service:rust_webapi}.as_rate())) * 100 > 5",
+    "message": "Error rate is above 5% for Rust Web API\n\nCurrent error rate: {{value}}%\n\nPlease investigate:\n1. Check application logs for errors\n2. Review recent deployments\n3. Check database connectivity\n\n@pagerduty",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production"
+    ],
+    "options": {
+      "thresholds": {
+        "critical": 5,
+        "warning": 3
+      },
+      "notify_no_data": false,
+      "notify_audit": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "escalation_message": "Error rate is still high after 30 minutes",
+      "renotify_interval": 30
+    },
+    "priority": 2
+  },
+  {
+    "name": "Rust Web API - High Response Time",
+    "type": "query alert",
+    "query": "avg(last_5m):avg:prometheus.api_request_duration_seconds.quantile{service:rust_webapi,quantile:0.95} > 1",
+    "message": "P95 response time is above 1 second for Rust Web API\n\nCurrent P95: {{value}}s\n\nPossible causes:\n1. Database slow queries\n2. High CPU/Memory usage\n3. External service latency\n\n@slack-backend-alerts",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production"
+    ],
+    "options": {
+      "thresholds": {
+        "critical": 1,
+        "warning": 0.5
+      },
+      "notify_no_data": false,
+      "notify_audit": false,
+      "require_full_window": false,
+      "include_tags": true
+    },
+    "priority": 3
+  },
+  {
+    "name": "Rust Web API - Service Down",
+    "type": "service check",
+    "query": "\"http.can_connect\".over(\"url:http://rust-webapi:8080/api/health\").by(\"*\").last(2).count_by_status()",
+    "message": "Rust Web API health check is failing\n\nThe service appears to be down or not responding to health checks.\n\nImmediate actions:\n1. Check pod status: kubectl get pods -n rust-webapi\n2. Check pod logs: kubectl logs -n rust-webapi -l app=rust-webapi\n3. Check recent deployments\n\n@pagerduty @slack-backend-alerts",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production"
+    ],
+    "options": {
+      "thresholds": {
+        "critical": 2,
+        "warning": 1,
+        "ok": 2
+      },
+      "notify_no_data": true,
+      "no_data_timeframe": 10,
+      "notify_audit": false,
+      "include_tags": true,
+      "new_group_delay": 60
+    },
+    "priority": 1
+  },
+  {
+    "name": "Rust Web API - Low Pod Count",
+    "type": "query alert",
+    "query": "min(last_5m):sum:kubernetes.pods.running{pod_name:rust-webapi*} < 2",
+    "message": "Rust Web API pod count is below minimum threshold\n\nCurrent pod count: {{value}}\nExpected minimum: 2\n\nThis may impact service availability and performance.\n\nCheck:\n1. HPA status: kubectl get hpa -n rust-webapi\n2. Node resources: kubectl top nodes\n3. Pod events: kubectl describe pods -n rust-webapi\n\n@slack-backend-alerts",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production"
+    ],
+    "options": {
+      "thresholds": {
+        "critical": 2
+      },
+      "notify_no_data": false,
+      "notify_audit": false,
+      "require_full_window": false,
+      "include_tags": true
+    },
+    "priority": 2
+  },
+  {
+    "name": "Rust Web API - High Memory Usage",
+    "type": "query alert",
+    "query": "avg(last_10m):avg:kubernetes.memory.usage{pod_name:rust-webapi*} by {pod_name} > 1000000000",
+    "message": "Memory usage is high for Rust Web API pod {{pod_name.name}}\n\nCurrent memory usage: {{value}} bytes\n\nThis may lead to:\n1. Pod eviction\n2. OOM kills\n3. Performance degradation\n\nInvestigate:\n1. Check for memory leaks\n2. Review recent code changes\n3. Analyze memory profiling data\n\n@slack-backend-alerts",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production"
+    ],
+    "options": {
+      "thresholds": {
+        "critical": 1000000000,
+        "warning": 800000000
+      },
+      "notify_no_data": false,
+      "notify_audit": false,
+      "require_full_window": false,
+      "include_tags": true
+    },
+    "priority": 3
+  },
+  {
+    "name": "Rust Web API - Database Connection Issues",
+    "type": "query alert",
+    "query": "avg(last_5m):avg:postgresql.connections{db:rustwebapi} < 1",
+    "message": "Database connection pool is low or empty for Rust Web API\n\nCurrent connections: {{value}}\n\nThis indicates potential database connectivity issues:\n1. Database server may be down\n2. Network issues between app and database\n3. Connection pool exhaustion\n\nCheck:\n1. Database pod status\n2. Database logs\n3. Application logs for connection errors\n\n@pagerduty",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production",
+      "component:database"
+    ],
+    "options": {
+      "thresholds": {
+        "critical": 1
+      },
+      "notify_no_data": true,
+      "no_data_timeframe": 10,
+      "notify_audit": false,
+      "require_full_window": false,
+      "include_tags": true
+    },
+    "priority": 1
+  },
+  {
+    "name": "Rust Web API - Anomaly Detection",
+    "type": "query alert",
+    "query": "avg(last_5m):anomalies(sum:prometheus.api_success_count{service:rust_webapi}.as_rate(), 'basic', 3) >= 1",
+    "message": "Anomalous traffic pattern detected for Rust Web API\n\nThe request rate is significantly different from the expected baseline.\n\nThis could indicate:\n1. Traffic spike (legitimate or DDoS)\n2. Service degradation\n3. Deployment issues\n\n@slack-backend-alerts",
+    "tags": [
+      "service:rust_webapi",
+      "team:backend",
+      "env:production",
+      "alert_type:anomaly"
+    ],
+    "options": {
+      "threshold_windows": {
+        "trigger_window": "last_5m",
+        "recovery_window": "last_5m"
+      },
+      "notify_no_data": false,
+      "notify_audit": false,
+      "require_full_window": false,
+      "include_tags": true
+    },
+    "priority": 4
+  }
+]

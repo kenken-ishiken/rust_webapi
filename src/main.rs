@@ -182,19 +182,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .serve("127.0.0.1:50051".parse().unwrap());
 
     // 両方のサーバーを並行して実行
-    let result = tokio::try_join!(
-        http_server.run(),
-        grpc_server
-    );
-
-    match result {
-        Ok(_) => {
-            info!("サーバーが正常に停止しました");
-            Ok(())
+    tokio::select! {
+        result = http_server.run() => {
+            if let Err(e) = result {
+                error!("HTTPサーバーエラー: {}", e);
+                return Err(e.into());
+            }
         }
-        Err(e) => {
-            error!("サーバーエラー: {}", e);
-            Err(e.into())
+        result = grpc_server => {
+            if let Err(e) = result {
+                error!("gRPCサーバーエラー: {}", e);
+                return Err(e.into());
+            }
         }
     }
+
+    info!("サーバーが正常に停止しました");
+    Ok(())
 }

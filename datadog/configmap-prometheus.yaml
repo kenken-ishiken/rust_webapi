@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datadog-prometheus-config
+  namespace: datadog
+data:
+  rust-webapi.yaml: |
+    init_config:
+    instances:
+      - prometheus_url: http://rust-webapi.rust-webapi.svc.cluster.local:8080/api/metrics
+        namespace: rust_webapi
+        metrics:
+          - api_success_count
+          - api_error_count
+          - api_request_duration_seconds
+        prometheus_metrics_prefix: prometheus.
+        health_service_check: true
+        tags:
+          - service:rust_webapi
+          - env:production

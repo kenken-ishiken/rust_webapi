@@ -438,21 +438,35 @@ mod tests {
         let container = docker.run(postgres::Postgres::default());
         let host_port = container.get_host_port_ipv4(5432);
 
-        let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(5)
-            .acquire_timeout(std::time::Duration::from_secs(3))
-            .connect(&format!(
-                "postgres://postgres:postgres@localhost:{}/postgres",
-                host_port
-            ))
-            .await
-            .expect("Failed to connect to Postgres");
+        let conn_str = format!(
+            "postgres://postgres:postgres@localhost:{}/postgres",
+            host_port
+        );
 
-        pool
+        let mut retries = 0;
+        loop {
+            match sqlx::postgres::PgPoolOptions::new()
+                .max_connections(5)
+                .acquire_timeout(std::time::Duration::from_secs(5))
+                .connect(&conn_str)
+                .await
+            {
+                Ok(pool) => {
+                    // simple ping query
+                    if sqlx::query("SELECT 1").execute(&pool).await.is_ok() {
+                        break pool;
+                    } else {
+                        retries += 1;
+                        eprintln!("Postgres ping failed, retrying... (attempt {})", retries);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                },
+                Err(e) => panic!("Failed to connect to Postgres after retries: {}", e),
+            }
+        }
     }
 
     #[tokio::test]
-    #[ignore = "Skipping due to connection issues in CI environment"]
     async fn test_postgres_category_crud_operations() {
         let pool = setup_postgres().await;
         let repo = PostgresCategoryRepository::new(pool.clone());
@@ -531,7 +545,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "Skipping due to connection issues in CI environment"]
     async fn test_postgres_category_validation() {
         let pool = setup_postgres().await;
         let repo = PostgresCategoryRepository::new(pool.clone());

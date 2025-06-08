@@ -9,7 +9,6 @@ use helpers::postgres::PostgresContainer;
 mod helpers;
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_item_repository_duplicate_id() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -38,7 +37,6 @@ async fn test_postgres_item_repository_duplicate_id() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_user_repository_duplicate_id() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -61,7 +59,6 @@ async fn test_postgres_user_repository_duplicate_id() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_large_data() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -89,7 +86,6 @@ async fn test_postgres_repository_large_data() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_unicode_handling() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -128,7 +124,6 @@ async fn test_postgres_repository_unicode_handling() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_null_and_empty_values() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -187,7 +182,6 @@ async fn test_postgres_repository_null_and_empty_values() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_special_characters() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -230,7 +224,6 @@ async fn test_postgres_repository_special_characters() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_boundary_values() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;
@@ -273,7 +266,6 @@ async fn test_postgres_repository_boundary_values() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_concurrent_operations() {
     use std::sync::Arc;
     use tokio::task;
@@ -363,7 +355,6 @@ async fn test_postgres_repository_concurrent_operations() {
 }
 
 #[tokio::test]
-#[ignore = "Skipping due to connection issues in CI environment"]
 async fn test_postgres_repository_transaction_behavior() {
     let postgres = PostgresContainer::new();
     let pool = postgres.create_pool().await;

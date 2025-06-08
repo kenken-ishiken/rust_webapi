@@ -1,0 +1,84 @@
+# Datadog Agent configuration for Rust Web API monitoring
+# This file is for Datadog Agent deployed in Kubernetes
+
+datadog:
+  apiKey: <YOUR_DATADOG_API_KEY>
+  appKey: <YOUR_DATADOG_APP_KEY>
+  
+  # Cluster name
+  clusterName: rust-webapi-cluster
+  
+  # Enable APM
+  apm:
+    portEnabled: true
+    port: 8126
+  
+  # Enable process monitoring
+  processAgent:
+    enabled: true
+    processCollection: true
+  
+  # Enable NPM (Network Performance Monitoring)
+  networkMonitoring:
+    enabled: true
+  
+  # Enable logs collection
+  logs:
+    enabled: true
+    containerCollectAll: true
+    containerCollectUsingFiles: true
+  
+  # Enable Prometheus scraping
+  prometheusScrape:
+    enabled: true
+    serviceEndpoints: true
+    
+  # Container runtime
+  containerRuntimeSupport:
+    enabled: true
+
+# Cluster Agent configuration
+clusterAgent:
+  enabled: true
+  metricsProvider:
+    enabled: true
+  
+  # External metrics for HPA
+  externalMetrics:
+    enabled: true
+
+# Agent configuration
+agents:
+  containers:
+    agent:
+      env:
+        - name: DD_PROMETHEUS_SCRAPE_ENABLED
+          value: "true"
+        - name: DD_PROMETHEUS_SCRAPE_VERSION
+          value: "2"
+  
+  # Volume mounts for container runtime socket
+  volumeMounts:
+    - name: dockersocket
+      mountPath: /var/run/docker.sock
+    - name: procdir
+      mountPath: /host/proc
+      readOnly: true
+    - name: cgroups
+      mountPath: /host/sys/fs/cgroup
+      readOnly: true
+  
+  volumes:
+    - name: dockersocket
+      hostPath:
+        path: /var/run/docker.sock
+    - name: procdir
+      hostPath:
+        path: /proc
+    - name: cgroups
+      hostPath:
+        path: /sys/fs/cgroup
+
+# Kube State Metrics for Kubernetes metrics
+kubeStateMetricsCore:
+  enabled: true

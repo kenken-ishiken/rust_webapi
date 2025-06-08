@@ -205,21 +205,31 @@ mod tests {
         let host_port = container.get_host_port_ipv4(5432);
 
         // 接続プールの作成
-        let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(5)
-            .acquire_timeout(std::time::Duration::from_secs(3))
-            .connect(&format!(
-                "postgres://postgres:postgres@localhost:{}/postgres",
-                host_port
-            ))
-            .await
-            .expect("Failed to connect to Postgres");
+        let conn_str = format!(
+            "postgres://postgres:postgres@localhost:{}/postgres",
+            host_port
+        );
 
-        pool
+        let mut retries = 0;
+        loop {
+            match sqlx::postgres::PgPoolOptions::new()
+                .max_connections(5)
+                .acquire_timeout(std::time::Duration::from_secs(5))
+                .connect(&conn_str)
+                .await
+            {
+                Ok(pool) => break pool,
+                Err(e) if retries < 5 => {
+                    retries += 1;
+                    eprintln!("Postgres not ready yet (attempt {}): {}", retries, e);
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+                Err(e) => panic!("Failed to connect to Postgres after retries: {}", e),
+            }
+        }
     }
     
     #[tokio::test]
-    #[ignore = "Skipping due to connection issues in CI environment"]
     async fn test_postgres_crud_operations() {
         // PostgreSQLコンテナの初期化
         let pool = setup_postgres().await;
