@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{sync::Once, time::Duration};
 use testcontainers_modules::postgres;
