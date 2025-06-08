@@ -1,0 +1,339 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 開発ガイドライン・ベストプラクティス
+
+このドキュメントは、Rust WebAPIプロジェクトでの開発における具体的なガイドラインとベストプラクティスを定義します。
+
+## コーディング規約
+
+### 基本スタイル
+- **インデント**: スペース4つ
+- **行の最大長**: 100文字
+- **ファイル末尾**: 改行を含める
+- **インポート順序**: std → external → crate → self → super
+
+### 命名規則
+```rust
+// 変数・関数: snake_case
+let user_name = "example";
+fn create_user() {}
+
+// 型・構造体・列挙型: PascalCase
+struct User {}
+enum UserStatus {}
+
+// 定数: SCREAMING_SNAKE_CASE
+const MAX_RETRY_COUNT: u32 = 3;
+
+// モジュール: snake_case
+mod user_service;
+```
+
+### エラー処理
+```rust
+// Result型を使用し、適切なエラー変換を行う
+pub async fn create_user(input: CreateUserInput) -> Result<String, Error> {
+    let email = Email::try_from(input.email)
+        .map_err(|_| Error::InvalidEmail)?;
+    
+    let user = User::new(
+        Uuid::new_v4().to_string(),
+        input.name,
+        email,
+    );
+    
+    self.repository.save(&user).await
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    
+    Ok(user.id)
+}
+```
+
+### 非同期処理
+```rust
+// async/awaitの適切な使用
+#[async_trait]
+pub trait UserRepository: Send + Sync {
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>, Error>;
+    async fn save(&self, user: &User) -> Result<(), Error>;
+}
+
+// 並行処理が可能な場合はjoinを使用
+let (users, items) = tokio::join!(
+    user_repository.find_all(),
+    item_repository.find_all()
+);
+```
+
+## アーキテクチャパターン
+
+### ドメイン駆動設計（DDD）
+```rust
+// エンティティ: アイデンティティを持つオブジェクト
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct User {
+    pub id: String,
+    pub name: String,
+    pub email: Email,
+    pub created_at: DateTime<Utc>,
+}
+
+// 値オブジェクト: 不変で等価性で比較
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Email(String);
+
+impl TryFrom<String> for Email {
+    type Error = Error;
+    
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if !value.contains('@') {
+            return Err(Error::InvalidEmail);
+        }
+        Ok(Self(value))
+    }
+}
+```
+
+### リポジトリパターン
+```rust
+// インターフェース定義（ドメイン層）
+#[async_trait]
+pub trait UserRepository: Send + Sync {
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>, Error>;
+    async fn save(&self, user: &User) -> Result<(), Error>;
+}
+
+// 実装（インフラストラクチャ層）
+pub struct PostgresUserRepository {
+    pool: PgPool,
+}
+
+#[async_trait]
+impl UserRepository for PostgresUserRepository {
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>, Error> {
+        // PostgreSQL実装
+    }
+}
+```
+
+## テスト駆動開発（TDD）
+
+### テスト作成の順序
+1. **Red**: 失敗するテストを作成
+2. **Green**: テストが通る最小限の実装
+3. **Refactor**: コードの改善
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::predicate::*;
+
+    #[tokio::test]
+    async fn test_create_user_success() {
+        // Arrange
+        let mut mock_repo = MockUserRepository::new();
+        mock_repo
+            .expect_save()
+            .times(1)
+            .returning(|_| Ok(()));
+        
+        let use_case = CreateUserUseCase::new(mock_repo);
+        let input = CreateUserInput {
+            name: "太郎".to_string(),
+            email: "taro@example.com".to_string(),
+        };
+        
+        // Act
+        let result = use_case.execute(input).await;
+        
+        // Assert
+        assert!(result.is_ok());
+    }
+}
+```
+
+## API設計原則
+
+### RESTful設計
+```rust
+// リソース指向のURL設計
+#[get("/api/users")]           // ユーザー一覧取得
+#[post("/api/users")]          // ユーザー作成
+#[get("/api/users/{id}")]      // 特定ユーザー取得
+#[put("/api/users/{id}")]      // ユーザー更新
+#[delete("/api/users/{id}")]   // ユーザー削除
+```
+
+### エラーレスポンス
+```rust
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
+}
+
+impl ResponseError for ApiError {
+    fn error_response(&self) -> HttpResponse {
+        let status = self.status_code();
+        let error_response = ErrorResponse {
+            code: self.code().to_string(),
+            message: self.message().to_string(),
+            details: self.details(),
+        };
+        
+        HttpResponse::build(status).json(error_response)
+    }
+}
+```
+
+## パフォーマンス最適化
+
+### データベースアクセス
+```rust
+// コネクションプールの適切な設定
+let pool = PgPoolOptions::new()
+    .max_connections(10)
+    .min_connections(2)
+    .acquire_timeout(Duration::from_secs(30))
+    .connect(&database_url).await?;
+
+// N+1問題の回避
+async fn get_users_with_items(&self) -> Result<Vec<UserWithItems>, Error> {
+    let query = r#"
+        SELECT u.*, i.id as item_id, i.name as item_name
+        FROM users u
+        LEFT JOIN items i ON u.id = i.user_id
+        ORDER BY u.id
+    "#;
+    
+    // 結果をグループ化して返す
+}
+```
+
+### 非同期処理の最適化
+```rust
+// 並行処理の活用
+async fn get_dashboard_data(&self) -> Result<DashboardData, Error> {
+    let (users, items, categories) = tokio::try_join!(
+        self.user_repository.count(),
+        self.item_repository.count(),
+        self.category_repository.count()
+    )?;
+    
+    Ok(DashboardData { users, items, categories })
+}
+```
+
+## セキュリティ
+
+### 認証・認可
+```rust
+// JWT認証ミドルウェア
+pub fn auth_middleware() -> impl Fn(ServiceRequest, &mut ServiceRequest) -> Result<(), Error> {
+    move |req, _| {
+        let auth_header = req.headers().get("Authorization");
+        let token = extract_bearer_token(auth_header)?;
+        let claims = verify_jwt_token(&token)?;
+        
+        req.extensions_mut().insert(claims);
+        Ok(())
+    }
+}
+```
+
+### 入力検証
+```rust
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+    
+    #[validate(email)]
+    pub email: String,
+    
+    #[validate(range(min = 18, max = 120))]
+    pub age: Option<u32>,
+}
+```
+
+## 可観測性
+
+### ログ出力
+```rust
+use tracing::{info, warn, error, instrument};
+
+#[instrument(skip(self))]
+pub async fn create_user(&self, input: CreateUserInput) -> Result<String, Error> {
+    info!("ユーザー作成開始: name={}", input.name);
+    
+    match self.repository.save(&user).await {
+        Ok(_) => {
+            info!("ユーザー作成成功: id={}", user.id);
+            Ok(user.id)
+        }
+        Err(e) => {
+            error!("ユーザー作成失敗: error={}", e);
+            Err(e)
+        }
+    }
+}
+```
+
+### メトリクス収集
+```rust
+use prometheus::{Counter, Histogram, register_counter, register_histogram};
+
+lazy_static! {
+    static ref HTTP_REQUESTS_TOTAL: Counter = register_counter!(
+        "http_requests_total",
+        "Total number of HTTP requests"
+    ).unwrap();
+    
+    static ref HTTP_REQUEST_DURATION: Histogram = register_histogram!(
+        "http_request_duration_seconds",
+        "HTTP request duration in seconds"
+    ).unwrap();
+}
+```
+
+## 継続的改善
+
+### コードレビュー
+- 機能の正確性
+- パフォーマンスの考慮
+- セキュリティの確認
+- テストの充実度
+- ドキュメントの更新
+
+### 品質管理
+```bash
+# フォーマット
+cargo fmt
+
+# Lint
+cargo clippy --all-targets -- -D warnings
+
+# テスト
+cargo test
+
+# カバレッジ
+cargo tarpaulin --out Html
+```
+
+### 依存関係管理
+```bash
+# セキュリティ監査
+cargo audit
+
+# 依存関係の更新
+cargo update
+
+# 未使用依存関係の検出
+cargo machete
+```

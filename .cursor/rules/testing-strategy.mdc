@@ -1,0 +1,583 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# テスト戦略・TDD実践ガイド
+
+このドキュメントは、テスト駆動開発（TDD）の実践とテスト戦略について詳細に説明します。
+
+## TDDサイクル（Red-Green-Refactor）
+
+### 1. Red フェーズ：失敗するテストを作成
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::predicate::*;
+
+    #[tokio::test]
+    async fn test_create_user_with_valid_data() {
+        // Arrange: テストの準備
+        let mut mock_repo = MockUserRepository::new();
+        mock_repo
+            .expect_save()
+            .times(1)
+            .returning(|_| Ok(()));
+        
+        let use_case = CreateUserUseCase::new(mock_repo);
+        let input = CreateUserInput {
+            name: "太郎".to_string(),
+            email: "taro@example.com".to_string(),
+        };
+        
+        // Act: テスト対象の実行
+        let result = use_case.execute(input).await;
+        
+        // Assert: 結果の検証
+        assert!(result.is_ok());
+        let user_id = result.unwrap();
+        assert!(!user_id.is_empty());
+    }
+}
+```
+
+### 2. Green フェーズ：最小限の実装
+
+```rust
+pub struct CreateUserUseCase<R: UserRepository> {
+    repository: R,
+}
+
+impl<R: UserRepository> CreateUserUseCase<R> {
+    pub fn new(repository: R) -> Self {
+        Self { repository }
+    }
+
+    pub async fn execute(&self, input: CreateUserInput) -> Result<String, Error> {
+        // 最小限の実装でテストを通す
+        let email = Email::try_from(input.email)?;
+        let user = User::new(
+            Uuid::new_v4().to_string(),
+            input.name,
+            email,
+        );
+        
+        self.repository.save(&user).await?;
+        Ok(user.id)
+    }
+}
+```
+
+### 3. Refactor フェーズ：コードの改善
+
+```rust
+impl<R: UserRepository> CreateUserUseCase<R> {
+    pub async fn execute(&self, input: CreateUserInput) -> Result<String, Error> {
+        // バリデーションの分離
+        self.validate_input(&input)?;
+        
+        // ドメインオブジェクトの作成
+        let user = self.create_user_from_input(input)?;
+        
+        // 永続化
+        self.repository.save(&user).await?;
+        
+        Ok(user.id)
+    }
+    
+    fn validate_input(&self, input: &CreateUserInput) -> Result<(), Error> {
+        if input.name.trim().is_empty() {
+            return Err(Error::InvalidUserName("名前は必須です".to_string()));
+        }
+        Ok(())
+    }
+    
+    fn create_user_from_input(&self, input: CreateUserInput) -> Result<User, Error> {
+        let email = Email::try_from(input.email)?;
+        Ok(User::new(
+            Uuid::new_v4().to_string(),
+            input.name,
+            email,
+        ))
+    }
+}
+```
+
+## テストの種類と戦略
+
+### 単体テスト（Unit Tests）
+
+#### ドメインロジックのテスト
+```rust
+#[cfg(test)]
+mod domain_tests {
+    use super::*;
+
+    #[test]
+    fn test_email_validation_success() {
+        let email = Email::try_from("test@example.com".to_string());
+        assert!(email.is_ok());
+        assert_eq!(email.unwrap().value(), "test@example.com");
+    }
+
+    #[test]
+    fn test_email_validation_failure() {
+        let email = Email::try_from("invalid-email".to_string());
+        assert!(email.is_err());
+        assert!(matches!(email.unwrap_err(), Error::InvalidEmail));
+    }
+
+    #[test]
+    fn test_user_creation() {
+        let email = Email::try_from("test@example.com".to_string()).unwrap();
+        let user = User::new("user-1".to_string(), "太郎".to_string(), email);
+        
+        assert_eq!(user.id, "user-1");
+        assert_eq!(user.name, "太郎");
+        assert_eq!(user.email.value(), "test@example.com");
+    }
+}
+```
+
+#### サービス層のテスト
+```rust
+#[cfg(test)]
+mod service_tests {
+    use super::*;
+    use mockall::predicate::*;
+
+    #[tokio::test]
+    async fn test_create_user_success() {
+        let mut mock_repo = MockUserRepository::new();
+        mock_repo
+            .expect_save()
+            .with(predicate::function(|user: &User| {
+                user.name == "太郎" && user.email.value() == "taro@example.com"
+            }))
+            .times(1)
+            .returning(|_| Ok(()));
+        
+        let service = UserService::new(mock_repo);
+        let input = CreateUserInput {
+            name: "太郎".to_string(),
+            email: "taro@example.com".to_string(),
+        };
+        
+        let result = service.create_user(input).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_create_user_duplicate_email() {
+        let mut mock_repo = MockUserRepository::new();
+        mock_repo
+            .expect_find_by_email()
+            .times(1)
+            .returning(|_| Ok(Some(create_test_user())));
+        
+        let service = UserService::new(mock_repo);
+        let input = CreateUserInput {
+            name: "太郎".to_string(),
+            email: "existing@example.com".to_string(),
+        };
+        
+        let result = service.create_user(input).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::DuplicateEmail));
+    }
+}
+```
+
+### 統合テスト（Integration Tests）
+
+#### API統合テスト
+```rust
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use actix_web::{test, App};
+    use serde_json::json;
+
+    #[actix_rt::test]
+    async fn test_create_user_api_success() {
+        // テスト用データベース設定
+        let pool = setup_test_database().await;
+        let app_state = create_test_app_state(pool).await;
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(app_state))
+                .service(create_user)
+        ).await;
+        
+        let req = test::TestRequest::post()
+            .uri("/api/users")
+            .set_json(&json!({
+                "name": "太郎",
+                "email": "taro@example.com"
+            }))
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        
+        let body: CreateUserResponse = test::read_body_json(resp).await;
+        assert_eq!(body.name, "太郎");
+        assert_eq!(body.email, "taro@example.com");
+        assert!(!body.id.is_empty());
+    }
+
+    #[actix_rt::test]
+    async fn test_get_user_not_found() {
+        let pool = setup_test_database().await;
+        let app_state = create_test_app_state(pool).await;
+        
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(app_state))
+                .service(get_user)
+        ).await;
+        
+        let req = test::TestRequest::get()
+            .uri("/api/users/non-existent-id")
+            .to_request();
+        
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+}
+```
+
+#### データベース統合テスト
+```rust
+#[cfg(test)]
+mod database_tests {
+    use super::*;
+    use sqlx::PgPool;
+    use testcontainers::clients::Cli;
+    use testcontainers_modules::postgres::Postgres;
+
+    async fn setup_test_database() -> PgPool {
+        let docker = Cli::default();
+        let postgres_image = Postgres::default();
+        let node = docker.run(postgres_image);
+        
+        let connection_string = format!(
+            "postgres://postgres:postgres@127.0.0.1:{}/postgres",
+            node.get_host_port_ipv4(5432)
+        );
+        
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&connection_string)
+            .await
+            .expect("Failed to create connection pool");
+        
+        // マイグレーション実行
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run migrations");
+        
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_user_repository_save_and_find() {
+        let pool = setup_test_database().await;
+        let repository = PostgresUserRepository::new(pool);
+        
+        let email = Email::try_from("test@example.com".to_string()).unwrap();
+        let user = User::new("user-1".to_string(), "テストユーザー".to_string(), email);
+        
+        // 保存
+        repository.save(&user).await.unwrap();
+        
+        // 取得
+        let found_user = repository.find_by_id("user-1").await.unwrap();
+        assert!(found_user.is_some());
+        
+        let found_user = found_user.unwrap();
+        assert_eq!(found_user.id, "user-1");
+        assert_eq!(found_user.name, "テストユーザー");
+        assert_eq!(found_user.email.value(), "test@example.com");
+    }
+}
+```
+
+## モックとスタブ
+
+### Mockallを使用したモック
+```rust
+use mockall::{automock, predicate::*};
+
+#[automock]
+#[async_trait]
+pub trait UserRepository: Send + Sync {
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>, Error>;
+    async fn find_by_email(&self, email: &Email) -> Result<Option<User>, Error>;
+    async fn save(&self, user: &User) -> Result<(), Error>;
+    async fn delete(&self, id: &str) -> Result<(), Error>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_with_complex_mock_expectations() {
+        let mut mock_repo = MockUserRepository::new();
+        
+        // 複数の期待値を設定
+        mock_repo
+            .expect_find_by_email()
+            .with(predicate::function(|email: &Email| {
+                email.value() == "existing@example.com"
+            }))
+            .times(1)
+            .returning(|_| Ok(Some(create_test_user())));
+        
+        mock_repo
+            .expect_save()
+            .with(predicate::function(|user: &User| {
+                user.name == "新規ユーザー"
+            }))
+            .times(1)
+            .returning(|_| Ok(()));
+        
+        let service = UserService::new(mock_repo);
+        
+        // テスト実行
+        let result = service.create_user_if_not_exists(CreateUserInput {
+            name: "新規ユーザー".to_string(),
+            email: "new@example.com".to_string(),
+        }).await;
+        
+        assert!(result.is_ok());
+    }
+}
+```
+
+## テストデータ管理
+
+### テストヘルパー関数
+```rust
+#[cfg(test)]
+pub mod test_helpers {
+    use super::*;
+    use chrono::Utc;
+
+    pub fn create_test_user() -> User {
+        let email = Email::try_from("test@example.com".to_string()).unwrap();
+        User {
+            id: "test-user-id".to_string(),
+            name: "テストユーザー".to_string(),
+            email,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    pub fn create_test_user_with_email(email_str: &str) -> User {
+        let email = Email::try_from(email_str.to_string()).unwrap();
+        User {
+            id: format!("user-{}", uuid::Uuid::new_v4()),
+            name: "テストユーザー".to_string(),
+            email,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    pub async fn create_test_app_state(pool: PgPool) -> AppState {
+        let user_repository = Arc::new(PostgresUserRepository::new(pool.clone()));
+        let item_repository = Arc::new(PostgresItemRepository::new(pool));
+        
+        let user_service = Arc::new(UserService::new(user_repository));
+        let item_service = Arc::new(ItemService::new(item_repository));
+        
+        AppState {
+            user_service,
+            item_service,
+        }
+    }
+}
+```
+
+### テストデータビルダー
+```rust
+#[cfg(test)]
+pub struct UserBuilder {
+    id: Option<String>,
+    name: Option<String>,
+    email: Option<String>,
+}
+
+#[cfg(test)]
+impl UserBuilder {
+    pub fn new() -> Self {
+        Self {
+            id: None,
+            name: None,
+            email: None,
+        }
+    }
+
+    pub fn with_id(mut self, id: &str) -> Self {
+        self.id = Some(id.to_string());
+        self
+    }
+
+    pub fn with_name(mut self, name: &str) -> Self {
+        self.name = Some(name.to_string());
+        self
+    }
+
+    pub fn with_email(mut self, email: &str) -> Self {
+        self.email = Some(email.to_string());
+        self
+    }
+
+    pub fn build(self) -> User {
+        let email = Email::try_from(
+            self.email.unwrap_or_else(|| "default@example.com".to_string())
+        ).unwrap();
+        
+        User {
+            id: self.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            name: self.name.unwrap_or_else(|| "デフォルトユーザー".to_string()),
+            email,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod builder_tests {
+    use super::*;
+
+    #[test]
+    fn test_user_builder() {
+        let user = UserBuilder::new()
+            .with_name("カスタムユーザー")
+            .with_email("custom@example.com")
+            .build();
+        
+        assert_eq!(user.name, "カスタムユーザー");
+        assert_eq!(user.email.value(), "custom@example.com");
+    }
+}
+```
+
+## パフォーマンステスト
+
+### ベンチマークテスト
+```rust
+#[cfg(test)]
+mod benchmark_tests {
+    use super::*;
+    use std::time::Instant;
+
+    #[tokio::test]
+    async fn test_user_creation_performance() {
+        let pool = setup_test_database().await;
+        let repository = PostgresUserRepository::new(pool);
+        
+        let start = Instant::now();
+        
+        // 1000ユーザーの作成
+        for i in 0..1000 {
+            let email = Email::try_from(format!("user{}@example.com", i)).unwrap();
+            let user = User::new(
+                format!("user-{}", i),
+                format!("ユーザー{}", i),
+                email,
+            );
+            repository.save(&user).await.unwrap();
+        }
+        
+        let duration = start.elapsed();
+        println!("1000ユーザー作成時間: {:?}", duration);
+        
+        // パフォーマンス要件の検証
+        assert!(duration.as_secs() < 10, "ユーザー作成が遅すぎます");
+    }
+}
+```
+
+## テスト実行とカバレッジ
+
+### テスト実行コマンド
+```bash
+# 全テスト実行
+cargo test
+
+# 特定のテスト実行
+cargo test test_create_user
+
+# 統合テストのみ実行
+cargo test --test integration
+
+# 並行実行数を制限
+cargo test -- --test-threads=1
+
+# 詳細出力
+cargo test -- --nocapture
+```
+
+### カバレッジ測定
+```bash
+# tarpaulinを使用
+cargo tarpaulin --out Html --output-dir coverage
+
+# llvm-covを使用
+cargo +nightly test --all-features --no-fail-fast
+cargo +nightly llvm-cov --html
+```
+
+## 継続的テスト
+
+### GitHub Actionsでのテスト自動化
+```yaml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Run tests
+      run: cargo test --all-features
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost/test
+    
+    - name: Generate coverage
+      run: cargo tarpaulin --out Xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v1
+```
