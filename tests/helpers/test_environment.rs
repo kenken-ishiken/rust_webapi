@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use rust_webapi::app_domain::repository::item_repository::ItemRepository;
