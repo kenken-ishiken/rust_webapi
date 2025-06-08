@@ -434,6 +434,17 @@ mod tests {
     use testcontainers::{clients::Cli, Container};
     use testcontainers_modules::postgres::{self, Postgres};
 
+    /// Spins up a temporary PostgreSQL container for testing and returns a connection pool and the running container.
+    ///
+    /// This function launches a new PostgreSQL instance using `testcontainers`, waits until the database is ready to accept connections, and returns both a `PgPool` for database access and the container handle for lifecycle management.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let (pool, container) = setup_postgres().await;
+    /// // Use `pool` for database operations in tests.
+    /// // The `container` can be used to manage the container's lifecycle.
+    /// ```
     async fn setup_postgres() -> (PgPool, Container<'static, Postgres>) {
         let docker = Box::leak(Box::new(Cli::default()));
         let container = docker.run(postgres::Postgres::default());

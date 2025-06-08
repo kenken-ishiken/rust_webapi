@@ -462,6 +462,19 @@ mod tests {
     use testcontainers::{clients::Cli, Container};
     use testcontainers_modules::postgres::{self, Postgres};
 
+    /// Starts a PostgreSQL container for testing and establishes a connection pool.
+    ///
+    /// Returns a tuple containing the SQLx PostgreSQL connection pool and the running container handle. Retries connection attempts up to 10 times before panicking if unsuccessful.
+    ///
+    /// # Returns
+    /// A tuple of (`PgPool`, `Container<'static, Postgres>`) representing the database connection pool and the running test container.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let (pool, container) = setup_postgres().await;
+    /// // Use `pool` for database operations in tests.
+    /// ```
     async fn setup_postgres() -> (PgPool, Container<'static, Postgres>) {
         // PostgreSQLコンテナの起動（デフォルト設定で実行）
         let docker = Box::leak(Box::new(Cli::default()));
