@@ -37,6 +37,10 @@ rust_webapiプロジェクトの詳細な調査を行い、コードの品質向
 #### 解決策
 ```rust
 // src/infrastructure/di/container.rs
+use std::sync::Arc;
+use sqlx::PgPool;
+use crate::infrastructure::error::AppResult;
+
 #[derive(Clone)]
 pub struct AppContainer {
     pub item_service: Arc<ItemService>,
@@ -83,7 +87,7 @@ pub enum DeletionStrategy {
 
 // src/application/service/deletion_service.rs
 pub struct DeletionService<T> {
-    repository: Arc<dyn Repository<T>>,
+    repository: Arc<dyn DeletionRepository<T>>,
 }
 
 impl<T> DeletionService<T> {
@@ -274,7 +278,7 @@ impl ItemDomainService {
 InMemoryとPostgresの実装が同じファイルにあり、長すぎる。
 
 #### 解決策
-```
+```bash
 src/infrastructure/repository/
 ├── item/
 │   ├── mod.rs
@@ -372,4 +376,4 @@ macro_rules! impl_crud_handlers {
 
 このリファクタリング計画により、rust_webapiプロジェクトはより保守しやすく、拡張しやすい構造になります。特に、巨大な関数・ファイルの分割と責任の明確化により、開発チームの生産性が大幅に向上することが期待されます。
 
-実装時は段階的に進めることで、既存機能への影響を最小限に抑えながら改善を進めることができます。
+実装時は段階的に進めることで、既存機能への影響を最小限に抑えながら改善を進められます。
