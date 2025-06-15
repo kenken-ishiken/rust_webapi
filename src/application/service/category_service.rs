@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tracing::{info, error};
-use futures::future::join_all;
+use futures::stream::{self, StreamExt};
 use uuid::Uuid;
 
 use crate::app_domain::model::category::{Category, CategoryError};
@@ -42,19 +42,21 @@ impl CategoryService {
         increment_success_counter("category", "find_all");
         info!("Fetched {} categories", categories.len());
         
+        let total = category_list.len();
         CategoriesResponse {
             categories: category_list,
-            total: categories.len(),
+            total,
         }
     }
 
     /// 複数の `Category` を `CategoryListResponse` に変換します。
     ///
     /// 子カテゴリ数の取得を *並列* に行い、N+1 問題を軽減します。
+    /// 同時実行数を制限してDB接続プールの枯渇を防ぎます。
     async fn build_category_list_response(&self, categories: &[Category]) -> Vec<CategoryListResponse> {
-        let tasks = categories.iter().map(|category| {
+        // 同時クエリを最大 8 件に制限してDB接続プール枯渇を防ぐ
+        let tasks_stream = stream::iter(categories.iter().cloned()).map(|category_clone| {
             let repo = Arc::clone(&self.repository);
-            let category_clone = category.clone();
             async move {
                 let children_count = repo.count_children(&category_clone.id).await;
                 CategoryListResponse {
@@ -69,9 +71,10 @@ impl CategoryService {
                     updated_at: category_clone.updated_at,
                 }
             }
-        });
+        })
+        .buffer_unordered(8);
 
-        join_all(tasks).await
+        tasks_stream.collect::<Vec<_>>().await
     }
 
     /// ID でカテゴリを取得します。
@@ -104,9 +107,10 @@ impl CategoryService {
         increment_success_counter("category", "find_by_parent");
         info!("Fetched {} categories for parent {:?}", categories.len(), parent_id);
 
+        let total = category_list.len();
         CategoriesResponse {
             categories: category_list,
-            total: categories.len(),
+            total,
         }
     }
 
@@ -574,5 +578,121 @@ mod tests {
         assert_eq!(response.path[0].name, "Root");
         assert_eq!(response.path[1].name, "Child");
         assert_eq!(response.path[2].name, "Grandchild");
+    }
+
+    #[tokio::test]
+    async fn test_build_category_list_response() {
+        let mut mock_repo = MockCategoryRepository::new();
+        
+        // Create test categories
+        let category1 = Category {
+            id: "cat_1".to_string(),
+            name: "Category 1".to_string(),
+            description: Some("Description 1".to_string()),
+            parent_id: None,
+            sort_order: 1,
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let category2 = Category {
+            id: "cat_2".to_string(),
+            name: "Category 2".to_string(),
+            description: Some("Description 2".to_string()),
+            parent_id: None,
+            sort_order: 2,
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        // Mock count_children calls - verify parallel execution works
+        mock_repo
+            .expect_count_children()
+            .with(eq("cat_1"))
+            .return_once(|_| 2);
+
+        mock_repo
+            .expect_count_children()
+            .with(eq("cat_2"))
+            .return_once(|_| 0);
+
+        let service = CategoryService::new(Arc::new(mock_repo));
+        let categories = vec![category1.clone(), category2.clone()];
+        
+        let result = service.build_category_list_response(&categories).await;
+
+        assert_eq!(result.len(), 2);
+        
+        // Verify first category
+        let cat1_response = result.iter().find(|r| r.id == "cat_1").unwrap();
+        assert_eq!(cat1_response.name, "Category 1");
+        assert_eq!(cat1_response.children_count, 2);
+        
+        // Verify second category
+        let cat2_response = result.iter().find(|r| r.id == "cat_2").unwrap();
+        assert_eq!(cat2_response.name, "Category 2");
+        assert_eq!(cat2_response.children_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_build_category_list_response_empty() {
+        let mock_repo = MockCategoryRepository::new();
+        let service = CategoryService::new(Arc::new(mock_repo));
+        
+        let result = service.build_category_list_response(&[]).await;
+        
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_find_all_total_count_uses_category_list_length() {
+        let mut mock_repo = MockCategoryRepository::new();
+        
+        let categories = vec![
+            Category {
+                id: "cat_1".to_string(),
+                name: "Category 1".to_string(),
+                description: None,
+                parent_id: None,
+                sort_order: 1,
+                is_active: true,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            Category {
+                id: "cat_2".to_string(),
+                name: "Category 2".to_string(),
+                description: None,
+                parent_id: None,
+                sort_order: 2,
+                is_active: true,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+        ];
+
+        mock_repo
+            .expect_find_all()
+            .with(eq(true))
+            .return_once(move |_| categories);
+
+        mock_repo
+            .expect_count_children()
+            .with(eq("cat_1"))
+            .return_once(|_| 1);
+
+        mock_repo
+            .expect_count_children()
+            .with(eq("cat_2"))
+            .return_once(|_| 0);
+
+        let service = CategoryService::new(Arc::new(mock_repo));
+        let result = service.find_all(true).await;
+
+        // Verify that total matches the category_list length (2)
+        assert_eq!(result.total, 2);
+        assert_eq!(result.categories.len(), 2);
     }
 }
