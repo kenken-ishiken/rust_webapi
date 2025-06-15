@@ -101,6 +101,18 @@ impl TestRepositoryFactory {
             .unwrap_or(false)
     }
 
+    /// Create an item repository for E2E testing (with Send + Sync bounds)
+    pub fn create_item_repository_for_service(&self) -> Arc<dyn ItemRepository + Send + Sync> {
+        match &self.environment {
+            TestEnvironment::PostgreSQL(pool) => {
+                Arc::new(PostgresItemRepository::new(pool.clone()))
+            }
+            TestEnvironment::InMemory => {
+                Arc::new(InMemoryItemRepository::new())
+            }
+        }
+    }
+
     /// Create an item repository
     pub fn create_item_repository(&self) -> Arc<dyn ItemRepository> {
         match &self.environment {
