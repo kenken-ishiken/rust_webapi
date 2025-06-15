@@ -1,0 +1,37 @@
+# .coderabbit.yml
+version: 1
+
+# CodeRabbit がレビューコメントを日本語で投稿するよう指定
+language: ja
+
+# レビュースタイルやトーンを細かく設定（任意）
+style:
+  tone: professional
+  use_bullets: true
+  include_code_snippets: true
+
+# 対象ブランチを限定（任意）
+target_branches:
+  - main
+  - master
+  - develop
+
+# 無視したいファイルやディレクトリ（任意）
+ignore_paths:
+  - docs/
+  - '**/*.md'
+  - '**/dist/**'
+
+# レビュー対象外にしたいラベル（任意）
+skip_labels:
+  - 'no-review'
+  - 'work-in-progress'
+
+skip_if:
+  total_changed_lines: <=10
+
+workflow:
+  on_pr_opened:   true   # PR 作成時に実行
+  on_push:        true   # PR への push ごとに実行
+  on_pr_reopened: true   # PR 再オープン時に実行
+  on_comment:     true  # 手動コメントトリガーは無効
