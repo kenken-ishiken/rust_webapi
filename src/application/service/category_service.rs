@@ -1,5 +1,7 @@
 use std::sync::Arc;
 use tracing::{info, error};
+use futures::future::join_all;
+use uuid::Uuid;
 
 use crate::app_domain::model::category::{Category, CategoryError};
 #[cfg(test)]
@@ -12,33 +14,30 @@ use crate::application::dto::category_dto::{
 };
 use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 
+/// カテゴリ関連のユースケースを提供するサービス層。
+///
+/// Repository へのアクセスを仲介し、DTO との相互変換や
+/// 監査・メトリクス・ロギングなどクロスカットな処理を担う。
 pub struct CategoryService {
     repository: Arc<dyn CategoryRepository>,
 }
 
 impl CategoryService {
+    /// 新しい `CategoryService` インスタンスを生成します。
+    ///
+    /// # 引数
+    /// * `repository` - `CategoryRepository` の実装をラップした `Arc`。
     pub fn new(repository: Arc<dyn CategoryRepository>) -> Self {
         Self { repository }
     }
 
+    /// 全カテゴリを取得します。
+    ///
+    /// `include_inactive` が `true` の場合、非アクティブなカテゴリも含めて取得します。
     pub async fn find_all(&self, include_inactive: bool) -> CategoriesResponse {
         let categories = self.repository.find_all(include_inactive).await;
         
-        let mut category_list = Vec::new();
-        for category in &categories {
-            let children_count = self.repository.count_children(&category.id).await;
-            category_list.push(CategoryListResponse {
-                id: category.id.clone(),
-                name: category.name.clone(),
-                description: category.description.clone(),
-                parent_id: category.parent_id.clone(),
-                sort_order: category.sort_order,
-                is_active: category.is_active,
-                children_count,
-                created_at: category.created_at,
-                updated_at: category.updated_at,
-            });
-        }
+        let category_list = self.build_category_list_response(&categories).await;
 
         increment_success_counter("category", "find_all");
         info!("Fetched {} categories", categories.len());
@@ -49,6 +48,33 @@ impl CategoryService {
         }
     }
 
+    /// 複数の `Category` を `CategoryListResponse` に変換します。
+    ///
+    /// 子カテゴリ数の取得を *並列* に行い、N+1 問題を軽減します。
+    async fn build_category_list_response(&self, categories: &[Category]) -> Vec<CategoryListResponse> {
+        let tasks = categories.iter().map(|category| {
+            let repo = Arc::clone(&self.repository);
+            let category_clone = category.clone();
+            async move {
+                let children_count = repo.count_children(&category_clone.id).await;
+                CategoryListResponse {
+                    id: category_clone.id,
+                    name: category_clone.name,
+                    description: category_clone.description,
+                    parent_id: category_clone.parent_id,
+                    sort_order: category_clone.sort_order,
+                    is_active: category_clone.is_active,
+                    children_count,
+                    created_at: category_clone.created_at,
+                    updated_at: category_clone.updated_at,
+                }
+            }
+        });
+
+        join_all(tasks).await
+    }
+
+    /// ID でカテゴリを取得します。
     pub async fn find_by_id(&self, id: &str) -> Result<CategoryResponse, CategoryError> {
         match self.repository.find_by_id(id).await {
             Some(category) => {
@@ -64,38 +90,34 @@ impl CategoryService {
         }
     }
 
+    /// 指定された親 ID 配下のカテゴリを取得します。
+    ///
+    /// `parent_id` が `None` の場合はルートカテゴリを取得します。
     pub async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> CategoriesResponse {
-        let categories = self.repository.find_by_parent_id(parent_id.clone(), include_inactive).await;
-        
-        let mut category_list = Vec::new();
-        for category in &categories {
-            let children_count = self.repository.count_children(&category.id).await;
-            category_list.push(CategoryListResponse {
-                id: category.id.clone(),
-                name: category.name.clone(),
-                description: category.description.clone(),
-                parent_id: category.parent_id.clone(),
-                sort_order: category.sort_order,
-                is_active: category.is_active,
-                children_count,
-                created_at: category.created_at,
-                updated_at: category.updated_at,
-            });
-        }
+        let categories = self
+            .repository
+            .find_by_parent_id(parent_id.clone(), include_inactive)
+            .await;
+
+        let category_list = self.build_category_list_response(&categories).await;
 
         increment_success_counter("category", "find_by_parent");
         info!("Fetched {} categories for parent {:?}", categories.len(), parent_id);
-        
+
         CategoriesResponse {
             categories: category_list,
             total: categories.len(),
         }
     }
 
+    /// 指定カテゴリの子カテゴリ一覧を取得します。
     pub async fn find_children(&self, id: &str, include_inactive: bool) -> CategoriesResponse {
         self.find_by_parent_id(Some(id.to_string()), include_inactive).await
     }
 
+    /// 指定カテゴリからルートまでのパス情報を取得します。
+    ///
+    /// 戻り値の `depth` はルートからの階層深さを示します。
     pub async fn find_path(&self, id: &str) -> Result<CategoryPathResponse, CategoryError> {
         let path = self.repository.find_path(id).await?;
         
@@ -119,6 +141,7 @@ impl CategoryService {
         })
     }
 
+    /// 全カテゴリを木構造で取得します。
     pub async fn find_tree(&self, include_inactive: bool) -> CategoryTreesResponse {
         let trees = self.repository.find_tree(include_inactive).await;
         
@@ -130,9 +153,13 @@ impl CategoryService {
         }
     }
 
+    /// 新しいカテゴリを作成します。
+    ///
+    /// # 失敗時
+    /// * `CategoryError::InvalidName` - 名前が無効な場合 など
     pub async fn create(&self, req: CreateCategoryRequest) -> Result<CategoryResponse, CategoryError> {
-        // Generate unique ID (in real application, you might want to use UUID or database sequence)
-        let id = format!("cat_{}", chrono::Utc::now().timestamp_millis());
+        // 一意な ID を UUID v4 で生成
+        let id = format!("cat_{}", Uuid::new_v4());
         
         let category = Category::new(
             id,
@@ -156,6 +183,7 @@ impl CategoryService {
         }
     }
 
+    /// 既存カテゴリを更新します。
     pub async fn update(&self, id: &str, req: UpdateCategoryRequest) -> Result<CategoryResponse, CategoryError> {
         let mut category = self.repository.find_by_id(id).await
             .ok_or_else(|| CategoryError::NotFound("カテゴリが見つかりません".to_string()))?;
@@ -195,6 +223,7 @@ impl CategoryService {
         }
     }
 
+    /// カテゴリを削除します。
     pub async fn delete(&self, id: &str) -> Result<bool, CategoryError> {
         match self.repository.delete(id).await {
             Ok(deleted) => {
@@ -216,6 +245,7 @@ impl CategoryService {
         }
     }
 
+    /// 親カテゴリ変更および並び順変更を行います。
     pub async fn move_category(&self, id: &str, req: MoveCategoryRequest) -> Result<CategoryResponse, CategoryError> {
         let parent_id = req.parent_id.clone();
         match self.repository.move_category(id, req.parent_id, req.sort_order).await {
