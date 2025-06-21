@@ -12,7 +12,7 @@ use crate::application::dto::category_dto::{
     CategoryResponse, CategoryTreesResponse, CreateCategoryRequest, MoveCategoryRequest,
     UpdateCategoryRequest,
 };
-use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
+use crate::infrastructure::metrics::{Metrics, increment_success_counter, increment_error_counter};
 
 /// カテゴリ関連のユースケースを提供するサービス層。
 ///

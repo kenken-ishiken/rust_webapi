@@ -13,7 +13,7 @@ use crate::application::dto::product_dto::{
     ProductImageResponse, ProductListResponse, ProductResponse, ProductSearchQuery,
     UpdateProductRequest,
 };
-use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
+use crate::infrastructure::metrics::{Metrics, increment_success_counter, increment_error_counter};
 
 pub struct ProductService {
     repository: Arc<dyn ProductRepository>,

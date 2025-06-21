@@ -3,7 +3,7 @@ use crate::application::dto::item_dto::{
     DeletionValidationResponse, ItemResponse, UpdateItemRequest,
 };
 use crate::infrastructure::error::{AppError, AppResult};
-use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
+use crate::infrastructure::metrics::Metrics;
 use domain::model::item::{DeletionType, Item};
 use std::sync::Mutex;
 
@@ -27,104 +27,102 @@ impl ItemService {
     }
 
     pub async fn find_all(&self) -> AppResult<Vec<ItemResponse>> {
-        let items = self.repository.find_all().await?;
-        increment_success_counter("item", "find_all");
-        Ok(items
-            .into_iter()
-            .map(|item| self.to_response(item))
-            .collect())
+        Metrics::with_metrics("item", "find_all", async {
+            let items = self.repository.find_all().await?;
+            Ok(items
+                .into_iter()
+                .map(|item| self.to_response(item))
+                .collect())
+        }).await
     }
 
     pub async fn find_by_id(&self, id: u64) -> AppResult<ItemResponse> {
-        let item = self.repository.find_by_id(id).await?;
-        match item {
-            Some(item) => {
-                increment_success_counter("item", "find_by_id");
-                Ok(self.to_response(item))
+        Metrics::with_metrics("item", "find_by_id", async {
+            let item = self.repository.find_by_id(id).await?;
+            match item {
+                Some(item) => Ok(self.to_response(item)),
+                None => Err(AppError::not_found("Item", id)),
             }
-            None => {
-                increment_error_counter("item", "find_by_id");
-                Err(AppError::not_found("Item", id))
-            }
-        }
+        }).await
     }
 
     pub async fn create(&self, req: CreateItemRequest) -> AppResult<ItemResponse> {
-        let id = {
-            let mut counter = self
-                .counter
-                .lock()
-                .map_err(|_| AppError::internal_error("Failed to acquire lock"))?;
-            let id = *counter;
-            *counter += 1;
-            id
-        };
+        Metrics::with_metrics("item", "create", async {
+            let id = {
+                let mut counter = self
+                    .counter
+                    .lock()
+                    .map_err(|_| AppError::internal_error("Failed to acquire lock"))?;
+                let id = *counter;
+                *counter += 1;
+                id
+            };
 
-        let item = Item {
-            id,
-            name: req.name,
-            description: req.description,
-            deleted: false,
-            deleted_at: None,
-        };
+            let item = Item {
+                id,
+                name: req.name,
+                description: req.description,
+                deleted: false,
+                deleted_at: None,
+            };
 
-        let created_item = self.repository.create(item).await?;
-        increment_success_counter("item", "create");
-        Ok(self.to_response(created_item))
+            let created_item = self.repository.create(item).await?;
+            Ok(self.to_response(created_item))
+        }).await
     }
 
     pub async fn update(&self, id: u64, req: UpdateItemRequest) -> AppResult<ItemResponse> {
-        let item_opt = self.repository.find_by_id(id).await?;
-        match item_opt {
-            Some(mut item) => {
-                if let Some(name) = req.name {
-                    item.name = name;
+        Metrics::with_metrics("item", "update", async {
+            let item_opt = self.repository.find_by_id(id).await?;
+            match item_opt {
+                Some(mut item) => {
+                    if let Some(name) = req.name {
+                        item.name = name;
+                    }
+                    if let Some(description) = req.description {
+                        item.description = Some(description);
+                    }
+                    let updated = self.repository.update(item).await?;
+                    Ok(self.to_response(updated))
                 }
-                if let Some(description) = req.description {
-                    item.description = Some(description);
-                }
-                let updated = self.repository.update(item).await?;
-                increment_success_counter("item", "update");
-                Ok(self.to_response(updated))
+                None => Err(AppError::not_found("Item", id)),
             }
-            None => {
-                increment_error_counter("item", "update");
-                Err(AppError::not_found("Item", id))
-            }
-        }
+        }).await
     }
 
     // New methods for product deletion API
 
     pub async fn find_deleted(&self) -> AppResult<Vec<ItemResponse>> {
-        let items = self.repository.find_deleted().await?;
-        increment_success_counter("item", "find_deleted");
-        Ok(items
-            .into_iter()
-            .map(|item| self.to_response(item))
-            .collect())
+        Metrics::with_metrics("item", "find_deleted", async {
+            let items = self.repository.find_deleted().await?;
+            Ok(items
+                .into_iter()
+                .map(|item| self.to_response(item))
+                .collect())
+        }).await
     }
 
     pub async fn validate_deletion(&self, id: u64) -> AppResult<DeletionValidationResponse> {
-        // First check if the item exists
-        let item_opt = self.repository.find_by_id(id).await?;
-        if item_opt.is_none() {
-            increment_error_counter("item", "validate_deletion");
-            return Err(AppError::not_found("Item", id));
-        }
+        Metrics::with_metrics("item", "validate_deletion", async {
+            // First check if the item exists
+            let item_opt = self.repository.find_by_id(id).await?;
+            if item_opt.is_none() {
+                return Err(AppError::not_found("Item", id));
+            }
 
-        let validation = self.repository.validate_deletion(id).await?;
-        increment_success_counter("item", "validate_deletion");
+            let validation = self.repository.validate_deletion(id).await?;
 
-        Ok(DeletionValidationResponse {
-            can_delete: validation.can_delete,
-            related_orders: validation.related_data.related_orders,
-            related_reviews: validation.related_data.related_reviews,
-            related_categories: validation.related_data.related_categories,
-        })
+            Ok(DeletionValidationResponse {
+                can_delete: validation.can_delete,
+                related_orders: validation.related_data.related_orders,
+                related_reviews: validation.related_data.related_reviews,
+                related_categories: validation.related_data.related_categories,
+            })
+        }).await
     }
 
     pub async fn batch_delete(&self, req: BatchDeleteRequest) -> AppResult<BatchDeleteResponse> {
+        let timer = crate::infrastructure::metrics::MetricsTimer::new("item", "batch_delete");
         let is_physical = req.is_physical.unwrap_or(false);
         let all_ids = req.ids.clone();
 
@@ -134,13 +132,15 @@ impl ItemService {
             .filter(|id| !successful_ids.contains(id))
             .collect();
 
+        // 個別に成功/失敗をメトリクスに記録
         if !successful_ids.is_empty() {
-            increment_success_counter("item", "batch_delete");
+            Metrics::record_success("item", "batch_delete");
         }
         if !failed_ids.is_empty() {
-            increment_error_counter("item", "batch_delete");
+            Metrics::record_error("item", "batch_delete");
         }
 
+        timer.observe();
         Ok(BatchDeleteResponse {
             successful_ids,
             failed_ids,
@@ -151,24 +151,25 @@ impl ItemService {
         &self,
         item_id: Option<u64>,
     ) -> AppResult<Vec<DeletionLogResponse>> {
-        let logs = self.repository.get_deletion_logs(item_id).await?;
-        increment_success_counter("item", "get_deletion_logs");
+        Metrics::with_metrics("item", "get_deletion_logs", async {
+            let logs = self.repository.get_deletion_logs(item_id).await?;
 
-        Ok(logs
-            .into_iter()
-            .map(|log| DeletionLogResponse {
-                id: log.id,
-                item_id: log.item_id,
-                item_name: log.item_name,
-                deletion_type: match log.deletion_type {
-                    DeletionType::Logical => "Logical".to_string(),
-                    DeletionType::Physical => "Physical".to_string(),
-                    DeletionType::Restore => "Restore".to_string(),
-                },
-                deleted_at: log.deleted_at,
-                deleted_by: log.deleted_by,
-            })
-            .collect())
+            Ok(logs
+                .into_iter()
+                .map(|log| DeletionLogResponse {
+                    id: log.id,
+                    item_id: log.item_id,
+                    item_name: log.item_name,
+                    deletion_type: match log.deletion_type {
+                        DeletionType::Logical => "Logical".to_string(),
+                        DeletionType::Physical => "Physical".to_string(),
+                        DeletionType::Restore => "Restore".to_string(),
+                    },
+                    deleted_at: log.deleted_at,
+                    deleted_by: log.deleted_by,
+                })
+                .collect())
+        }).await
     }
 
     // Helper method to convert domain Item to ItemResponse DTO

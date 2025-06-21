@@ -1,5 +1,5 @@
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
-use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
+use crate::infrastructure::metrics::Metrics;
 use domain::model::user::User;
 
 pub struct UserService {
@@ -12,60 +12,70 @@ impl UserService {
     }
 
     pub async fn find_all(&self) -> Vec<User> {
-        let users = self.repository.find_all().await;
-        increment_success_counter("user", "find_all");
-        users
+        Metrics::with_timer("user", "find_all", async {
+            let users = self.repository.find_all().await;
+            Metrics::record_success("user", "find_all");
+            users
+        }).await
     }
 
     pub async fn find_by_id(&self, id: u64) -> Option<User> {
-        let user = self.repository.find_by_id(id).await;
-        if user.is_some() {
-            increment_success_counter("user", "find_by_id");
-        } else {
-            increment_error_counter("user", "find_by_id");
-        }
-        user
+        Metrics::with_timer("user", "find_by_id", async {
+            let user = self.repository.find_by_id(id).await;
+            if user.is_some() {
+                Metrics::record_success("user", "find_by_id");
+            } else {
+                Metrics::record_error("user", "find_by_id");
+            }
+            user
+        }).await
     }
 
     pub async fn create(&self, req: CreateUserRequest) -> User {
-        // IDはリポジトリ/DB側で生成
-        let user = User {
-            id: 0,
-            username: req.username,
-            email: req.email,
-        };
-        let created_user = self.repository.create(user).await;
-        increment_success_counter("user", "create");
-        created_user
+        Metrics::with_timer("user", "create", async {
+            // IDはリポジトリ/DB側で生成
+            let user = User {
+                id: 0,
+                username: req.username,
+                email: req.email,
+            };
+            let created_user = self.repository.create(user).await;
+            Metrics::record_success("user", "create");
+            created_user
+        }).await
     }
 
     pub async fn update(&self, id: u64, req: UpdateUserRequest) -> Option<User> {
-        if let Some(mut user) = self.repository.find_by_id(id).await {
-            if let Some(username) = req.username {
-                user.username = username;
+        Metrics::with_timer("user", "update", async {
+            if let Some(mut user) = self.repository.find_by_id(id).await {
+                if let Some(username) = req.username {
+                    user.username = username;
+                }
+                if let Some(email) = req.email {
+                    user.email = email;
+                }
+                let updated_user = self.repository.update(user).await;
+                if updated_user.is_some() {
+                    Metrics::record_success("user", "update");
+                }
+                updated_user
+            } else {
+                Metrics::record_error("user", "update");
+                None
             }
-            if let Some(email) = req.email {
-                user.email = email;
-            }
-            let updated_user = self.repository.update(user).await;
-            if updated_user.is_some() {
-                increment_success_counter("user", "update");
-            }
-            updated_user
-        } else {
-            increment_error_counter("user", "update");
-            None
-        }
+        }).await
     }
 
     pub async fn delete(&self, id: u64) -> bool {
-        let result = self.repository.delete(id).await;
-        if result {
-            increment_success_counter("user", "delete");
-        } else {
-            increment_error_counter("user", "delete");
-        }
-        result
+        Metrics::with_timer("user", "delete", async {
+            let result = self.repository.delete(id).await;
+            if result {
+                Metrics::record_success("user", "delete");
+            } else {
+                Metrics::record_error("user", "delete");
+            }
+            result
+        }).await
     }
 }
 

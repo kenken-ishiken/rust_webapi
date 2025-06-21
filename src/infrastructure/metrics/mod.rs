@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use prometheus::{
     CounterVec, HistogramVec, Opts, Registry, TextEncoder, Encoder,
 };
+use std::time::Instant;
 
 lazy_static! {
     static ref API_SUCCESS_COUNTER: CounterVec = CounterVec::new(
@@ -24,6 +25,141 @@ lazy_static! {
     ).expect("Failed to create API_REQUEST_DURATION_HISTOGRAM");
     
     static ref REGISTRY: Registry = Registry::new();
+}
+
+/// メトリクス記録の統一マクロ
+/// 
+/// # 使用例
+/// ```rust
+/// // 成功カウンター
+/// metrics!(success, "user", "find_by_id");
+/// 
+/// // エラーカウンター
+/// metrics!(error, "user", "find_by_id");
+/// 
+/// // リクエスト時間測定
+/// let timer = metrics!(timer, "user", "find_by_id");
+/// // ... 処理 ...
+/// timer.observe();
+/// ```
+#[macro_export]
+macro_rules! metrics {
+    // 成功カウンター
+    (success, $service:expr, $endpoint:expr) => {
+        $crate::infrastructure::metrics::increment_success_counter($service, $endpoint);
+    };
+    
+    // エラーカウンター
+    (error, $service:expr, $endpoint:expr) => {
+        $crate::infrastructure::metrics::increment_error_counter($service, $endpoint);
+    };
+    
+    // タイマー開始
+    (timer, $service:expr, $endpoint:expr) => {
+        $crate::infrastructure::metrics::MetricsTimer::new($service, $endpoint)
+    };
+    
+    // 時間直接測定
+    (duration, $service:expr, $endpoint:expr, $seconds:expr) => {
+        $crate::infrastructure::metrics::observe_request_duration($service, $endpoint, $seconds);
+    };
+}
+
+/// メトリクス記録用のタイマー
+/// 
+/// # 例
+/// ```rust
+/// let timer = MetricsTimer::new("user", "find_by_id");
+/// // ... 処理 ...
+/// timer.observe(); // 自動的に経過時間を記録
+/// ```
+pub struct MetricsTimer {
+    service: String,
+    endpoint: String,
+    start_time: Instant,
+}
+
+impl MetricsTimer {
+    /// 新しいタイマーを作成
+    pub fn new(service: &str, endpoint: &str) -> Self {
+        Self {
+            service: service.to_string(),
+            endpoint: endpoint.to_string(),
+            start_time: Instant::now(),
+        }
+    }
+    
+    /// 経過時間を観測してメトリクスに記録
+    pub fn observe(self) {
+        let elapsed = self.start_time.elapsed();
+        let seconds = elapsed.as_secs_f64();
+        observe_request_duration(&self.service, &self.endpoint, seconds);
+    }
+    
+    /// 経過時間を取得（秒）
+    pub fn elapsed_seconds(&self) -> f64 {
+        self.start_time.elapsed().as_secs_f64()
+    }
+}
+
+impl Drop for MetricsTimer {
+    /// タイマーが破棄される際に自動的に測定結果を記録
+    fn drop(&mut self) {
+        let elapsed = self.start_time.elapsed();
+        let seconds = elapsed.as_secs_f64();
+        observe_request_duration(&self.service, &self.endpoint, seconds);
+    }
+}
+
+/// 高レベルメトリクス記録API
+pub struct Metrics;
+
+impl Metrics {
+    /// 操作の成功を記録
+    pub fn record_success(service: &str, operation: &str) {
+        increment_success_counter(service, operation);
+        tracing::debug!("Metrics: {} {} success", service, operation);
+    }
+    
+    /// 操作のエラーを記録
+    pub fn record_error(service: &str, operation: &str) {
+        increment_error_counter(service, operation);
+        tracing::warn!("Metrics: {} {} error", service, operation);
+    }
+    
+    /// 操作の実行時間を記録
+    pub fn record_duration(service: &str, operation: &str, seconds: f64) {
+        observe_request_duration(service, operation, seconds);
+        tracing::debug!("Metrics: {} {} duration: {:.3}s", service, operation, seconds);
+    }
+    
+    /// 操作をタイマー付きで実行
+    pub async fn with_timer<F, T>(service: &str, operation: &str, f: F) -> T
+    where
+        F: std::future::Future<Output = T>,
+    {
+        let timer = MetricsTimer::new(service, operation);
+        let result = f.await;
+        timer.observe();
+        result
+    }
+    
+    /// 操作をメトリクス記録付きで実行（Result型）
+    pub async fn with_metrics<F, T, E>(service: &str, operation: &str, f: F) -> Result<T, E>
+    where
+        F: std::future::Future<Output = Result<T, E>>,
+    {
+        let timer = MetricsTimer::new(service, operation);
+        let result = f.await;
+        
+        match &result {
+            Ok(_) => Self::record_success(service, operation),
+            Err(_) => Self::record_error(service, operation),
+        }
+        
+        timer.observe();
+        result
+    }
 }
 
 pub fn init_metrics() {
@@ -121,5 +257,73 @@ mod tests {
             body_str.contains("endpoint=\"/test\""),
             "Missing endpoint label"
         );
+    }
+
+    #[tokio::test]
+    async fn test_metrics_macro() {
+        init_metrics();
+        
+        // テスト用メトリクス記録の動作確認
+        increment_success_counter("test_service", "test_endpoint");
+        increment_error_counter("test_service", "test_endpoint");
+        observe_request_duration("test_service", "test_endpoint", 0.5);
+        
+        // タイマーのテスト
+        let timer = MetricsTimer::new("test_service", "test_timer");
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        timer.observe();
+    }
+
+    #[tokio::test]
+    async fn test_metrics_timer() {
+        let timer = MetricsTimer::new("test", "operation");
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        let elapsed = timer.elapsed_seconds();
+        assert!(elapsed >= 0.01); // 少なくとも10ms経過している
+        timer.observe(); // 手動で観測
+    }
+
+    #[tokio::test]
+    async fn test_metrics_timer_auto_drop() {
+        init_metrics();
+        {
+            let _timer = MetricsTimer::new("test", "auto_drop");
+            tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+            // スコープを抜ける際に自動的にdropされて測定される
+        }
+    }
+
+    #[tokio::test]
+    async fn test_metrics_with_timer() {
+        init_metrics();
+        
+        let result = Metrics::with_timer("test", "async_op", async {
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            42
+        }).await;
+        
+        assert_eq!(result, 42);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_with_metrics_success() {
+        init_metrics();
+        
+        let result = Metrics::with_metrics("test", "success_op", async {
+            Ok::<i32, &str>(100)
+        }).await;
+        
+        assert_eq!(result, Ok(100));
+    }
+
+    #[tokio::test]
+    async fn test_metrics_with_metrics_error() {
+        init_metrics();
+        
+        let result = Metrics::with_metrics("test", "error_op", async {
+            Err::<i32, &str>("test error")
+        }).await;
+        
+        assert_eq!(result, Err("test error"));
     }
 }
