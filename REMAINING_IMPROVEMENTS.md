@@ -10,7 +10,7 @@
 
 ### 現在の警告状況（2024年12月更新）
 - **Clippy警告**: 0件（✅ redundant_closure、len_zero、missing_const_for_thread_local解消済み）
-- **Dead code警告**: 0件（✅ telemetry、service_name、log_level、is_active解消済み）
+- **Dead code警告**: 1件（⚠️ DIコンテナの未使用フィールド - 実装進行中のため一時的）
 - **ビルド警告**: 0件
 
 ## Phase 1: Clippy警告の修正（優先度: 高）✅ **完了**
@@ -55,7 +55,7 @@ let docker = DOCKER.get_or_init(|| testcontainers::clients::Cli::default());
 let docker = DOCKER.get_or_init(testcontainers::clients::Cli::default);
 ```
 
-## Phase 1.5: Dead Code警告の解消（優先度: 高）✅ **完了**
+## Phase 1.5: Dead Code警告の解消（優先度: 高）🔄 **部分的に完了**
 
 ### 1.5.1 未使用フィールドの処理 ✅
 **対象**: 
@@ -64,10 +64,15 @@ let docker = DOCKER.get_or_init(testcontainers::clients::Cli::default);
 - `TelemetryConfig.service_name`、`log_level` → ✅ 削除（TelemetryConfig全体を削除）
 - `PostgresCategoryRepository.init_table` → ✅ `#[cfg(test)]`属性を追加
 
-**完了基準**: ✅
-- CI でdead_code警告0件
-- 削除したフィールドに依存するテストの修正完了
-- 全103件のテスト成功
+### 1.5.2 DIコンテナ未使用フィールドの処理 ⚠️ **進行中**
+**対象**: `src/infrastructure/di/container.rs`
+- `AppContainer`の未使用フィールド（8件）
+- 実装完了後に実際の使用箇所で解決予定
+
+**完了基準**: 🔄
+- CI でdead_code警告0件 ⚠️ (1件残存)
+- 削除したフィールドに依存するテストの修正完了 ✅
+- 全103件のテスト成功 ✅
 
 ## Phase 2-1: 依存性注入コンテナの実装（優先度: 中）✅ **完了**
 
@@ -219,7 +224,7 @@ src/infrastructure/repository/
 
 | 週 | 主タスク | 工数見積もり | 完了基準 |
 |----|----------|-------------|----------|
-| 1  | Phase 1.5: Dead code解消 | 4h | ✅ CI警告0件 |
+| 1  | Phase 1.5: Dead code解消 | 4h | 🔄 CI警告1件残存 |
 | 2  | Phase 2-1: DI設計 + PoC | 8h | ✅ コンテナ基本動作 |
 | 3  | Phase 2-1: main.rsリファクタ | 6h | ✅ main.rs < 80行 |
 | 4  | Phase 2-2: Repository分割(Postgres) | 8h | ✅ 859行に削減 |
@@ -256,7 +261,7 @@ src/infrastructure/repository/
 
 ### CI/CD基準
 - [x] Clippy警告: 0件
-- [x] Dead code警告: 0件
+- [ ] Dead code警告: 0件 ⚠️ (1件残存 - DIコンテナ未使用フィールド)
 - [x] テスト成功率: 100%
 - [ ] カバレッジ: > 80%
 
@@ -279,4 +284,10 @@ src/infrastructure/repository/
 ---
 
 **最終更新**: 2024年12月現在  
-**次回レビュー**: Phase 1.5完了後（Week 1終了時） 
+**次回レビュー**: Phase 2-3開始前（Week 6開始時）
+
+## 🎉 **最新の成果（2024年12月）**
+- ✅ **Phase 2-1完了**: 依存性注入コンテナ実装、main.rs 76行に削減
+- ✅ **Phase 2-2部分完了**: PostgreSQLリポジトリ分割（1406行→859行、38.8%削減）
+- ✅ **全103件テスト成功**: 既存機能の動作保証
+- ⚠️ **残存課題**: DIコンテナ未使用フィールド警告1件（実装進行中のため一時的） 
