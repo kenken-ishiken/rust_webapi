@@ -23,20 +23,21 @@ impl PostgresContainer {
         // Use a static Docker client
         let host_port = {
             // Create a static Docker client
-            static DOCKER: std::sync::OnceLock<testcontainers::clients::Cli> = std::sync::OnceLock::new();
+            static DOCKER: std::sync::OnceLock<testcontainers::clients::Cli> =
+                std::sync::OnceLock::new();
             let docker = DOCKER.get_or_init(|| testcontainers::clients::Cli::default());
-            
+
             CONTAINER.with(|c| {
                 if c.borrow().is_none() {
                     // PostgreSQL container setup with testcontainers-modules
                     let container = docker.run(postgres::Postgres::default());
-                    
+
                     // Get the mapped port
                     let port = container.get_host_port_ipv4(5432);
-                    
+
                     // Store the container in thread_local storage
                     *c.borrow_mut() = Some(container);
-                    
+
                     port
                 } else {
                     // Container already exists, get the port
@@ -64,7 +65,7 @@ impl PostgresContainer {
     pub async fn create_pool(&self) -> Pool<Postgres> {
         let mut retries = 0;
         const MAX_RETRIES: usize = 10;
-        
+
         loop {
             match PgPoolOptions::new()
                 .max_connections(5)
@@ -87,24 +88,30 @@ impl PostgresContainer {
                             }
                         }
                     }
-                    if ready_ok { 
-                        break pool 
-                    } else { 
-                        retries += 1; 
+                    if ready_ok {
+                        break pool;
+                    } else {
+                        retries += 1;
                         if retries >= MAX_RETRIES {
-                            panic!("Failed to connect to Postgres after {} retries", MAX_RETRIES);
+                            panic!(
+                                "Failed to connect to Postgres after {} retries",
+                                MAX_RETRIES
+                            );
                         }
                         continue;
                     }
-                },
+                }
                 Err(e) => {
                     retries += 1;
                     if retries >= MAX_RETRIES {
-                        panic!("Failed to create database pool after {} retries: {}", MAX_RETRIES, e);
+                        panic!(
+                            "Failed to create database pool after {} retries: {}",
+                            MAX_RETRIES, e
+                        );
                     }
                     eprintln!("Failed to create pool (attempt {}): {}", retries, e);
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                },
+                }
             }
         }
     }
@@ -112,19 +119,19 @@ impl PostgresContainer {
     pub async fn run_migrations(&self, pool: &Pool<Postgres>) {
         // For this test, we'll create only the tables needed by the test
         // The full migration file has complex statements that need special handling
-        
+
         // Create users table
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
                 id BIGINT PRIMARY KEY,
                 username VARCHAR(255) NOT NULL,
                 email VARCHAR(255) NOT NULL
-            )"
+            )",
         )
         .execute(pool)
         .await
         .expect("Failed to create users table");
-        
+
         // Create items table
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS items (
@@ -133,7 +140,7 @@ impl PostgresContainer {
                 description TEXT,
                 deleted BOOLEAN DEFAULT FALSE,
                 deleted_at TIMESTAMP WITH TIME ZONE
-            )"
+            )",
         )
         .execute(pool)
         .await

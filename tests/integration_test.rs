@@ -13,7 +13,7 @@ mod integration_tests {
             "TEST-123".to_string(),
             ProductStatus::Active,
         );
-        
+
         assert!(product.is_ok());
     }
 }

@@ -1,10 +1,10 @@
 mod helpers;
 
 use domain::model::item::Item;
-use rust_webapi::app_domain::repository::item_repository::ItemRepository;
 use domain::model::user::User;
 use domain::repository::user_repository::UserRepository;
 use helpers::postgres::PostgresContainer;
+use rust_webapi::app_domain::repository::item_repository::ItemRepository;
 use rust_webapi::infrastructure::repository::item_repository::PostgresItemRepository;
 use rust_webapi::infrastructure::repository::user_repository::PostgresUserRepository;
 
@@ -12,14 +12,14 @@ use rust_webapi::infrastructure::repository::user_repository::PostgresUserReposi
 async fn test_postgres_item_repository() {
     // Create a PostgreSQL container
     let postgres = PostgresContainer::new();
-    
+
     // Create a database pool
     let pool = postgres.create_pool().await;
-    
+
     // Create the repository and initialize the table
     let repo = PostgresItemRepository::new(pool.clone());
     postgres.run_migrations(&pool).await;
-    
+
     // Test data
     let item = Item {
         id: 1,
@@ -28,13 +28,13 @@ async fn test_postgres_item_repository() {
         deleted: false,
         deleted_at: None,
     };
-    
+
     // 1. Test item creation
     let created_item = repo.create(item.clone()).await.unwrap();
     assert_eq!(created_item.id, item.id);
     assert_eq!(created_item.name, item.name);
     assert_eq!(created_item.description, item.description);
-    
+
     // 2. Test finding item by ID
     let found_item = repo.find_by_id(1).await.unwrap();
     assert!(found_item.is_some());
@@ -42,16 +42,16 @@ async fn test_postgres_item_repository() {
     assert_eq!(found_item.id, item.id);
     assert_eq!(found_item.name, item.name);
     assert_eq!(found_item.description, item.description);
-    
+
     // 3. Test finding a non-existent item
     let not_found = repo.find_by_id(999).await.unwrap();
     assert!(not_found.is_none());
-    
+
     // 4. Test getting all items
     let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 1);
     assert_eq!(all_items[0].id, item.id);
-    
+
     // 5. Test updating an item
     let updated_item = Item {
         id: 1,
@@ -60,20 +60,20 @@ async fn test_postgres_item_repository() {
         deleted: false,
         deleted_at: None,
     };
-    
+
     let result = repo.update(updated_item.clone()).await;
     assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result.name, "Updated Item");
     assert_eq!(result.description, Some("Updated Description".to_string()));
-    
+
     // 6. Test deleting an item
     repo.delete(1).await.unwrap();
-    
+
     // Verify deletion
     let all_items_after_delete = repo.find_all().await.unwrap();
     assert_eq!(all_items_after_delete.len(), 0);
-    
+
     // 7. Test deleting a non-existent item
     let result = repo.delete(999).await;
     assert!(result.is_err());
@@ -84,14 +84,14 @@ async fn test_postgres_item_repository() {
 async fn test_postgres_batch_operations() {
     // Create a PostgreSQL container
     let postgres = PostgresContainer::new();
-    
+
     // Create a database pool
     let pool = postgres.create_pool().await;
-    
+
     // Create the repository and initialize the table
     let repo = PostgresItemRepository::new(pool.clone());
     postgres.run_migrations(&pool).await;
-    
+
     // Create multiple items
     let items = vec![
         Item {
@@ -116,27 +116,27 @@ async fn test_postgres_batch_operations() {
             deleted_at: None,
         },
     ];
-    
+
     // Insert all items
     for item in items.clone() {
         repo.create(item).await.unwrap();
     }
-    
+
     // Test batch retrieval
     let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 3);
-    
+
     // Verify items are sorted by ID
     assert_eq!(all_items[0].id, 1);
     assert_eq!(all_items[1].id, 2);
     assert_eq!(all_items[2].id, 3);
-    
+
     // Test batch updates (changing all descriptions)
     for mut item in all_items {
         item.description = Some("Updated".to_string());
         let _ = repo.update(item).await;
     }
-    
+
     // Verify all descriptions were updated
     let updated_items = repo.find_all().await.unwrap();
     for item in updated_items {

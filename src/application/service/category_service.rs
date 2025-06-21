@@ -1,18 +1,18 @@
-use std::sync::Arc;
-use tracing::{info, error};
 use futures::stream::{self, StreamExt};
+use std::sync::Arc;
+use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::app_domain::model::category::{Category, CategoryError};
 #[cfg(test)]
 use crate::app_domain::model::category::CategoryPath;
+use crate::app_domain::model::category::{Category, CategoryError};
 use crate::app_domain::repository::category_repository::CategoryRepository;
 use crate::application::dto::category_dto::{
-    CreateCategoryRequest, UpdateCategoryRequest, MoveCategoryRequest,
-    CategoryResponse, CategoryListResponse, CategoryPathResponse,
-    CategoriesResponse, CategoryTreesResponse, CategoryPathItem
+    CategoriesResponse, CategoryListResponse, CategoryPathItem, CategoryPathResponse,
+    CategoryResponse, CategoryTreesResponse, CreateCategoryRequest, MoveCategoryRequest,
+    UpdateCategoryRequest,
 };
-use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
+use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
 
 /// カテゴリ関連のユースケースを提供するサービス層。
 ///
@@ -36,12 +36,12 @@ impl CategoryService {
     /// `include_inactive` が `true` の場合、非アクティブなカテゴリも含めて取得します。
     pub async fn find_all(&self, include_inactive: bool) -> CategoriesResponse {
         let categories = self.repository.find_all(include_inactive).await;
-        
+
         let category_list = self.build_category_list_response(&categories).await;
 
         increment_success_counter("category", "find_all");
         info!("Fetched {} categories", categories.len());
-        
+
         let total = category_list.len();
         CategoriesResponse {
             categories: category_list,
@@ -53,26 +53,30 @@ impl CategoryService {
     ///
     /// 子カテゴリ数の取得を *並列* に行い、N+1 問題を軽減します。
     /// 同時実行数を制限してDB接続プールの枯渇を防ぎます。
-    async fn build_category_list_response(&self, categories: &[Category]) -> Vec<CategoryListResponse> {
+    async fn build_category_list_response(
+        &self,
+        categories: &[Category],
+    ) -> Vec<CategoryListResponse> {
         // 同時クエリを最大 8 件に制限してDB接続プール枯渇を防ぐ
-        let tasks_stream = stream::iter(categories.iter().cloned()).map(|category_clone| {
-            let repo = Arc::clone(&self.repository);
-            async move {
-                let children_count = repo.count_children(&category_clone.id).await;
-                CategoryListResponse {
-                    id: category_clone.id,
-                    name: category_clone.name,
-                    description: category_clone.description,
-                    parent_id: category_clone.parent_id,
-                    sort_order: category_clone.sort_order,
-                    is_active: category_clone.is_active,
-                    children_count,
-                    created_at: category_clone.created_at,
-                    updated_at: category_clone.updated_at,
+        let tasks_stream = stream::iter(categories.iter().cloned())
+            .map(|category_clone| {
+                let repo = Arc::clone(&self.repository);
+                async move {
+                    let children_count = repo.count_children(&category_clone.id).await;
+                    CategoryListResponse {
+                        id: category_clone.id,
+                        name: category_clone.name,
+                        description: category_clone.description,
+                        parent_id: category_clone.parent_id,
+                        sort_order: category_clone.sort_order,
+                        is_active: category_clone.is_active,
+                        children_count,
+                        created_at: category_clone.created_at,
+                        updated_at: category_clone.updated_at,
+                    }
                 }
-            }
-        })
-        .buffer_unordered(8);
+            })
+            .buffer_unordered(8);
 
         tasks_stream.collect::<Vec<_>>().await
     }
@@ -88,7 +92,9 @@ impl CategoryService {
             None => {
                 increment_error_counter("category", "find_by_id");
                 error!("Category {} not found", id);
-                Err(CategoryError::NotFound("カテゴリが見つかりません".to_string()))
+                Err(CategoryError::NotFound(
+                    "カテゴリが見つかりません".to_string(),
+                ))
             }
         }
     }
@@ -96,7 +102,11 @@ impl CategoryService {
     /// 指定された親 ID 配下のカテゴリを取得します。
     ///
     /// `parent_id` が `None` の場合はルートカテゴリを取得します。
-    pub async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> CategoriesResponse {
+    pub async fn find_by_parent_id(
+        &self,
+        parent_id: Option<String>,
+        include_inactive: bool,
+    ) -> CategoriesResponse {
         let categories = self
             .repository
             .find_by_parent_id(parent_id.clone(), include_inactive)
@@ -105,7 +115,11 @@ impl CategoryService {
         let category_list = self.build_category_list_response(&categories).await;
 
         increment_success_counter("category", "find_by_parent");
-        info!("Fetched {} categories for parent {:?}", categories.len(), parent_id);
+        info!(
+            "Fetched {} categories for parent {:?}",
+            categories.len(),
+            parent_id
+        );
 
         let total = category_list.len();
         CategoriesResponse {
@@ -116,7 +130,8 @@ impl CategoryService {
 
     /// 指定カテゴリの子カテゴリ一覧を取得します。
     pub async fn find_children(&self, id: &str, include_inactive: bool) -> CategoriesResponse {
-        self.find_by_parent_id(Some(id.to_string()), include_inactive).await
+        self.find_by_parent_id(Some(id.to_string()), include_inactive)
+            .await
     }
 
     /// 指定カテゴリからルートまでのパス情報を取得します。
@@ -124,7 +139,7 @@ impl CategoryService {
     /// 戻り値の `depth` はルートからの階層深さを示します。
     pub async fn find_path(&self, id: &str) -> Result<CategoryPathResponse, CategoryError> {
         let path = self.repository.find_path(id).await?;
-        
+
         // Enrich path with category names
         let mut path_items = Vec::new();
         for category_id in &path.path {
@@ -138,7 +153,7 @@ impl CategoryService {
 
         increment_success_counter("category", "find_path");
         info!("Fetched path for category {}, depth: {}", id, path.depth);
-        
+
         Ok(CategoryPathResponse {
             path: path_items,
             depth: path.depth,
@@ -148,10 +163,10 @@ impl CategoryService {
     /// 全カテゴリを木構造で取得します。
     pub async fn find_tree(&self, include_inactive: bool) -> CategoryTreesResponse {
         let trees = self.repository.find_tree(include_inactive).await;
-        
+
         increment_success_counter("category", "find_tree");
         info!("Fetched category tree with {} root categories", trees.len());
-        
+
         CategoryTreesResponse {
             tree: trees.into_iter().map(|t| t.into()).collect(),
         }
@@ -161,17 +176,14 @@ impl CategoryService {
     ///
     /// # 失敗時
     /// * `CategoryError::InvalidName` - 名前が無効な場合 など
-    pub async fn create(&self, req: CreateCategoryRequest) -> Result<CategoryResponse, CategoryError> {
+    pub async fn create(
+        &self,
+        req: CreateCategoryRequest,
+    ) -> Result<CategoryResponse, CategoryError> {
         // 一意な ID を UUID v4 で生成
         let id = format!("cat_{}", Uuid::new_v4());
-        
-        let category = Category::new(
-            id,
-            req.name,
-            req.description,
-            req.parent_id,
-            req.sort_order,
-        );
+
+        let category = Category::new(id, req.name, req.description, req.parent_id, req.sort_order);
 
         match self.repository.create(category).await {
             Ok(created_category) => {
@@ -188,23 +200,30 @@ impl CategoryService {
     }
 
     /// 既存カテゴリを更新します。
-    pub async fn update(&self, id: &str, req: UpdateCategoryRequest) -> Result<CategoryResponse, CategoryError> {
-        let mut category = self.repository.find_by_id(id).await
+    pub async fn update(
+        &self,
+        id: &str,
+        req: UpdateCategoryRequest,
+    ) -> Result<CategoryResponse, CategoryError> {
+        let mut category = self
+            .repository
+            .find_by_id(id)
+            .await
             .ok_or_else(|| CategoryError::NotFound("カテゴリが見つかりません".to_string()))?;
 
         // Update fields if provided
         if let Some(name) = req.name {
             category.update_name(name)?;
         }
-        
+
         if let Some(description) = req.description {
             category.update_description(Some(description));
         }
-        
+
         if let Some(sort_order) = req.sort_order {
             category.update_sort_order(sort_order)?;
         }
-        
+
         if let Some(is_active) = req.is_active {
             if is_active {
                 category.activate();
@@ -237,7 +256,9 @@ impl CategoryService {
                 } else {
                     increment_error_counter("category", "delete");
                     error!("Category {} not found for deletion", id);
-                    return Err(CategoryError::NotFound("カテゴリが見つかりません".to_string()));
+                    return Err(CategoryError::NotFound(
+                        "カテゴリが見つかりません".to_string(),
+                    ));
                 }
                 Ok(deleted)
             }
@@ -250,12 +271,23 @@ impl CategoryService {
     }
 
     /// 親カテゴリ変更および並び順変更を行います。
-    pub async fn move_category(&self, id: &str, req: MoveCategoryRequest) -> Result<CategoryResponse, CategoryError> {
+    pub async fn move_category(
+        &self,
+        id: &str,
+        req: MoveCategoryRequest,
+    ) -> Result<CategoryResponse, CategoryError> {
         let parent_id = req.parent_id.clone();
-        match self.repository.move_category(id, req.parent_id, req.sort_order).await {
+        match self
+            .repository
+            .move_category(id, req.parent_id, req.sort_order)
+            .await
+        {
             Ok(moved_category) => {
                 increment_success_counter("category", "move");
-                info!("Moved category {} to parent {:?} with sort order {}", id, parent_id, req.sort_order);
+                info!(
+                    "Moved category {} to parent {:?} with sort order {}",
+                    id, parent_id, req.sort_order
+                );
                 Ok(moved_category.into())
             }
             Err(e) => {
@@ -271,13 +303,13 @@ impl CategoryService {
 mod tests {
     use super::*;
     use crate::app_domain::repository::category_repository::MockCategoryRepository;
-    use mockall::predicate::*;
     use chrono::Utc;
+    use mockall::predicate::*;
 
     #[tokio::test]
     async fn test_find_by_id_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let category = Category {
             id: "cat_123".to_string(),
             name: "Electronics".to_string(),
@@ -306,7 +338,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_id_not_found() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         mock_repo
             .expect_find_by_id()
             .with(eq("cat_999"))
@@ -325,7 +357,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let request = CreateCategoryRequest {
             name: "Electronics".to_string(),
             description: Some("Electronic devices".to_string()),
@@ -361,7 +393,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_validation_error() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let request = CreateCategoryRequest {
             name: "".to_string(), // Invalid empty name
             description: None,
@@ -369,9 +401,11 @@ mod tests {
             sort_order: 1,
         };
 
-        mock_repo
-            .expect_create()
-            .return_once(|_| Err(CategoryError::InvalidName("カテゴリ名は必須です".to_string())));
+        mock_repo.expect_create().return_once(|_| {
+            Err(CategoryError::InvalidName(
+                "カテゴリ名は必須です".to_string(),
+            ))
+        });
 
         let service = CategoryService::new(Arc::new(mock_repo));
         let result = service.create(request).await;
@@ -386,7 +420,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let existing_category = Category {
             id: "cat_123".to_string(),
             name: "Electronics".to_string(),
@@ -437,7 +471,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         mock_repo
             .expect_delete()
             .with(eq("cat_123"))
@@ -453,11 +487,15 @@ mod tests {
     #[tokio::test]
     async fn test_delete_has_children() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         mock_repo
             .expect_delete()
             .with(eq("cat_123"))
-            .return_once(|_| Err(CategoryError::HasChildren("子カテゴリが存在するため削除できません".to_string())));
+            .return_once(|_| {
+                Err(CategoryError::HasChildren(
+                    "子カテゴリが存在するため削除できません".to_string(),
+                ))
+            });
 
         let service = CategoryService::new(Arc::new(mock_repo));
         let result = service.delete("cat_123").await;
@@ -472,7 +510,7 @@ mod tests {
     #[tokio::test]
     async fn test_move_category_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let moved_category = Category {
             id: "cat_123".to_string(),
             name: "Electronics".to_string(),
@@ -506,7 +544,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_path_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let path = CategoryPath::new(vec![
             "cat_root".to_string(),
             "cat_child".to_string(),
@@ -583,7 +621,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_category_list_response() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         // Create test categories
         let category1 = Category {
             id: "cat_1".to_string(),
@@ -620,16 +658,16 @@ mod tests {
 
         let service = CategoryService::new(Arc::new(mock_repo));
         let categories = vec![category1.clone(), category2.clone()];
-        
+
         let result = service.build_category_list_response(&categories).await;
 
         assert_eq!(result.len(), 2);
-        
+
         // Verify first category
         let cat1_response = result.iter().find(|r| r.id == "cat_1").unwrap();
         assert_eq!(cat1_response.name, "Category 1");
         assert_eq!(cat1_response.children_count, 2);
-        
+
         // Verify second category
         let cat2_response = result.iter().find(|r| r.id == "cat_2").unwrap();
         assert_eq!(cat2_response.name, "Category 2");
@@ -640,16 +678,16 @@ mod tests {
     async fn test_build_category_list_response_empty() {
         let mock_repo = MockCategoryRepository::new();
         let service = CategoryService::new(Arc::new(mock_repo));
-        
+
         let result = service.build_category_list_response(&[]).await;
-        
+
         assert!(result.is_empty());
     }
 
     #[tokio::test]
     async fn test_find_all_total_count_uses_category_list_length() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let categories = vec![
             Category {
                 id: "cat_1".to_string(),

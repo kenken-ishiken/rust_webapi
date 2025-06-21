@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::app_domain::model::product::{
-    Product, ProductStatus, Price, Inventory, ProductImage, Dimensions, 
-    ShippingInfo, ProductHistory, ProductError,
+    Dimensions, Inventory, Price, Product, ProductError, ProductHistory, ProductImage,
+    ProductStatus, ShippingInfo,
 };
 
 // Request DTOs
@@ -289,12 +289,12 @@ impl From<Product> for ProductResponse {
             sku: product.sku,
             brand: product.brand,
             status: product.status,
-            price: None, // Will be populated separately
+            price: None,     // Will be populated separately
             inventory: None, // Will be populated separately
             category_id: product.category_id,
-            tags: Vec::new(), // Will be populated separately
+            tags: Vec::new(),           // Will be populated separately
             attributes: HashMap::new(), // Will be populated separately
-            images: Vec::new(), // Will be populated separately
+            images: Vec::new(),         // Will be populated separately
             dimensions: product.dimensions.map(Into::into),
             weight: product.weight,
             shipping_info: product.shipping_info.into(),
@@ -513,11 +513,7 @@ impl From<ProductError> for ProductErrorResponse {
             //     "編集権限がありません".to_string(),
             //     None,
             // ),
-            _ => (
-                "INTERNAL_ERROR".to_string(),
-                error.to_string(),
-                None,
-            ),
+            _ => ("INTERNAL_ERROR".to_string(), error.to_string(), None),
         };
 
         ProductErrorResponse {

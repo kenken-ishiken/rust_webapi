@@ -1,13 +1,13 @@
-use sqlx::{PgPool, Row};
 use async_trait::async_trait;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use tracing::error;
+use sqlx::{PgPool, Row};
 use std::collections::HashMap;
+use tracing::error;
 
 use crate::app_domain::model::product::{
-    Product, ProductStatus, ProductError, Price, Inventory, ProductImage,
-    Dimensions, ShippingInfo, ProductHistory,
+    Dimensions, Inventory, Price, Product, ProductError, ProductHistory, ProductImage,
+    ProductStatus, ShippingInfo,
 };
 use crate::app_domain::repository::product_repository::ProductRepository;
 
@@ -26,13 +26,19 @@ impl PostgresProductRepository {
             row.try_get::<Option<Decimal>, _>("height").unwrap_or(None),
             row.try_get::<Option<Decimal>, _>("depth").unwrap_or(None),
         ) {
-            Some(Dimensions { width, height, depth })
+            Some(Dimensions {
+                width,
+                height,
+                depth,
+            })
         } else {
             None
         };
 
         let shipping_info = ShippingInfo {
-            shipping_class: row.try_get("shipping_class").unwrap_or_else(|_| "standard".to_string()),
+            shipping_class: row
+                .try_get("shipping_class")
+                .unwrap_or_else(|_| "standard".to_string()),
             free_shipping: row.try_get("free_shipping").unwrap_or(false),
             shipping_fee: row.try_get("shipping_fee").unwrap_or(Decimal::ZERO),
         };
@@ -67,7 +73,9 @@ impl PostgresProductRepository {
             selling_price: row.get("selling_price"),
             list_price: row.try_get("list_price").unwrap_or(None),
             discount_price: row.try_get("discount_price").unwrap_or(None),
-            currency: row.try_get("currency").unwrap_or_else(|_| "JPY".to_string()),
+            currency: row
+                .try_get("currency")
+                .unwrap_or_else(|_| "JPY".to_string()),
             tax_included: row.try_get("tax_included").unwrap_or(true),
             effective_from: row.try_get("effective_from").unwrap_or(None),
             effective_until: row.try_get("effective_until").unwrap_or(None),
@@ -109,7 +117,7 @@ impl PostgresProductRepository {
 
     async fn get_tags_for_product(&self, product_id: &str) -> Vec<String> {
         let query = "SELECT tag FROM product_tags WHERE product_id = $1 ORDER BY tag";
-        
+
         match sqlx::query(query)
             .bind(product_id)
             .fetch_all(&self.pool)
@@ -124,8 +132,9 @@ impl PostgresProductRepository {
     }
 
     async fn get_attributes_for_product(&self, product_id: &str) -> HashMap<String, String> {
-        let query = "SELECT attribute_name, attribute_value FROM product_attributes WHERE product_id = $1";
-        
+        let query =
+            "SELECT attribute_name, attribute_value FROM product_attributes WHERE product_id = $1";
+
         match sqlx::query(query)
             .bind(product_id)
             .fetch_all(&self.pool)
@@ -139,7 +148,10 @@ impl PostgresProductRepository {
                 attributes
             }
             Err(e) => {
-                error!("Error fetching attributes for product {}: {}", product_id, e);
+                error!(
+                    "Error fetching attributes for product {}: {}",
+                    product_id, e
+                );
                 HashMap::new()
             }
         }
@@ -155,11 +167,7 @@ impl ProductRepository for PostgresProductRepository {
                      FROM products 
                      WHERE id = $1";
 
-        match sqlx::query(query)
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-        {
+        match sqlx::query(query).bind(id).fetch_optional(&self.pool).await {
             Ok(Some(row)) => Some(Self::row_to_product(&row)),
             Ok(None) => None,
             Err(e) => {
@@ -200,7 +208,7 @@ impl ProductRepository for PostgresProductRepository {
     //                            width, height, depth, weight, shipping_class, free_shipping, shipping_fee,
     //                            created_at, updated_at
     //                      FROM products WHERE 1=1".to_string();
-        
+
     //     let mut param_index = 1;
 
     //     if let Some(_cat_id) = category_id {
@@ -248,7 +256,10 @@ impl ProductRepository for PostgresProductRepository {
     // }
 
     async fn create(&self, product: Product) -> Result<Product, ProductError> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         // Insert main product record
@@ -286,7 +297,7 @@ impl ProductRepository for PostgresProductRepository {
                 // Create initial inventory record
                 let inventory_query = "INSERT INTO product_inventory (product_id, quantity, reserved_quantity, track_inventory, allow_backorder)
                                      VALUES ($1, 0, 0, true, false)";
-                
+
                 if let Err(e) = sqlx::query(inventory_query)
                     .bind(&product.id)
                     .execute(&mut *tx)
@@ -296,9 +307,10 @@ impl ProductRepository for PostgresProductRepository {
                     return Err(ProductError::DatabaseError(e.to_string()));
                 }
 
-                tx.commit().await
+                tx.commit()
+                    .await
                     .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-                
+
                 Ok(product)
             }
             Err(sqlx::Error::Database(db_err)) => {
@@ -363,11 +375,7 @@ impl ProductRepository for PostgresProductRepository {
     async fn delete(&self, id: &str) -> Result<(), ProductError> {
         let query = "DELETE FROM products WHERE id = $1";
 
-        match sqlx::query(query)
-            .bind(id)
-            .execute(&self.pool)
-            .await
-        {
+        match sqlx::query(query).bind(id).execute(&self.pool).await {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
             Ok(_) => Err(ProductError::ProductNotFound),
             Err(e) => Err(ProductError::DatabaseError(e.to_string())),
@@ -416,7 +424,10 @@ impl ProductRepository for PostgresProductRepository {
             Ok(Some(row)) => Some(Self::row_to_price(&row)),
             Ok(None) => None,
             Err(e) => {
-                error!("Error getting current price for product {}: {}", product_id, e);
+                error!(
+                    "Error getting current price for product {}: {}",
+                    product_id, e
+                );
                 None
             }
         }
@@ -472,7 +483,8 @@ impl ProductRepository for PostgresProductRepository {
     }
 
     async fn get_inventory(&self, product_id: &str) -> Option<Inventory> {
-        let query = "SELECT quantity, reserved_quantity, alert_threshold, track_inventory, allow_backorder
+        let query =
+            "SELECT quantity, reserved_quantity, alert_threshold, track_inventory, allow_backorder
                      FROM product_inventory 
                      WHERE product_id = $1";
 
@@ -490,7 +502,11 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn update_inventory(&self, product_id: &str, inventory: Inventory) -> Result<Inventory, ProductError> {
+    async fn update_inventory(
+        &self,
+        product_id: &str,
+        inventory: Inventory,
+    ) -> Result<Inventory, ProductError> {
         inventory.validate()?;
 
         let query = "UPDATE product_inventory 
@@ -575,7 +591,11 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn add_image(&self, product_id: &str, image: ProductImage) -> Result<ProductImage, ProductError> {
+    async fn add_image(
+        &self,
+        product_id: &str,
+        image: ProductImage,
+    ) -> Result<ProductImage, ProductError> {
         // Check image count limit
         let count_query = "SELECT COUNT(*) as count FROM product_images WHERE product_id = $1";
         let count_result = sqlx::query(count_query)
@@ -592,7 +612,10 @@ impl ProductRepository for PostgresProductRepository {
 
         image.validate()?;
 
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         // If setting as main image, unset others
@@ -608,7 +631,8 @@ impl ProductRepository for PostgresProductRepository {
             }
         }
 
-        let query = "INSERT INTO product_images (id, product_id, url, alt_text, sort_order, is_main)
+        let query =
+            "INSERT INTO product_images (id, product_id, url, alt_text, sort_order, is_main)
                      VALUES ($1, $2, $3, $4, $5, $6)";
 
         let result = sqlx::query(query)
@@ -623,7 +647,8 @@ impl ProductRepository for PostgresProductRepository {
 
         match result {
             Ok(_) => {
-                tx.commit().await
+                tx.commit()
+                    .await
                     .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
                 Ok(image)
             }
@@ -634,15 +659,23 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn update_image(&self, product_id: &str, image: ProductImage) -> Result<ProductImage, ProductError> {
+    async fn update_image(
+        &self,
+        product_id: &str,
+        image: ProductImage,
+    ) -> Result<ProductImage, ProductError> {
         image.validate()?;
 
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         // If setting as main image, unset others
         if image.is_main {
-            let unset_query = "UPDATE product_images SET is_main = false WHERE product_id = $1 AND id != $2";
+            let unset_query =
+                "UPDATE product_images SET is_main = false WHERE product_id = $1 AND id != $2";
             if let Err(e) = sqlx::query(unset_query)
                 .bind(product_id)
                 .bind(&image.id)
@@ -670,7 +703,8 @@ impl ProductRepository for PostgresProductRepository {
 
         match result {
             Ok(result) if result.rows_affected() > 0 => {
-                tx.commit().await
+                tx.commit()
+                    .await
                     .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
                 Ok(image)
             }
@@ -700,8 +734,15 @@ impl ProductRepository for PostgresProductRepository {
         }
     }
 
-    async fn reorder_images(&self, product_id: &str, image_orders: Vec<(String, i32)>) -> Result<(), ProductError> {
-        let mut tx = self.pool.begin().await
+    async fn reorder_images(
+        &self,
+        product_id: &str,
+        image_orders: Vec<(String, i32)>,
+    ) -> Result<(), ProductError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         for (image_id, sort_order) in image_orders {
@@ -710,8 +751,9 @@ impl ProductRepository for PostgresProductRepository {
                 return Err(ProductError::InvalidImageOrder);
             }
 
-            let query = "UPDATE product_images SET sort_order = $3 WHERE product_id = $1 AND id = $2";
-            
+            let query =
+                "UPDATE product_images SET sort_order = $3 WHERE product_id = $1 AND id = $2";
+
             if let Err(e) = sqlx::query(query)
                 .bind(product_id)
                 .bind(&image_id)
@@ -724,14 +766,18 @@ impl ProductRepository for PostgresProductRepository {
             }
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
         Ok(())
     }
 
     async fn set_main_image(&self, product_id: &str, image_id: &str) -> Result<(), ProductError> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         // Unset all main images for this product
@@ -746,7 +792,8 @@ impl ProductRepository for PostgresProductRepository {
         }
 
         // Set the specified image as main
-        let set_query = "UPDATE product_images SET is_main = true WHERE product_id = $1 AND id = $2";
+        let set_query =
+            "UPDATE product_images SET is_main = true WHERE product_id = $1 AND id = $2";
         let result = sqlx::query(set_query)
             .bind(product_id)
             .bind(image_id)
@@ -755,7 +802,8 @@ impl ProductRepository for PostgresProductRepository {
 
         match result {
             Ok(result) if result.rows_affected() > 0 => {
-                tx.commit().await
+                tx.commit()
+                    .await
                     .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
                 Ok(())
             }
@@ -779,12 +827,16 @@ impl ProductRepository for PostgresProductRepository {
             return Ok(());
         }
 
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         for tag in tags {
-            let query = "INSERT INTO product_tags (product_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING";
-            
+            let query =
+                "INSERT INTO product_tags (product_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+
             if let Err(e) = sqlx::query(query)
                 .bind(product_id)
                 .bind(&tag)
@@ -796,9 +848,10 @@ impl ProductRepository for PostgresProductRepository {
             }
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
         Ok(())
     }
 
@@ -823,7 +876,10 @@ impl ProductRepository for PostgresProductRepository {
     // }
 
     async fn replace_tags(&self, product_id: &str, tags: Vec<String>) -> Result<(), ProductError> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         // Delete all existing tags
@@ -840,7 +896,7 @@ impl ProductRepository for PostgresProductRepository {
         // Insert new tags
         for tag in tags {
             let insert_query = "INSERT INTO product_tags (product_id, tag) VALUES ($1, $2)";
-            
+
             if let Err(e) = sqlx::query(insert_query)
                 .bind(product_id)
                 .bind(&tag)
@@ -852,9 +908,10 @@ impl ProductRepository for PostgresProductRepository {
             }
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
         Ok(())
     }
 
@@ -862,8 +919,15 @@ impl ProductRepository for PostgresProductRepository {
         self.get_attributes_for_product(product_id).await
     }
 
-    async fn set_attributes(&self, product_id: &str, attributes: HashMap<String, String>) -> Result<(), ProductError> {
-        let mut tx = self.pool.begin().await
+    async fn set_attributes(
+        &self,
+        product_id: &str,
+        attributes: HashMap<String, String>,
+    ) -> Result<(), ProductError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
 
         // Delete all existing attributes
@@ -879,9 +943,10 @@ impl ProductRepository for PostgresProductRepository {
 
         // Insert new attributes
         for (name, value) in attributes {
-            let insert_query = "INSERT INTO product_attributes (product_id, attribute_name, attribute_value) 
+            let insert_query =
+                "INSERT INTO product_attributes (product_id, attribute_name, attribute_value)
                                VALUES ($1, $2, $3)";
-            
+
             if let Err(e) = sqlx::query(insert_query)
                 .bind(product_id)
                 .bind(&name)
@@ -894,9 +959,10 @@ impl ProductRepository for PostgresProductRepository {
             }
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
         Ok(())
     }
 
@@ -932,8 +998,9 @@ impl ProductRepository for PostgresProductRepository {
     //     }
     // }
 
-    async fn get_history(&self, 
-        product_id: &str, 
+    async fn get_history(
+        &self,
+        product_id: &str,
         field_name: Option<&str>,
         limit: Option<i64>,
         offset: Option<i64>,
@@ -941,7 +1008,7 @@ impl ProductRepository for PostgresProductRepository {
         let mut query = "SELECT id, product_id, field_name, old_value, new_value, changed_by, reason, changed_at
                          FROM product_history 
                          WHERE product_id = $1".to_string();
-        
+
         let mut param_index = 2;
 
         if let Some(_field) = field_name {
@@ -1052,7 +1119,7 @@ impl ProductRepository for PostgresProductRepository {
 
     //     tx.commit().await
     //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
     //     Ok(results)
     // }
 
@@ -1091,7 +1158,7 @@ impl ProductRepository for PostgresProductRepository {
 
     //     tx.commit().await
     //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
     //     Ok(results)
     // }
 
@@ -1129,12 +1196,13 @@ impl ProductRepository for PostgresProductRepository {
 
     //     tx.commit().await
     //         .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
-        
+
     //     Ok(results)
     // }
 
     #[allow(clippy::too_many_arguments)]
-    async fn search(&self, 
+    async fn search(
+        &self,
         query: &str,
         category_id: Option<&str>,
         tags: Option<Vec<&str>>,
@@ -1148,7 +1216,7 @@ impl ProductRepository for PostgresProductRepository {
                                     p.width, p.height, p.depth, p.weight, p.shipping_class, p.free_shipping, p.shipping_fee,
                                     p.created_at, p.updated_at 
                             FROM products p".to_string();
-        
+
         let mut joins = Vec::new();
         let mut conditions = Vec::new();
         let mut params = Vec::new();
@@ -1156,8 +1224,12 @@ impl ProductRepository for PostgresProductRepository {
 
         // Text search
         if !query.is_empty() {
-            conditions.push(format!("(p.name ILIKE ${} OR p.description ILIKE ${} OR p.sku ILIKE ${})", 
-                                  param_index, param_index + 1, param_index + 2));
+            conditions.push(format!(
+                "(p.name ILIKE ${} OR p.description ILIKE ${} OR p.sku ILIKE ${})",
+                param_index,
+                param_index + 1,
+                param_index + 2
+            ));
             let search_pattern = format!("%{}%", query);
             params.push(search_pattern.clone());
             params.push(search_pattern.clone());
@@ -1191,7 +1263,9 @@ impl ProductRepository for PostgresProductRepository {
         if min_price.is_some() || max_price.is_some() {
             joins.push("JOIN product_prices pp ON p.id = pp.product_id".to_string());
             joins.push("AND (pp.effective_from IS NULL OR pp.effective_from <= NOW())".to_string());
-            joins.push("AND (pp.effective_until IS NULL OR pp.effective_until >= NOW())".to_string());
+            joins.push(
+                "AND (pp.effective_until IS NULL OR pp.effective_until >= NOW())".to_string(),
+            );
 
             if let Some(min_p) = min_price {
                 conditions.push(format!("pp.selling_price >= ${}", param_index));
@@ -1280,7 +1354,7 @@ impl ProductRepository for PostgresProductRepository {
 
     async fn find_low_stock_products(&self, threshold: Option<i32>) -> Vec<(Product, Inventory)> {
         let default_threshold = threshold.unwrap_or(10);
-        
+
         let query = "SELECT p.id, p.name, p.description, p.sku, p.brand, p.status, p.category_id, 
                            p.width, p.height, p.depth, p.weight, p.shipping_class, p.free_shipping, p.shipping_fee,
                            p.created_at, p.updated_at,
@@ -1296,13 +1370,14 @@ impl ProductRepository for PostgresProductRepository {
             .fetch_all(&self.pool)
             .await
         {
-            Ok(rows) => {
-                rows.iter().map(|row| {
+            Ok(rows) => rows
+                .iter()
+                .map(|row| {
                     let product = Self::row_to_product(row);
                     let inventory = Self::row_to_inventory(row);
                     (product, inventory)
-                }).collect()
-            }
+                })
+                .collect(),
             Err(e) => {
                 error!("Error finding low stock products: {}", e);
                 vec![]
@@ -1320,10 +1395,7 @@ impl ProductRepository for PostgresProductRepository {
                        AND (i.quantity - i.reserved_quantity) <= 0
                      ORDER BY p.name";
 
-        match sqlx::query(query)
-            .fetch_all(&self.pool)
-            .await
-        {
+        match sqlx::query(query).fetch_all(&self.pool).await {
             Ok(rows) => rows.iter().map(Self::row_to_product).collect(),
             Err(e) => {
                 error!("Error finding out of stock products: {}", e);

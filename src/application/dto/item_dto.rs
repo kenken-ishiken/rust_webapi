@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct CreateItemRequest {
@@ -107,7 +107,7 @@ mod tests {
         assert_eq!(resp.id, 1);
         assert_eq!(resp.name, "Test Item");
         assert_eq!(resp.description, Some("Test Description".to_string()));
-        assert_eq!(resp.deleted, false);
+        assert!(!resp.deleted);
         assert_eq!(resp.deleted_at, None);
     }
 }

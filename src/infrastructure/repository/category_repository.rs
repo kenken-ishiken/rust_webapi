@@ -1,9 +1,9 @@
-use sqlx::{PgPool, Row};
 use async_trait::async_trait;
 use chrono::Utc;
+use sqlx::{PgPool, Row};
 use tracing::error;
 
-use crate::app_domain::model::category::{Category, CategoryPath, CategoryTree, CategoryError};
+use crate::app_domain::model::category::{Category, CategoryError, CategoryPath, CategoryTree};
 use crate::app_domain::repository::category_repository::CategoryRepository;
 
 pub struct PostgresCategoryRepository {
@@ -31,7 +31,7 @@ impl PostgresCategoryRepository {
                 CONSTRAINT check_sort_order_non_negative CHECK (sort_order >= 0),
                 CONSTRAINT check_name_not_empty CHECK (LENGTH(TRIM(name)) > 0),
                 UNIQUE(name, parent_id)
-            )"
+            )",
         )
         .execute(&self.pool)
         .await
@@ -62,8 +62,10 @@ impl PostgresCategoryRepository {
 
             for category in categories {
                 if category.parent_id.as_deref() == parent_id {
-                    let children = self.build_category_tree_recursive(categories, Some(&category.id)).await;
-                    
+                    let children = self
+                        .build_category_tree_recursive(categories, Some(&category.id))
+                        .await;
+
                     tree.push(CategoryTree {
                         id: category.id.clone(),
                         name: category.name.clone(),
@@ -80,7 +82,10 @@ impl PostgresCategoryRepository {
         })
     }
 
-    async fn get_category_ancestors(&self, category_id: &str) -> Result<Vec<String>, CategoryError> {
+    async fn get_category_ancestors(
+        &self,
+        category_id: &str,
+    ) -> Result<Vec<String>, CategoryError> {
         let mut ancestors = Vec::new();
         let mut current_id = Some(category_id.to_string());
 
@@ -113,9 +118,7 @@ impl CategoryRepository for PostgresCategoryRepository {
         };
 
         match sqlx::query(query).fetch_all(&self.pool).await {
-            Ok(rows) => {
-                rows.iter().map(Self::row_to_category).collect()
-            }
+            Ok(rows) => rows.iter().map(Self::row_to_category).collect(),
             Err(e) => {
                 error!("Error fetching all categories: {}", e);
                 vec![]
@@ -128,11 +131,7 @@ impl CategoryRepository for PostgresCategoryRepository {
                      FROM categories 
                      WHERE id = $1";
 
-        match sqlx::query(query)
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-        {
+        match sqlx::query(query).bind(id).fetch_optional(&self.pool).await {
             Ok(Some(row)) => Some(Self::row_to_category(&row)),
             Ok(None) => None,
             Err(e) => {
@@ -142,7 +141,11 @@ impl CategoryRepository for PostgresCategoryRepository {
         }
     }
 
-    async fn find_by_parent_id(&self, parent_id: Option<String>, include_inactive: bool) -> Vec<Category> {
+    async fn find_by_parent_id(
+        &self,
+        parent_id: Option<String>,
+        include_inactive: bool,
+    ) -> Vec<Category> {
         let query = if include_inactive {
             "SELECT id, name, description, parent_id, sort_order, is_active, created_at, updated_at 
              FROM categories 
@@ -161,11 +164,12 @@ impl CategoryRepository for PostgresCategoryRepository {
             .fetch_all(&self.pool)
             .await
         {
-            Ok(rows) => {
-                rows.iter().map(Self::row_to_category).collect()
-            }
+            Ok(rows) => rows.iter().map(Self::row_to_category).collect(),
             Err(e) => {
-                error!("Error finding categories by parent_id {:?}: {}", parent_id_for_log, e);
+                error!(
+                    "Error finding categories by parent_id {:?}: {}",
+                    parent_id_for_log, e
+                );
                 vec![]
             }
         }
@@ -187,7 +191,12 @@ impl CategoryRepository for PostgresCategoryRepository {
         self.build_category_tree_recursive(&categories, None).await
     }
 
-    async fn exists_by_name_and_parent(&self, name: &str, parent_id: Option<String>, exclude_id: Option<String>) -> bool {
+    async fn exists_by_name_and_parent(
+        &self,
+        name: &str,
+        parent_id: Option<String>,
+        exclude_id: Option<String>,
+    ) -> bool {
         let query = if exclude_id.is_some() {
             "SELECT COUNT(*) as count 
              FROM categories 
@@ -209,14 +218,16 @@ impl CategoryRepository for PostgresCategoryRepository {
                 .fetch_one(&self.pool)
                 .await
         } else {
-            sqlx::query("SELECT COUNT(*) as count 
+            sqlx::query(
+                "SELECT COUNT(*) as count
                          FROM categories 
                          WHERE name = $1 AND 
-                               (($2::varchar IS NULL AND parent_id IS NULL) OR parent_id = $2)")
-                .bind(name)
-                .bind(parent_id)
-                .fetch_one(&self.pool)
-                .await
+                               (($2::varchar IS NULL AND parent_id IS NULL) OR parent_id = $2)",
+            )
+            .bind(name)
+            .bind(parent_id)
+            .fetch_one(&self.pool)
+            .await
         };
 
         match result {
@@ -236,7 +247,10 @@ impl CategoryRepository for PostgresCategoryRepository {
         category.validate()?;
 
         // Check for duplicate name in same parent
-        if self.exists_by_name_and_parent(&category.name, category.parent_id.clone(), None).await {
+        if self
+            .exists_by_name_and_parent(&category.name, category.parent_id.clone(), None)
+            .await
+        {
             return Err(CategoryError::NameDuplicate(
                 "同一階層内に同じ名前のカテゴリが既に存在します".to_string(),
             ));
@@ -266,7 +280,10 @@ impl CategoryRepository for PostgresCategoryRepository {
             Ok(row) => Ok(Self::row_to_category(&row)),
             Err(e) => {
                 error!("Error creating category: {}", e);
-                Err(CategoryError::NotFound(format!("カテゴリの作成に失敗しました: {}", e)))
+                Err(CategoryError::NotFound(format!(
+                    "カテゴリの作成に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
@@ -276,7 +293,14 @@ impl CategoryRepository for PostgresCategoryRepository {
         category.validate()?;
 
         // Check for duplicate name in same parent (excluding current category)
-        if self.exists_by_name_and_parent(&category.name, category.parent_id.clone(), Some(category.id.clone())).await {
+        if self
+            .exists_by_name_and_parent(
+                &category.name,
+                category.parent_id.clone(),
+                Some(category.id.clone()),
+            )
+            .await
+        {
             return Err(CategoryError::NameDuplicate(
                 "同一階層内に同じ名前のカテゴリが既に存在します".to_string(),
             ));
@@ -299,10 +323,15 @@ impl CategoryRepository for PostgresCategoryRepository {
             .await
         {
             Ok(Some(row)) => Ok(Self::row_to_category(&row)),
-            Ok(None) => Err(CategoryError::NotFound("カテゴリが見つかりません".to_string())),
+            Ok(None) => Err(CategoryError::NotFound(
+                "カテゴリが見つかりません".to_string(),
+            )),
             Err(e) => {
                 error!("Error updating category {}: {}", category.id, e);
-                Err(CategoryError::NotFound(format!("カテゴリの更新に失敗しました: {}", e)))
+                Err(CategoryError::NotFound(format!(
+                    "カテゴリの更新に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
@@ -326,22 +355,27 @@ impl CategoryRepository for PostgresCategoryRepository {
 
         let query = "DELETE FROM categories WHERE id = $1";
 
-        match sqlx::query(query)
-            .bind(id)
-            .execute(&self.pool)
-            .await
-        {
+        match sqlx::query(query).bind(id).execute(&self.pool).await {
             Ok(result) => Ok(result.rows_affected() > 0),
             Err(e) => {
                 error!("Error deleting category {}: {}", id, e);
-                Err(CategoryError::NotFound(format!("カテゴリの削除に失敗しました: {}", e)))
+                Err(CategoryError::NotFound(format!(
+                    "カテゴリの削除に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
 
-    async fn move_category(&self, id: &str, new_parent_id: Option<String>, new_sort_order: i32) -> Result<Category, CategoryError> {
+    async fn move_category(
+        &self,
+        id: &str,
+        new_parent_id: Option<String>,
+        new_sort_order: i32,
+    ) -> Result<Category, CategoryError> {
         // Validate circular reference
-        self.validate_circular_reference(id, new_parent_id.clone()).await?;
+        self.validate_circular_reference(id, new_parent_id.clone())
+            .await?;
 
         // Validate depth
         if new_parent_id.is_some() {
@@ -349,7 +383,9 @@ impl CategoryRepository for PostgresCategoryRepository {
         }
 
         // Get current category
-        let mut category = self.find_by_id(id).await
+        let mut category = self
+            .find_by_id(id)
+            .await
             .ok_or_else(|| CategoryError::NotFound("カテゴリが見つかりません".to_string()))?;
 
         // Update parent and sort order
@@ -364,11 +400,7 @@ impl CategoryRepository for PostgresCategoryRepository {
     async fn count_children(&self, id: &str) -> i64 {
         let query = "SELECT COUNT(*) as count FROM categories WHERE parent_id = $1";
 
-        match sqlx::query(query)
-            .bind(id)
-            .fetch_one(&self.pool)
-            .await
-        {
+        match sqlx::query(query).bind(id).fetch_one(&self.pool).await {
             Ok(row) => row.get("count"),
             Err(e) => {
                 error!("Error counting children for category {}: {}", id, e);
@@ -394,14 +426,20 @@ impl CategoryRepository for PostgresCategoryRepository {
                     }
                 }
                 Err(_) => {
-                    return Err(CategoryError::NotFound("親カテゴリが見つかりません".to_string()));
+                    return Err(CategoryError::NotFound(
+                        "親カテゴリが見つかりません".to_string(),
+                    ));
                 }
             }
         }
         Ok(())
     }
 
-    async fn validate_circular_reference(&self, id: &str, new_parent_id: Option<String>) -> Result<(), CategoryError> {
+    async fn validate_circular_reference(
+        &self,
+        id: &str,
+        new_parent_id: Option<String>,
+    ) -> Result<(), CategoryError> {
         if let Some(new_parent_id) = new_parent_id {
             // Cannot set self as parent
             if id == new_parent_id {
@@ -420,7 +458,9 @@ impl CategoryRepository for PostgresCategoryRepository {
                     }
                 }
                 Err(_) => {
-                    return Err(CategoryError::NotFound("親カテゴリが見つかりません".to_string()));
+                    return Err(CategoryError::NotFound(
+                        "親カテゴリが見つかりません".to_string(),
+                    ));
                 }
             }
         }
@@ -448,9 +488,12 @@ mod tests {
         let max_retries = 10;
         let pool = loop {
             if retries >= max_retries {
-                panic!("Failed to connect to Postgres after {} retries", max_retries);
+                panic!(
+                    "Failed to connect to Postgres after {} retries",
+                    max_retries
+                );
             }
-            
+
             match sqlx::postgres::PgPoolOptions::new()
                 .max_connections(5)
                 .acquire_timeout(std::time::Duration::from_secs(5))
@@ -466,15 +509,18 @@ mod tests {
                         eprintln!("Postgres ping failed, retrying... (attempt {})", retries);
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
-                },
+                }
                 Err(e) => {
                     retries += 1;
-                    eprintln!("Failed to connect to Postgres: {}, retrying... (attempt {})", e, retries);
+                    eprintln!(
+                        "Failed to connect to Postgres: {}, retrying... (attempt {})",
+                        e, retries
+                    );
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }
             }
         };
-        
+
         (pool, container)
     }
 
@@ -482,9 +528,11 @@ mod tests {
     async fn test_postgres_category_crud_operations() {
         let (pool, _container) = setup_postgres().await;
         let repo = PostgresCategoryRepository::new(pool.clone());
-        
+
         // Create the table
-        repo.init_table().await.expect("Failed to create categories table");
+        repo.init_table()
+            .await
+            .expect("Failed to create categories table");
 
         // Test data
         let category = Category::new(
@@ -496,7 +544,10 @@ mod tests {
         );
 
         // 1. Create category test
-        let created_category = repo.create(category.clone()).await.expect("Failed to create category");
+        let created_category = repo
+            .create(category.clone())
+            .await
+            .expect("Failed to create category");
         assert_eq!(created_category.id, category.id);
         assert_eq!(created_category.name, category.name);
         assert_eq!(created_category.description, category.description);
@@ -522,7 +573,10 @@ mod tests {
             1,
         );
 
-        let created_child = repo.create(child_category.clone()).await.expect("Failed to create child category");
+        let created_child = repo
+            .create(child_category.clone())
+            .await
+            .expect("Failed to create child category");
         assert_eq!(created_child.parent_id, Some("cat_123".to_string()));
 
         // 5. Find children test
@@ -538,17 +592,28 @@ mod tests {
 
         // 7. Update category test
         let mut updated_category = found_category.clone();
-        updated_category.update_name("Updated Electronics".to_string()).expect("Failed to update name");
-        
-        let result = repo.update(updated_category).await.expect("Failed to update category");
+        updated_category
+            .update_name("Updated Electronics".to_string())
+            .expect("Failed to update name");
+
+        let result = repo
+            .update(updated_category)
+            .await
+            .expect("Failed to update category");
         assert_eq!(result.name, "Updated Electronics");
 
         // 8. Delete child first (cannot delete parent with children)
-        let child_deleted = repo.delete("cat_456").await.expect("Failed to delete child");
+        let child_deleted = repo
+            .delete("cat_456")
+            .await
+            .expect("Failed to delete child");
         assert!(child_deleted);
 
         // 9. Delete parent
-        let parent_deleted = repo.delete("cat_123").await.expect("Failed to delete parent");
+        let parent_deleted = repo
+            .delete("cat_123")
+            .await
+            .expect("Failed to delete parent");
         assert!(parent_deleted);
 
         // 10. Verify deletion
@@ -560,8 +625,10 @@ mod tests {
     async fn test_postgres_category_validation() {
         let (pool, _container) = setup_postgres().await;
         let repo = PostgresCategoryRepository::new(pool.clone());
-        
-        repo.init_table().await.expect("Failed to create categories table");
+
+        repo.init_table()
+            .await
+            .expect("Failed to create categories table");
 
         // Test duplicate name validation
         let category1 = Category::new(
@@ -581,7 +648,9 @@ mod tests {
         );
 
         // Create first category
-        repo.create(category1).await.expect("Failed to create first category");
+        repo.create(category1)
+            .await
+            .expect("Failed to create first category");
 
         // Try to create second category with same name - should fail
         let result = repo.create(category2).await;

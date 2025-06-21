@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 
 use crate::app_domain::model::product::{
-    Product, ProductError, Price, Inventory, ProductImage, ProductHistory,
+    Inventory, Price, Product, ProductError, ProductHistory, ProductImage,
 };
 
 #[async_trait]
@@ -28,16 +28,32 @@ pub trait ProductRepository: Send + Sync {
 
     // Inventory operations
     async fn get_inventory(&self, product_id: &str) -> Option<Inventory>;
-    async fn update_inventory(&self, product_id: &str, inventory: Inventory) -> Result<Inventory, ProductError>;
+    async fn update_inventory(
+        &self,
+        product_id: &str,
+        inventory: Inventory,
+    ) -> Result<Inventory, ProductError>;
     // async fn reserve_inventory(&self, product_id: &str, quantity: i32) -> Result<(), ProductError>;
     // async fn release_inventory(&self, product_id: &str, quantity: i32) -> Result<(), ProductError>;
 
     // Image operations
     async fn get_images(&self, product_id: &str) -> Vec<ProductImage>;
-    async fn add_image(&self, product_id: &str, image: ProductImage) -> Result<ProductImage, ProductError>;
-    async fn update_image(&self, product_id: &str, image: ProductImage) -> Result<ProductImage, ProductError>;
+    async fn add_image(
+        &self,
+        product_id: &str,
+        image: ProductImage,
+    ) -> Result<ProductImage, ProductError>;
+    async fn update_image(
+        &self,
+        product_id: &str,
+        image: ProductImage,
+    ) -> Result<ProductImage, ProductError>;
     async fn delete_image(&self, product_id: &str, image_id: &str) -> Result<(), ProductError>;
-    async fn reorder_images(&self, product_id: &str, image_orders: Vec<(String, i32)>) -> Result<(), ProductError>;
+    async fn reorder_images(
+        &self,
+        product_id: &str,
+        image_orders: Vec<(String, i32)>,
+    ) -> Result<(), ProductError>;
     async fn set_main_image(&self, product_id: &str, image_id: &str) -> Result<(), ProductError>;
 
     // Tag operations
@@ -48,13 +64,18 @@ pub trait ProductRepository: Send + Sync {
 
     // Attribute operations
     async fn get_attributes(&self, product_id: &str) -> HashMap<String, String>;
-    async fn set_attributes(&self, product_id: &str, attributes: HashMap<String, String>) -> Result<(), ProductError>;
+    async fn set_attributes(
+        &self,
+        product_id: &str,
+        attributes: HashMap<String, String>,
+    ) -> Result<(), ProductError>;
     // async fn set_attribute(&self, product_id: &str, name: &str, value: &str) -> Result<(), ProductError>;
     // async fn remove_attribute(&self, product_id: &str, name: &str) -> Result<(), ProductError>;
 
     // History operations
-    async fn get_history(&self, 
-        product_id: &str, 
+    async fn get_history(
+        &self,
+        product_id: &str,
         field_name: Option<&str>,
         limit: Option<i64>,
         offset: Option<i64>,
@@ -75,7 +96,8 @@ pub trait ProductRepository: Send + Sync {
 
     // Search and filtering
     #[allow(clippy::too_many_arguments)]
-    async fn search(&self, 
+    async fn search(
+        &self,
         query: &str,
         category_id: Option<&str>,
         tags: Option<Vec<&str>>,
@@ -98,12 +120,12 @@ pub trait ProductRepository: Send + Sync {
 // #[automock]
 // #[async_trait]
 // pub trait MockableProductRepository: Send + Sync {
-    // async fn find_by_id(&self, id: &str) -> Option<Product>;
-    // async fn find_by_sku(&self, sku: &str) -> Option<Product>;
-    // async fn create(&self, product: Product) -> Result<Product, ProductError>;
-    // async fn update(&self, product: Product) -> Result<Product, ProductError>;
-    // async fn delete(&self, id: &str) -> Result<(), ProductError>;
-    // async fn update_price(&self, product_id: &str, price: Price) -> Result<Price, ProductError>;
-    // async fn update_inventory(&self, product_id: &str, inventory: Inventory) -> Result<Inventory, ProductError>;
-    // async fn add_image(&self, product_id: &str, image: ProductImage) -> Result<ProductImage, ProductError>;
+// async fn find_by_id(&self, id: &str) -> Option<Product>;
+// async fn find_by_sku(&self, sku: &str) -> Option<Product>;
+// async fn create(&self, product: Product) -> Result<Product, ProductError>;
+// async fn update(&self, product: Product) -> Result<Product, ProductError>;
+// async fn delete(&self, id: &str) -> Result<(), ProductError>;
+// async fn update_price(&self, product_id: &str, price: Price) -> Result<Price, ProductError>;
+// async fn update_inventory(&self, product_id: &str, inventory: Inventory) -> Result<Inventory, ProductError>;
+// async fn add_image(&self, product_id: &str, image: ProductImage) -> Result<ProductImage, ProductError>;
 // }

@@ -28,7 +28,7 @@ impl ItemServiceTrait for ItemServiceImpl {
         match self.service.find_all().await {
             Ok(items) => {
                 info!("gRPC: Fetched {} items", items.len());
-                
+
                 let grpc_items = items
                     .into_iter()
                     .map(|item| Item {
@@ -42,16 +42,17 @@ impl ItemServiceTrait for ItemServiceImpl {
                         }),
                     })
                     .collect();
-                
-                let response = GetItemsResponse {
-                    items: grpc_items,
-                };
-                
+
+                let response = GetItemsResponse { items: grpc_items };
+
                 Ok(Response::new(response))
             }
             Err(e) => {
                 info!("gRPC: Error fetching items: {}", e);
-                Err(Status::internal(format!("アイテムの取得に失敗しました: {}", e)))
+                Err(Status::internal(format!(
+                    "アイテムの取得に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
@@ -61,7 +62,7 @@ impl ItemServiceTrait for ItemServiceImpl {
         request: Request<GetItemRequest>,
     ) -> Result<Response<GetItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         match self.service.find_by_id(req.id).await {
             Ok(item) => {
                 info!("gRPC: Fetched item {}", req.id);
@@ -75,16 +76,19 @@ impl ItemServiceTrait for ItemServiceImpl {
                         nanos: dt.timestamp_subsec_nanos() as i32,
                     }),
                 };
-                
+
                 let response = GetItemResponse {
                     item: Some(grpc_item),
                 };
-                
+
                 Ok(Response::new(response))
             }
             Err(e) => {
                 info!("gRPC: Item {} not found or error: {}", req.id, e);
-                Err(Status::not_found(format!("アイテムが見つかりません: {}", e)))
+                Err(Status::not_found(format!(
+                    "アイテムが見つかりません: {}",
+                    e
+                )))
             }
         }
     }
@@ -94,16 +98,16 @@ impl ItemServiceTrait for ItemServiceImpl {
         request: Request<CreateItemRequest>,
     ) -> Result<Response<CreateItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         let create_request = crate::application::dto::item_dto::CreateItemRequest {
             name: req.name,
             description: req.description,
         };
-        
+
         match self.service.create(create_request).await {
             Ok(new_item) => {
                 info!("gRPC: Created item with id {}", new_item.id);
-                
+
                 let grpc_item = Item {
                     id: new_item.id,
                     name: new_item.name,
@@ -114,16 +118,19 @@ impl ItemServiceTrait for ItemServiceImpl {
                         nanos: dt.timestamp_subsec_nanos() as i32,
                     }),
                 };
-                
+
                 let response = CreateItemResponse {
                     item: Some(grpc_item),
                 };
-                
+
                 Ok(Response::new(response))
             }
             Err(e) => {
                 info!("gRPC: Error creating item: {}", e);
-                Err(Status::internal(format!("アイテムの作成に失敗しました: {}", e)))
+                Err(Status::internal(format!(
+                    "アイテムの作成に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
@@ -133,12 +140,12 @@ impl ItemServiceTrait for ItemServiceImpl {
         request: Request<UpdateItemRequest>,
     ) -> Result<Response<UpdateItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         let update_request = crate::application::dto::item_dto::UpdateItemRequest {
             name: req.name,
             description: req.description,
         };
-        
+
         match self.service.update(req.id, update_request).await {
             Ok(updated_item) => {
                 info!("gRPC: Updated item {}", req.id);
@@ -152,16 +159,19 @@ impl ItemServiceTrait for ItemServiceImpl {
                         nanos: dt.timestamp_subsec_nanos() as i32,
                     }),
                 };
-                
+
                 let response = UpdateItemResponse {
                     item: Some(grpc_item),
                 };
-                
+
                 Ok(Response::new(response))
             }
             Err(e) => {
                 info!("gRPC: Error updating item {}: {}", req.id, e);
-                Err(Status::internal(format!("アイテムの更新に失敗しました: {}", e)))
+                Err(Status::internal(format!(
+                    "アイテムの更新に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
@@ -171,7 +181,7 @@ impl ItemServiceTrait for ItemServiceImpl {
         request: Request<DeleteItemRequest>,
     ) -> Result<Response<DeleteItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         match self.service.delete(req.id).await {
             Ok(_) => {
                 info!("gRPC: Deleted item {}", req.id);
@@ -180,7 +190,10 @@ impl ItemServiceTrait for ItemServiceImpl {
             }
             Err(e) => {
                 info!("gRPC: Error deleting item {}: {}", req.id, e);
-                Err(Status::internal(format!("アイテムの削除に失敗しました: {}", e)))
+                Err(Status::internal(format!(
+                    "アイテムの削除に失敗しました: {}",
+                    e
+                )))
             }
         }
     }
@@ -191,7 +204,7 @@ impl ItemServiceTrait for ItemServiceImpl {
         request: Request<LogicalDeleteItemRequest>,
     ) -> Result<Response<LogicalDeleteItemResponse>, Status> {
         let req = request.into_inner();
-        
+
         // For now, delegate to regular delete - this can be expanded based on actual service methods
         match self.service.delete(req.id).await {
             Ok(_) => {

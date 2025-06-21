@@ -1,57 +1,54 @@
-mod application;
 mod app_domain;
+mod application;
 mod infrastructure;
 mod presentation;
 
 use actix_web::{web, App, HttpServer};
-use std::sync::Arc;
 use dotenvy::dotenv;
+use std::sync::Arc;
 // Tracing for structured logging
-use tracing::{info, error};
+use tracing::{error, info};
 // gRPC imports
+use sqlx::postgres::PgPoolOptions;
 use tonic::transport::Server;
 use tracing_actix_web::TracingLogger;
-use sqlx::postgres::PgPoolOptions;
 
 // Remove slog-based JSON logger; using tracing for structured logging
 // Middleware: TracingLogger for HTTP request logging
 // (replace slog middleware with tracing-actix-web)
 use crate::infrastructure::metrics::{
-    init_metrics,
-    metrics_handler,
-    increment_success_counter,
-    increment_error_counter,
+    increment_error_counter, increment_success_counter, init_metrics, metrics_handler,
     observe_request_duration,
 };
 use crate::infrastructure::tracing::init_tracing;
-use std::time::Instant;
 use actix_web::dev::Service;
+use std::time::Instant;
 
 use crate::app_domain::repository::item_repository::ItemRepository;
-use crate::infrastructure::repository::item_repository::PostgresItemRepository;
 use crate::application::service::item_service::ItemService;
+use crate::infrastructure::repository::item_repository::PostgresItemRepository;
 use crate::presentation::api::item_handler::ItemHandler;
 
-use domain::repository::user_repository::UserRepositoryImpl;
-use crate::infrastructure::repository::user_repository::PostgresUserRepository;
 use crate::application::service::user_service::UserService;
+use crate::infrastructure::repository::user_repository::PostgresUserRepository;
 use crate::presentation::api::user_handler::UserHandler;
+use domain::repository::user_repository::UserRepositoryImpl;
 
 use crate::infrastructure::auth::keycloak::{KeycloakAuth, KeycloakConfig};
 
 use crate::app_domain::repository::category_repository::CategoryRepository;
-use crate::infrastructure::repository::category_repository::PostgresCategoryRepository;
 use crate::application::service::category_service::CategoryService;
-use crate::presentation::api::category_handler::{CategoryHandler, configure_category_routes};
+use crate::infrastructure::repository::category_repository::PostgresCategoryRepository;
+use crate::presentation::api::category_handler::{configure_category_routes, CategoryHandler};
 
 use crate::app_domain::repository::product_repository::ProductRepository;
-use crate::infrastructure::repository::product_repository::PostgresProductRepository;
 use crate::application::service::product_service::ProductService;
-use crate::presentation::api::product_handler::{ProductHandler, configure_product_routes};
+use crate::infrastructure::repository::product_repository::PostgresProductRepository;
+use crate::presentation::api::product_handler::{configure_product_routes, ProductHandler};
 
 // gRPC imports
-use crate::presentation::grpc::user_service::{UserServiceImpl, UserServiceServer};
 use crate::presentation::grpc::item_service::{ItemServiceImpl, ItemServiceServer};
+use crate::presentation::grpc::user_service::{UserServiceImpl, UserServiceServer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -61,32 +58,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing and OpenTelemetry (Datadog compatible)
     init_tracing().expect("failed to initialize tracing");
     info!("Tracing initialized");
-    
+
     init_metrics();
     info!("Metrics initialized");
 
     // データベース接続プールの作成
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set in .env file");
+    let database_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
 
     let pool = match PgPoolOptions::new()
         .max_connections(5)
-        .connect(&database_url).await {
-            Ok(pool) => {
-                info!("✅ PostgreSQL データベース接続に成功しました");
-                pool
-            },
-            Err(e) => {
-                error!("❌ PostgreSQL データベース接続に失敗しました: {}", e);
-                std::process::exit(1);
-            }
-        };
+        .connect(&database_url)
+        .await
+    {
+        Ok(pool) => {
+            info!("✅ PostgreSQL データベース接続に成功しました");
+            pool
+        }
+        Err(e) => {
+            error!("❌ PostgreSQL データベース接続に失敗しました: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // リポジトリの作成
-    let item_repository: Arc<dyn ItemRepository + Send + Sync> = Arc::new(PostgresItemRepository::new(pool.clone()));
+    let item_repository: Arc<dyn ItemRepository + Send + Sync> =
+        Arc::new(PostgresItemRepository::new(pool.clone()));
     let user_repository: UserRepositoryImpl = Arc::new(PostgresUserRepository::new(pool.clone()));
-    let category_repository: Arc<dyn CategoryRepository> = Arc::new(PostgresCategoryRepository::new(pool.clone()));
-    let product_repository: Arc<dyn ProductRepository> = Arc::new(PostgresProductRepository::new(pool.clone()));
+    let category_repository: Arc<dyn CategoryRepository> =
+        Arc::new(PostgresCategoryRepository::new(pool.clone()));
+    let product_repository: Arc<dyn ProductRepository> =
+        Arc::new(PostgresProductRepository::new(pool.clone()));
 
     // サービスの作成
     let item_service = Arc::new(ItemService::new(item_repository.clone()));
@@ -148,7 +150,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // 認証不要のエンドポイント
                     .route("/health", web::get().to(|| async { "OK" }))
                     .route("/metrics", web::get().to(metrics_handler))
-
                     // 認証必要のエンドポイント
                     .route("/items", web::get().to(ItemHandler::get_items))
                     .route("/items", web::post().to(ItemHandler::create_item))
@@ -156,19 +157,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .route("/items/{id}", web::put().to(ItemHandler::update_item))
                     .route("/items/{id}", web::delete().to(ItemHandler::delete_item))
                     // New product deletion API routes
-                    .route("/products/{id}", web::delete().to(ItemHandler::logical_delete_item))
-                    .route("/products/{id}/permanent", web::delete().to(ItemHandler::physical_delete_item))
-                    .route("/products/{id}/restore", web::post().to(ItemHandler::restore_item))
-                    .route("/products/{id}/deletion-check", web::get().to(ItemHandler::validate_item_deletion))
-                    .route("/products/batch", web::delete().to(ItemHandler::batch_delete_items))
-                    .route("/products/deleted", web::get().to(ItemHandler::get_deleted_items))
-                    .route("/products/{id}/deletion-log", web::get().to(ItemHandler::get_item_deletion_log))
-                    .route("/deletion-logs", web::get().to(ItemHandler::get_deletion_logs))
+                    .route(
+                        "/products/{id}",
+                        web::delete().to(ItemHandler::logical_delete_item),
+                    )
+                    .route(
+                        "/products/{id}/permanent",
+                        web::delete().to(ItemHandler::physical_delete_item),
+                    )
+                    .route(
+                        "/products/{id}/restore",
+                        web::post().to(ItemHandler::restore_item),
+                    )
+                    .route(
+                        "/products/{id}/deletion-check",
+                        web::get().to(ItemHandler::validate_item_deletion),
+                    )
+                    .route(
+                        "/products/batch",
+                        web::delete().to(ItemHandler::batch_delete_items),
+                    )
+                    .route(
+                        "/products/deleted",
+                        web::get().to(ItemHandler::get_deleted_items),
+                    )
+                    .route(
+                        "/products/{id}/deletion-log",
+                        web::get().to(ItemHandler::get_item_deletion_log),
+                    )
+                    .route(
+                        "/deletion-logs",
+                        web::get().to(ItemHandler::get_deletion_logs),
+                    )
                     .route("/users", web::get().to(UserHandler::get_users))
                     .route("/users", web::post().to(UserHandler::create_user))
                     .route("/users/{id}", web::get().to(UserHandler::get_user))
                     .route("/users/{id}", web::put().to(UserHandler::update_user))
-                    .route("/users/{id}", web::delete().to(UserHandler::delete_user))
+                    .route("/users/{id}", web::delete().to(UserHandler::delete_user)),
             )
             .configure(configure_category_routes)
             .configure(configure_product_routes)

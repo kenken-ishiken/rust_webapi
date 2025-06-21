@@ -1,10 +1,10 @@
 use actix_web::{web, HttpResponse, Responder, Result as ActixResult};
-use tracing::{info, error};
 use std::sync::Arc;
+use tracing::{error, info};
 
 use crate::application::dto::category_dto::{
-    CreateCategoryRequest, UpdateCategoryRequest, MoveCategoryRequest,
-    CategoryQueryParams, CategoryErrorResponse
+    CategoryErrorResponse, CategoryQueryParams, CreateCategoryRequest, MoveCategoryRequest,
+    UpdateCategoryRequest,
 };
 use crate::application::service::category_service::CategoryService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
@@ -23,13 +23,22 @@ impl CategoryHandler {
         query: web::Query<CategoryQueryParams>,
     ) -> ActixResult<impl Responder> {
         let include_inactive = query.include_inactive.unwrap_or(false);
-        
-        info!("Fetching categories with include_inactive: {}", include_inactive);
-        
+
+        info!(
+            "Fetching categories with include_inactive: {}",
+            include_inactive
+        );
+
         match &query.parent_id {
             Some(parent_id) => {
-                let response = data.service.find_by_parent_id(Some(parent_id.clone()), include_inactive).await;
-                info!("Fetched {} categories for parent {}", response.total, parent_id);
+                let response = data
+                    .service
+                    .find_by_parent_id(Some(parent_id.clone()), include_inactive)
+                    .await;
+                info!(
+                    "Fetched {} categories for parent {}",
+                    response.total, parent_id
+                );
                 Ok(HttpResponse::Ok().json(response))
             }
             None => {
@@ -45,7 +54,7 @@ impl CategoryHandler {
         path: web::Path<String>,
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
-        
+
         match data.service.find_by_id(&category_id).await {
             Ok(category) => {
                 info!("Fetched category {}", category_id);
@@ -69,9 +78,15 @@ impl CategoryHandler {
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
         let include_inactive = query.include_inactive.unwrap_or(false);
-        
-        let response = data.service.find_children(&category_id, include_inactive).await;
-        info!("Fetched {} children for category {}", response.total, category_id);
+
+        let response = data
+            .service
+            .find_children(&category_id, include_inactive)
+            .await;
+        info!(
+            "Fetched {} children for category {}",
+            response.total, category_id
+        );
         Ok(HttpResponse::Ok().json(response))
     }
 
@@ -80,10 +95,13 @@ impl CategoryHandler {
         path: web::Path<String>,
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
-        
+
         match data.service.find_path(&category_id).await {
             Ok(path_response) => {
-                info!("Fetched path for category {}, depth: {}", category_id, path_response.depth);
+                info!(
+                    "Fetched path for category {}, depth: {}",
+                    category_id, path_response.depth
+                );
                 Ok(HttpResponse::Ok().json(path_response))
             }
             Err(error) => {
@@ -102,9 +120,12 @@ impl CategoryHandler {
         query: web::Query<CategoryQueryParams>,
     ) -> ActixResult<impl Responder> {
         let include_inactive = query.include_inactive.unwrap_or(false);
-        
+
         let response = data.service.find_tree(include_inactive).await;
-        info!("Fetched category tree with {} root categories", response.tree.len());
+        info!(
+            "Fetched category tree with {} root categories",
+            response.tree.len()
+        );
         Ok(HttpResponse::Ok().json(response))
     }
 
@@ -126,7 +147,9 @@ impl CategoryHandler {
                     "CATEGORY_INVALID_NAME" | "CATEGORY_INVALID_SORT_ORDER" => {
                         Ok(HttpResponse::BadRequest().json(error_response))
                     }
-                    "CATEGORY_MAX_DEPTH_EXCEEDED" => Ok(HttpResponse::BadRequest().json(error_response)),
+                    "CATEGORY_MAX_DEPTH_EXCEEDED" => {
+                        Ok(HttpResponse::BadRequest().json(error_response))
+                    }
                     _ => Ok(HttpResponse::InternalServerError().json(error_response)),
                 }
             }
@@ -140,8 +163,12 @@ impl CategoryHandler {
         _user: KeycloakUser,
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
-        
-        match data.service.update(&category_id, category.into_inner()).await {
+
+        match data
+            .service
+            .update(&category_id, category.into_inner())
+            .await
+        {
             Ok(updated_category) => {
                 info!("Updated category {}", category_id);
                 Ok(HttpResponse::Ok().json(updated_category))
@@ -167,7 +194,7 @@ impl CategoryHandler {
         _user: KeycloakUser,
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
-        
+
         match data.service.delete(&category_id).await {
             Ok(_) => {
                 info!("Deleted category {}", category_id);
@@ -196,8 +223,12 @@ impl CategoryHandler {
         _user: KeycloakUser,
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
-        
-        match data.service.move_category(&category_id, move_req.into_inner()).await {
+
+        match data
+            .service
+            .move_category(&category_id, move_req.into_inner())
+            .await
+        {
             Ok(moved_category) => {
                 info!("Moved category {}", category_id);
                 Ok(HttpResponse::Ok().json(moved_category))
@@ -227,22 +258,28 @@ pub fn configure_category_routes(cfg: &mut web::ServiceConfig) {
             .route("/{id}", web::get().to(CategoryHandler::get_category))
             .route("/{id}", web::put().to(CategoryHandler::update_category))
             .route("/{id}", web::delete().to(CategoryHandler::delete_category))
-            .route("/{id}/children", web::get().to(CategoryHandler::get_category_children))
-            .route("/{id}/path", web::get().to(CategoryHandler::get_category_path))
-            .route("/{id}/move", web::put().to(CategoryHandler::move_category))
+            .route(
+                "/{id}/children",
+                web::get().to(CategoryHandler::get_category_children),
+            )
+            .route(
+                "/{id}/path",
+                web::get().to(CategoryHandler::get_category_path),
+            )
+            .route("/{id}/move", web::put().to(CategoryHandler::move_category)),
     );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, web, App, http::StatusCode};
-    use std::sync::Arc;
-    use crate::app_domain::repository::category_repository::MockCategoryRepository;
     use crate::app_domain::model::category::Category;
+    use crate::app_domain::repository::category_repository::MockCategoryRepository;
     use crate::application::service::category_service::CategoryService;
-    use mockall::predicate::*;
+    use actix_web::{http::StatusCode, test, web, App};
     use chrono::Utc;
+    use mockall::predicate::*;
+    use std::sync::Arc;
 
     fn create_test_category() -> Category {
         Category {
@@ -261,26 +298,25 @@ mod tests {
     async fn test_get_category_success() {
         let mut mock_repo = MockCategoryRepository::new();
         let category = create_test_category();
-        
+
         mock_repo
             .expect_find_by_id()
             .with(eq("cat_123"))
             .return_once(move |_| Some(category));
-        
+
         let service = Arc::new(CategoryService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(CategoryHandler::new(service));
 
-        let app = test::init_service(
-            App::new()
-                .app_data(handler)
-                .route("/categories/{id}", web::get().to(CategoryHandler::get_category))
-        )
+        let app = test::init_service(App::new().app_data(handler).route(
+            "/categories/{id}",
+            web::get().to(CategoryHandler::get_category),
+        ))
         .await;
 
         let req = test::TestRequest::get()
             .uri("/categories/cat_123")
             .to_request();
-        
+
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -288,26 +324,25 @@ mod tests {
     #[actix_web::test]
     async fn test_get_category_not_found() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         mock_repo
             .expect_find_by_id()
             .with(eq("cat_999"))
             .return_once(|_| None);
-        
+
         let service = Arc::new(CategoryService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(CategoryHandler::new(service));
 
-        let app = test::init_service(
-            App::new()
-                .app_data(handler)
-                .route("/categories/{id}", web::get().to(CategoryHandler::get_category))
-        )
+        let app = test::init_service(App::new().app_data(handler).route(
+            "/categories/{id}",
+            web::get().to(CategoryHandler::get_category),
+        ))
         .await;
 
         let req = test::TestRequest::get()
             .uri("/categories/cat_999")
             .to_request();
-        
+
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
@@ -315,33 +350,30 @@ mod tests {
     #[actix_web::test]
     async fn test_get_categories_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let categories = vec![create_test_category()];
-        
+
         mock_repo
             .expect_find_all()
             .with(eq(false))
             .return_once(move |_| categories);
-        
+
         mock_repo
             .expect_count_children()
             .with(eq("cat_123"))
             .return_once(|_| 0);
-        
+
         let service = Arc::new(CategoryService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(CategoryHandler::new(service));
 
-        let app = test::init_service(
-            App::new()
-                .app_data(handler)
-                .route("/categories", web::get().to(CategoryHandler::get_categories))
-        )
+        let app = test::init_service(App::new().app_data(handler).route(
+            "/categories",
+            web::get().to(CategoryHandler::get_categories),
+        ))
         .await;
 
-        let req = test::TestRequest::get()
-            .uri("/categories")
-            .to_request();
-        
+        let req = test::TestRequest::get().uri("/categories").to_request();
+
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -349,26 +381,25 @@ mod tests {
     #[actix_web::test]
     async fn test_get_category_tree_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         mock_repo
             .expect_find_tree()
             .with(eq(false))
             .return_once(|_| vec![]);
-        
+
         let service = Arc::new(CategoryService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(CategoryHandler::new(service));
 
-        let app = test::init_service(
-            App::new()
-                .app_data(handler)
-                .route("/categories/tree", web::get().to(CategoryHandler::get_category_tree))
-        )
+        let app = test::init_service(App::new().app_data(handler).route(
+            "/categories/tree",
+            web::get().to(CategoryHandler::get_category_tree),
+        ))
         .await;
 
         let req = test::TestRequest::get()
             .uri("/categories/tree")
             .to_request();
-        
+
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -376,7 +407,7 @@ mod tests {
     #[actix_web::test]
     async fn test_get_category_children_success() {
         let mut mock_repo = MockCategoryRepository::new();
-        
+
         let child_category = Category {
             id: "cat_456".to_string(),
             name: "Smartphones".to_string(),
@@ -387,31 +418,30 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         mock_repo
             .expect_find_by_parent_id()
             .with(eq(Some("cat_123".to_string())), eq(false))
             .return_once(move |_, _| vec![child_category]);
-        
+
         mock_repo
             .expect_count_children()
             .with(eq("cat_456"))
             .return_once(|_| 0);
-        
+
         let service = Arc::new(CategoryService::new(Arc::new(mock_repo)));
         let handler = web::Data::new(CategoryHandler::new(service));
 
-        let app = test::init_service(
-            App::new()
-                .app_data(handler)
-                .route("/categories/{id}/children", web::get().to(CategoryHandler::get_category_children))
-        )
+        let app = test::init_service(App::new().app_data(handler).route(
+            "/categories/{id}/children",
+            web::get().to(CategoryHandler::get_category_children),
+        ))
         .await;
 
         let req = test::TestRequest::get()
             .uri("/categories/cat_123/children")
             .to_request();
-        
+
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }

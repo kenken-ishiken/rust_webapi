@@ -1,6 +1,6 @@
 use crate::model::user::User;
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 
 #[async_trait]
 pub trait UserRepository: Send + Sync {
@@ -14,9 +14,9 @@ pub trait UserRepository: Send + Sync {
 pub type UserRepositoryImpl = Arc<dyn UserRepository>;
 
 #[cfg(test)]
-pub use mockall::predicate::*;
-#[cfg(test)]
 pub use mockall::mock;
+#[cfg(test)]
+pub use mockall::predicate::*;
 
 #[cfg(test)]
 mock! {
@@ -49,7 +49,8 @@ mod tests {
         };
 
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_find_all()
+        mock_repo
+            .expect_find_all()
             .return_once(move || vec![user1.clone(), user2.clone()]);
 
         let result = mock_repo.find_all().await;
@@ -66,8 +67,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_empty() {
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_find_all()
-            .return_once(|| vec![]);
+        mock_repo.expect_find_all().return_once(|| vec![]);
 
         let result = mock_repo.find_all().await;
 
@@ -83,7 +83,8 @@ mod tests {
         };
 
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(user.clone()));
 
@@ -99,7 +100,8 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_id_not_found() {
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
 
@@ -117,7 +119,8 @@ mod tests {
         };
 
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_create()
+        mock_repo
+            .expect_create()
             .with(function(move |u: &User| {
                 u.id == 1 && u.username == "newuser" && u.email == "new@example.com"
             }))
@@ -139,7 +142,8 @@ mod tests {
         };
 
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_update()
+        mock_repo
+            .expect_update()
             .with(function(move |u: &User| {
                 u.id == 1 && u.username == "updateduser"
             }))
@@ -163,7 +167,8 @@ mod tests {
         };
 
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_update()
+        mock_repo
+            .expect_update()
             .with(function(move |u: &User| u.id == 999))
             .return_once(|_| None);
 
@@ -175,7 +180,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_success() {
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
 
@@ -187,7 +193,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_not_found() {
         let mut mock_repo = MockUserRepo::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(999u64))
             .return_once(|_| false);
 
@@ -205,23 +212,25 @@ mod tests {
         };
 
         let user_clone = user.clone();
-        
+
         let mut mock_repo = MockUserRepo::new();
-        
+
         // Expect create operation
-        mock_repo.expect_create()
+        mock_repo
+            .expect_create()
             .with(function(move |u: &User| u.id == 1))
             .return_once(move |user| user);
-            
+
         // Expect find operation
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(user_clone.clone()));
 
         // Perform operations
         let created = mock_repo.create(user.clone()).await;
         assert_eq!(created.id, 1);
-        
+
         let found = mock_repo.find_by_id(1).await;
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, 1);

@@ -1,10 +1,9 @@
-use prometheus::{
-    register_int_counter_vec, IntCounterVec,
-    register_histogram_vec, HistogramVec,
-    Registry, TextEncoder, Encoder, gather,
-};
 use actix_web::{HttpResponse, Responder};
 use lazy_static::lazy_static;
+use prometheus::{
+    gather, register_histogram_vec, register_int_counter_vec, Encoder, HistogramVec, IntCounterVec,
+    Registry, TextEncoder,
+};
 
 lazy_static! {
     pub static ref REGISTRY: Registry = Registry::new();
@@ -31,15 +30,20 @@ pub fn init_metrics() {
     r.register(Box::new(API_SUCCESS_COUNTER.clone())).unwrap();
     r.register(Box::new(API_ERROR_COUNTER.clone())).unwrap();
     // Register histogram for request durations
-    r.register(Box::new(API_REQUEST_DURATION_HISTOGRAM.clone())).unwrap();
+    r.register(Box::new(API_REQUEST_DURATION_HISTOGRAM.clone()))
+        .unwrap();
 }
 
 pub fn increment_success_counter(service: &str, endpoint: &str) {
-    API_SUCCESS_COUNTER.with_label_values(&[service, endpoint]).inc();
+    API_SUCCESS_COUNTER
+        .with_label_values(&[service, endpoint])
+        .inc();
 }
 
 pub fn increment_error_counter(service: &str, endpoint: &str) {
-    API_ERROR_COUNTER.with_label_values(&[service, endpoint]).inc();
+    API_ERROR_COUNTER
+        .with_label_values(&[service, endpoint])
+        .inc();
 }
 // Observe request duration in seconds for a given service and endpoint
 pub fn observe_request_duration(service: &str, endpoint: &str, seconds: f64) {
@@ -53,7 +57,7 @@ pub async fn metrics_handler() -> impl Responder {
     let metric_families = gather();
     let mut buffer = Vec::new();
     encoder.encode(&metric_families, &mut buffer).unwrap();
-    
+
     HttpResponse::Ok()
         .content_type("text/plain; charset=utf-8")
         .body(String::from_utf8(buffer).unwrap())
@@ -62,7 +66,7 @@ pub async fn metrics_handler() -> impl Responder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, App, web, http::StatusCode};
+    use actix_web::{http::StatusCode, test, web, App};
 
     #[actix_web::test]
     async fn test_metrics_handler_outputs_metrics() {
@@ -73,9 +77,8 @@ mod tests {
         observe_request_duration("rust_webapi", "/test", 0.123);
 
         // Build Actix app with metrics handler
-        let app = test::init_service(
-            App::new().route("/metrics", web::get().to(metrics_handler))
-        ).await;
+        let app =
+            test::init_service(App::new().route("/metrics", web::get().to(metrics_handler))).await;
         let req = test::TestRequest::get().uri("/metrics").to_request();
         let resp = test::call_service(&app, req).await;
         // Verify HTTP 200 OK
@@ -84,10 +87,25 @@ mod tests {
         let body = test::read_body(resp).await;
         let body_str = std::str::from_utf8(&body).expect("Response not UTF-8");
         // Check that counters and histogram metrics are present with correct labels
-        assert!(body_str.contains("api_success_count"), "Missing success counter");
-        assert!(body_str.contains("api_error_count"), "Missing error counter");
-        assert!(body_str.contains("api_request_duration_seconds_count"), "Missing histogram count");
-        assert!(body_str.contains("api_request_duration_seconds_sum"), "Missing histogram sum");
-        assert!(body_str.contains("endpoint=\"/test\""), "Missing endpoint label");
+        assert!(
+            body_str.contains("api_success_count"),
+            "Missing success counter"
+        );
+        assert!(
+            body_str.contains("api_error_count"),
+            "Missing error counter"
+        );
+        assert!(
+            body_str.contains("api_request_duration_seconds_count"),
+            "Missing histogram count"
+        );
+        assert!(
+            body_str.contains("api_request_duration_seconds_sum"),
+            "Missing histogram sum"
+        );
+        assert!(
+            body_str.contains("endpoint=\"/test\""),
+            "Missing endpoint label"
+        );
     }
 }

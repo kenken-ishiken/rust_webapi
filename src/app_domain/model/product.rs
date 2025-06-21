@@ -174,11 +174,14 @@ impl Product {
         if sku.trim().is_empty() || sku.len() > 50 {
             return Err(ProductError::InvalidSku);
         }
-        
-        if !sku.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+
+        if !sku
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(ProductError::InvalidSku);
         }
-        
+
         Ok(())
     }
 
@@ -216,7 +219,10 @@ impl Product {
         self.updated_at = Utc::now();
     }
 
-    pub fn update_dimensions(&mut self, dimensions: Option<Dimensions>) -> Result<(), ProductError> {
+    pub fn update_dimensions(
+        &mut self,
+        dimensions: Option<Dimensions>,
+    ) -> Result<(), ProductError> {
         if let Some(ref dims) = dimensions {
             dims.validate()?;
         }
@@ -236,7 +242,10 @@ impl Product {
         Ok(())
     }
 
-    pub fn update_shipping_info(&mut self, shipping_info: ShippingInfo) -> Result<(), ProductError> {
+    pub fn update_shipping_info(
+        &mut self,
+        shipping_info: ShippingInfo,
+    ) -> Result<(), ProductError> {
         shipping_info.validate()?;
         self.shipping_info = shipping_info;
         self.updated_at = Utc::now();
@@ -329,7 +338,7 @@ impl Inventory {
         if quantity < 0 {
             return Err(ProductError::InvalidInventoryQuantity);
         }
-        
+
         if quantity < self.reserved_quantity {
             return Err(ProductError::InvalidInventoryQuantity);
         }
@@ -367,7 +376,10 @@ impl Dimensions {
     }
 
     pub fn validate(&self) -> Result<(), ProductError> {
-        if self.width <= Decimal::ZERO || self.height <= Decimal::ZERO || self.depth <= Decimal::ZERO {
+        if self.width <= Decimal::ZERO
+            || self.height <= Decimal::ZERO
+            || self.depth <= Decimal::ZERO
+        {
             return Err(ProductError::InvalidDimensions);
         }
         Ok(())
@@ -504,18 +516,14 @@ mod tests {
 
     #[test]
     fn test_dimensions_validation() {
-        let dimensions = Dimensions::new(
-            Decimal::from(10),
-            Decimal::from(20),
-            Decimal::from(30),
-        );
+        let dimensions = Dimensions::new(Decimal::from(10), Decimal::from(20), Decimal::from(30));
         assert!(dimensions.is_ok());
 
-        let invalid_dimensions = Dimensions::new(
-            Decimal::ZERO,
-            Decimal::from(20),
-            Decimal::from(30),
-        );
-        assert!(matches!(invalid_dimensions, Err(ProductError::InvalidDimensions)));
+        let invalid_dimensions =
+            Dimensions::new(Decimal::ZERO, Decimal::from(20), Decimal::from(30));
+        assert!(matches!(
+            invalid_dimensions,
+            Err(ProductError::InvalidDimensions)
+        ));
     }
 }

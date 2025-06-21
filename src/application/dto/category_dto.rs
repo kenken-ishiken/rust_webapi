@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct CreateCategoryRequest {
@@ -133,10 +133,14 @@ impl From<crate::app_domain::model::category::CategoryTree> for CategoryTreeResp
 impl From<crate::app_domain::model::category::CategoryPath> for CategoryPathResponse {
     fn from(path: crate::app_domain::model::category::CategoryPath) -> Self {
         Self {
-            path: path.path.into_iter().map(|id| CategoryPathItem {
-                id: id.clone(),
-                name: id, // This would need to be enriched with actual names from the repository
-            }).collect(),
+            path: path
+                .path
+                .into_iter()
+                .map(|id| CategoryPathItem {
+                    id: id.clone(),
+                    name: id, // This would need to be enriched with actual names from the repository
+                })
+                .collect(),
             depth: path.depth,
         }
     }
@@ -145,7 +149,7 @@ impl From<crate::app_domain::model::category::CategoryPath> for CategoryPathResp
 impl From<crate::app_domain::model::category::CategoryError> for CategoryErrorResponse {
     fn from(error: crate::app_domain::model::category::CategoryError) -> Self {
         use crate::app_domain::model::category::CategoryError;
-        
+
         match error {
             CategoryError::NotFound(msg) => Self {
                 code: "CATEGORY_NOT_FOUND".to_string(),
@@ -246,7 +250,7 @@ mod tests {
         assert_eq!(response.code, "CATEGORY_INVALID_NAME");
         assert_eq!(response.message, "Name is required");
         assert!(response.details.is_some());
-        
+
         let details = response.details.unwrap();
         assert_eq!(details.field, Some("name".to_string()));
     }

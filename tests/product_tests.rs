@@ -1,5 +1,5 @@
-use rust_webapi::app_domain::model::product::{Product, ProductStatus, ProductError}; // Price, Inventory};
-// use rust_decimal::Decimal;
+use rust_webapi::app_domain::model::product::{Product, ProductError, ProductStatus}; // Price, Inventory};
+                                                                                     // use rust_decimal::Decimal;
 
 #[cfg(test)]
 mod product_tests {
