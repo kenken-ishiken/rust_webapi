@@ -290,10 +290,13 @@ mod tests {
         // 2. 単一ユーザー取得のテスト
         let found_user = repo.find_by_id(1).await;
         assert!(found_user.is_some());
-        let found_user = found_user.unwrap();
-        assert_eq!(found_user.id, user.id);
-        assert_eq!(found_user.username, user.username);
-        assert_eq!(found_user.email, user.email);
+        if let Some(found_user) = found_user {
+            assert_eq!(found_user.id, user.id);
+            assert_eq!(found_user.username, user.username);
+            assert_eq!(found_user.email, user.email);
+        } else {
+            panic!("Expected to find user with id 1");
+        }
 
         // 3. 存在しないユーザー取得のテスト
         let not_found = repo.find_by_id(999).await;
@@ -313,9 +316,12 @@ mod tests {
 
         let result = repo.update(updated_user.clone()).await;
         assert!(result.is_some());
-        let result = result.unwrap();
-        assert_eq!(result.username, "updateduser");
-        assert_eq!(result.email, "updated@example.com");
+        if let Some(result) = result {
+            assert_eq!(result.username, "updateduser");
+            assert_eq!(result.email, "updated@example.com");
+        } else {
+            panic!("Expected to update user with id 1");
+        }
 
         // 6. ユーザー削除のテスト
         let deleted = repo.delete(1).await;

@@ -125,7 +125,7 @@ mod tests {
         env::remove_var("GRPC_HOST");
         env::remove_var("GRPC_PORT");
 
-        let config = ServerConfig::from_env().expect("Should use defaults");
+        let config = ServerConfig::from_env().unwrap();
         
         assert_eq!(config.http_host, "127.0.0.1");
         assert_eq!(config.http_port, 8080);

@@ -90,7 +90,7 @@ impl ItemRepository for InMemoryItemRepository {
                 return Ok(());
             }
         }
-        Err(AppError::NotFound(format!("Item with id {} not found", id)))
+        Err(AppError::not_found("Item", id))
     }
 
     async fn physical_delete(&self, id: u64) -> AppResult<()> {
@@ -101,7 +101,7 @@ impl ItemRepository for InMemoryItemRepository {
         if items.remove(&id).is_some() {
             Ok(())
         } else {
-            Err(AppError::NotFound(format!("Item with id {} not found", id)))
+            Err(AppError::not_found("Item", id))
         }
     }
 
@@ -118,17 +118,14 @@ impl ItemRepository for InMemoryItemRepository {
                 return Ok(());
             }
         }
-        Err(AppError::NotFound(format!(
-            "Item with id {} not found or not deleted",
-            id
-        )))
+        Err(AppError::not_found("Item", format!("{} (not found or not deleted)", id)))
     }
 
     async fn find_deleted(&self) -> AppResult<Vec<Item>> {
         let items = self
             .items
             .lock()
-            .map_err(|_| AppError::InternalServerError("Failed to acquire lock".to_string()))?;
+            .map_err(|_| AppError::internal_error("Failed to acquire lock"))?;
         Ok(items
             .values()
             .filter(|item| item.deleted)
@@ -328,10 +325,7 @@ impl ItemRepository for PostgresItemRepository {
                 deleted: row.get("deleted"),
                 deleted_at: row.get("deleted_at"),
             }),
-            None => Err(AppError::NotFound(format!(
-                "Item with id {} not found",
-                item.id
-            ))),
+            None => Err(AppError::not_found("Item", item.id)),
         }
     }
 
@@ -354,7 +348,7 @@ impl ItemRepository for PostgresItemRepository {
             }
             Ok(())
         } else {
-            Err(AppError::NotFound(format!("Item with id {} not found", id)))
+            Err(AppError::not_found("Item", id))
         }
     }
 
@@ -376,7 +370,7 @@ impl ItemRepository for PostgresItemRepository {
             }
             Ok(())
         } else {
-            Err(AppError::NotFound(format!("Item with id {} not found", id)))
+            Err(AppError::not_found("Item", id))
         }
     }
 
@@ -395,10 +389,7 @@ impl ItemRepository for PostgresItemRepository {
             }
             Ok(())
         } else {
-            Err(AppError::NotFound(format!(
-                "Item with id {} not found or not deleted",
-                id
-            )))
+            Err(AppError::not_found("Item", format!("{} (not found or not deleted)", id)))
         }
     }
 
@@ -582,25 +573,28 @@ mod tests {
         };
 
         // 1. アイテム作成のテスト
-        let created_item = repo.create(item.clone()).await.unwrap();
+        let created_item = repo.create(item.clone()).await.expect("Failed to create item");
         assert_eq!(created_item.id, item.id);
         assert_eq!(created_item.name, item.name);
         assert_eq!(created_item.description, item.description);
 
         // 2. 単一アイテム取得のテスト
-        let found_item = repo.find_by_id(1).await.unwrap();
+        let found_item = repo.find_by_id(1).await.expect("Failed to find item by id");
         assert!(found_item.is_some());
-        let found_item = found_item.unwrap();
-        assert_eq!(found_item.id, item.id);
-        assert_eq!(found_item.name, item.name);
-        assert_eq!(found_item.description, item.description);
+        if let Some(found_item) = found_item {
+            assert_eq!(found_item.id, item.id);
+            assert_eq!(found_item.name, item.name);
+            assert_eq!(found_item.description, item.description);
+        } else {
+            panic!("Expected to find item with id 1");
+        }
 
         // 3. 存在しないアイテム取得のテスト
-        let not_found = repo.find_by_id(999).await.unwrap();
+        let not_found = repo.find_by_id(999).await.expect("Failed to query item by id");
         assert!(not_found.is_none());
 
         // 4. 全アイテム取得のテスト
-        let all_items = repo.find_all().await.unwrap();
+        let all_items = repo.find_all().await.expect("Failed to find all items");
         assert_eq!(all_items.len(), 1);
         assert_eq!(all_items[0].id, item.id);
 
@@ -615,16 +609,19 @@ mod tests {
 
         let result = repo.update(updated_item.clone()).await;
         assert!(result.is_ok());
-        let result = result.unwrap();
-        assert_eq!(result.name, "Updated Item");
-        assert_eq!(result.description, Some("Updated Description".to_string()));
+        if let Ok(result) = result {
+            assert_eq!(result.name, "Updated Item");
+            assert_eq!(result.description, Some("Updated Description".to_string()));
+        } else {
+            panic!("Expected to update item with id 1");
+        }
 
         // 6. アイテム論理削除のテスト
         let deleted = repo.logical_delete(1).await;
         assert!(deleted.is_ok());
 
         // 削除後の検証
-        let all_items_after_delete = repo.find_all().await.unwrap();
+        let all_items_after_delete = repo.find_all().await.expect("Failed to find all items after delete");
         assert_eq!(all_items_after_delete.len(), 0);
 
         // 7. 存在しないアイテムの削除テスト

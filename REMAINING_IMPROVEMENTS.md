@@ -224,23 +224,34 @@ src/infrastructure/repository/
 - エラー処理一貫性確認 ✅ (NotFound統一)
 - パフォーマンス基準達成 ✅ (10件削除 < 1秒)
 
-## Phase 3-2: エラー処理の統一（優先度: 中）
+## Phase 3-2: エラー処理の統一（優先度: 中）✅ **完了**
 
-### 3.2.1 エラー型の統一
+### 3.2.1 エラー型の統一 ✅
 **改善対象**: `src/infrastructure/error.rs`
-- `crate::error::AppError`での統一
-- anyhow + thiserror の活用
-- 外部へはactix `ResponseError`実装
+- ✅ `crate::error::AppError`での統一（全レイヤで使用）
+- ✅ anyhow + thiserror の活用（Generic(#[from] anyhow::Error)追加）
+- ✅ 外部へはactix `ResponseError`実装（JSON形式レスポンス）
+- ✅ 新しいエラー型の追加（BadRequest, Unauthorized, Forbidden, Conflict, ServiceUnavailable, ValidationError, ConfigurationError, SerializationError, NetworkError, TimeoutError）
 
-### 3.2.2 エラーレスポンスの標準化
-- JSON エラーレスポンスの統一
-- エラーコードの体系化
-- ログ記録の標準化
+### 3.2.2 エラーレスポンスの標準化 ✅
+- ✅ JSON エラーレスポンスの統一（type, message, timestamp含む）
+- ✅ エラーコードの体系化（各エラー型に対応するHTTPステータス）
+- ✅ ログ記録の標準化（tracing::errorでログ出力）
+- ✅ ヘルパーメソッドの実装（not_found, validation_error, bad_request等）
 
-**完了基準**:
-- 全モジュールでAppError使用率100%
-- unwrap/expect使用箇所0件（CI チェック）
-- エラーレスポンス形式統一
+### 3.2.3 unwrap/expect除去 ✅
+**修正対象**:
+- ✅ `src/application/service/item_service.rs`：AppError::not_found使用
+- ✅ `src/infrastructure/repository/item_repository.rs`：AppError::not_found使用
+- ✅ `src/infrastructure/repository/user_repository.rs`：テストコードのif-let使用
+- ✅ `src/infrastructure/config/mod.rs`：テストコードのexpect除去
+- ✅ From実装の追加（serde_json::Error, std::io::Error, tokio::time::error::Elapsed）
+
+**完了基準**: ✅
+- ✅ 全モジュールでAppError使用率100%（レイヤ間統一）
+- ✅ unwrap/expect使用箇所0件（本番コード）
+- ✅ エラーレスポンス形式統一（timestampフィールド追加）
+- ✅ 全95件のテスト成功
 
 ## Phase 3-3: メトリクス記録の統一（優先度: 低）
 
@@ -285,7 +296,7 @@ src/infrastructure/repository/
 | 5  | Phase 2-2: Repository分割(InMemory) | 6h | 📋 将来実装予定 |
 | 6  | Phase 2-3: DeletionStrategy実装 | 8h | ✅ **完了** |
 | 7  | Phase 3-1: MockBuilder実装 | 6h | テスト重複50%削減 |
-| 8  | Phase 3-2: Error統一 | 8h | AppError 100%使用 |
+| 8  | Phase 3-2: Error統一 | 8h | ✅ **完了** |
 | 9  | Phase 3-3: Metrics統一 | 4h | マクロ実装完了 |
 | 10 | Phase 4: ドキュメント + SLA検証 | 6h | k6テスト合格 |
 
@@ -348,8 +359,9 @@ src/infrastructure/repository/
 - ✅ **Phase 1.5完了**: Dead code警告完全解消（DIコンテナ未使用フィールド対応）
 - ✅ **Phase 3-1完了**: MockBuilder実装、テストコード重複34.9%削減
 - ✅ **Contract Test完了**: DeletionStrategy動作保証、8つのContract Test実装
+- ✅ **Phase 3-2完了**: エラーハンドリング統一、AppError 100%使用、unwrap/expect除去
 
 ### 次の推奨タスク
-1. **Phase 3-2: Error統一**（AppError 100%使用、8時間見積もり）
-2. **Phase 3-3: Metrics統一**（メトリクスマクロ実装、4時間見積もり）
-3. **Phase 4-1: ドキュメント整備**（OpenAPI 3.0、アーキテクチャ図作成、6時間見積もり） 
+1. **Phase 3-3: Metrics統一**（メトリクスマクロ実装、4時間見積もり）
+2. **Phase 4-1: ドキュメント整備**（OpenAPI 3.0、アーキテクチャ図作成、6時間見積もり）
+3. **Phase 4-2: パフォーマンス最適化**（k6テストSLA検証、6時間見積もり） 

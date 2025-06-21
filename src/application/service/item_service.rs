@@ -44,7 +44,7 @@ impl ItemService {
             }
             None => {
                 increment_error_counter("item", "find_by_id");
-                Err(AppError::NotFound(format!("Item with id {} not found", id)))
+                Err(AppError::not_found("Item", id))
             }
         }
     }
@@ -54,7 +54,7 @@ impl ItemService {
             let mut counter = self
                 .counter
                 .lock()
-                .map_err(|_| AppError::InternalServerError("Failed to acquire lock".to_string()))?;
+                .map_err(|_| AppError::internal_error("Failed to acquire lock"))?;
             let id = *counter;
             *counter += 1;
             id
@@ -89,7 +89,7 @@ impl ItemService {
             }
             None => {
                 increment_error_counter("item", "update");
-                Err(AppError::NotFound(format!("Item with id {} not found", id)))
+                Err(AppError::not_found("Item", id))
             }
         }
     }
@@ -110,7 +110,7 @@ impl ItemService {
         let item_opt = self.repository.find_by_id(id).await?;
         if item_opt.is_none() {
             increment_error_counter("item", "validate_deletion");
-            return Err(AppError::NotFound(format!("Item with id {} not found", id)));
+            return Err(AppError::not_found("Item", id));
         }
 
         let validation = self.repository.validate_deletion(id).await?;
