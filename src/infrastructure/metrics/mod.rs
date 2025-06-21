@@ -79,7 +79,9 @@ mod tests {
 
     #[actix_web::test]
     async fn test_metrics_handler_outputs_metrics() {
-        // Ensure metrics are initialized via register macros
+        // Initialize metrics before using them
+        init_metrics();
+        
         // Emit some sample metrics
         increment_success_counter("rust_webapi", "/test");
         increment_error_counter("rust_webapi", "/test");

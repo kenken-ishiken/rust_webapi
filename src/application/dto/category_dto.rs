@@ -151,57 +151,57 @@ impl From<crate::app_domain::model::category::CategoryError> for CategoryErrorRe
     fn from(error: crate::app_domain::model::category::CategoryError) -> Self {
         use crate::app_domain::model::category::CategoryError;
 
-        match error {
-            CategoryError::NotFound(msg) => Self {
+        match &error {
+            CategoryError::NotFound(_) => Self {
                 code: "CATEGORY_NOT_FOUND".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: None,
             },
-            CategoryError::InvalidName(msg) => Self {
+            CategoryError::InvalidName(_) => Self {
                 code: "CATEGORY_INVALID_NAME".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: Some(serde_json::json!({
                     "field": "name",
                     "value": null,
                     "parent_id": null,
                 })),
             },
-            CategoryError::InvalidSortOrder(msg) => Self {
+            CategoryError::InvalidSortOrder(_) => Self {
                 code: "CATEGORY_INVALID_SORT_ORDER".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: Some(serde_json::json!({
                     "field": "sort_order",
                     "value": null,
                     "parent_id": null,
                 })),
             },
-            CategoryError::NameDuplicate(msg) => Self {
+            CategoryError::NameDuplicate(_) => Self {
                 code: "CATEGORY_NAME_DUPLICATE".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: Some(serde_json::json!({
                     "field": "name",
                     "value": null,
                     "parent_id": null,
                 })),
             },
-            CategoryError::CircularReference(msg) => Self {
+            CategoryError::CircularReference(_) => Self {
                 code: "CATEGORY_CIRCULAR_REFERENCE".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: None,
             },
-            CategoryError::MaxDepthExceeded(msg) => Self {
+            CategoryError::MaxDepthExceeded(_) => Self {
                 code: "CATEGORY_MAX_DEPTH_EXCEEDED".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: None,
             },
-            CategoryError::HasChildren(msg) => Self {
+            CategoryError::HasChildren(_) => Self {
                 code: "CATEGORY_HAS_CHILDREN".to_string(),
-                message: msg,
+                message: error.to_string(),
                 details: None,
             },
-            // CategoryError::HasProducts(msg) => Self {
+            // CategoryError::HasProducts(_) => Self {
             //     code: "CATEGORY_HAS_PRODUCTS".to_string(),
-            //     message: msg,
+            //     message: error.to_string(),
             //     details: None,
             // },
         }
@@ -212,7 +212,6 @@ impl From<crate::app_domain::model::category::CategoryError> for CategoryErrorRe
 mod tests {
     use super::*;
     use crate::app_domain::model::category::{Category, CategoryError};
-    use chrono::Utc;
     use serde_json;
 
     #[test]

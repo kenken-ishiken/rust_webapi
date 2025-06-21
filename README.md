@@ -63,6 +63,7 @@ curl http://localhost:8080/
 - [API 仕様書](docs/api-documentation.md) - REST API の包括的な仕様とエンドポイント一覧
 - [gRPC API 仕様書](docs/grpc-api.md) - gRPC API の仕様とエンドポイント一覧
 - [アーキテクチャガイド](docs/architecture-guide.md) - システム設計、データフロー、コンポーネント構成
+- [設定ガイド](docs/configuration-guide.md) - 環境変数と設定管理の詳細
 - [開発ガイド](docs/development-guide.md) - 開発環境のセットアップ、テスト、デバッグ
 - [開発ワークフロー](docs/development-testing.md) - テスト戦略、コーディング規約、CI/CD
 

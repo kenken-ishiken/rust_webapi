@@ -22,6 +22,7 @@ use crate::infrastructure::metrics::{
 };
 use crate::infrastructure::tracing::init_tracing;
 use crate::infrastructure::startup_error::{StartupError, StartupResult};
+use crate::infrastructure::config::AppConfig;
 use actix_web::dev::Service;
 use std::time::Instant;
 
@@ -56,6 +57,12 @@ async fn main() -> StartupResult<()> {
     // 環境変数の読み込み
     dotenv().ok();
 
+    // 設定の読み込みと検証
+    let config = AppConfig::from_env()?;
+    config.validate()?;
+    
+    info!("Configuration loaded successfully");
+
     // Initialize tracing and OpenTelemetry (Datadog compatible)
     init_tracing().map_err(|e| StartupError::TracingInit(e.to_string()))?;
     info!("Tracing initialized");
@@ -64,12 +71,9 @@ async fn main() -> StartupResult<()> {
     info!("Metrics initialized");
 
     // データベース接続プールの作成
-    let database_url = std::env::var("DATABASE_URL")
-        .map_err(|_| StartupError::EnvVarMissing("DATABASE_URL".to_string()))?;
-
     let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+        .max_connections(config.database.max_connections)
+        .connect(&config.database.url)
         .await?;
     
     info!("✅ PostgreSQL データベース接続に成功しました");
@@ -90,8 +94,7 @@ async fn main() -> StartupResult<()> {
     let product_service = Arc::new(ProductService::new(product_repository.clone()));
 
     // Keycloak認証の設定
-    let keycloak_config = KeycloakConfig::from_env_safe()
-        .map_err(|e| StartupError::Configuration(e.to_string()))?;
+    let keycloak_config = KeycloakConfig::from_auth_config(&config.auth);
     let keycloak_auth = web::Data::new(KeycloakAuth::new(keycloak_config));
 
     // ハンドラーの作成
@@ -100,11 +103,21 @@ async fn main() -> StartupResult<()> {
     let category_handler = web::Data::new(CategoryHandler::new(category_service.clone()));
     let product_handler = web::Data::new(ProductHandler::new(product_service.clone()));
 
-    info!("サーバーを開始します: HTTP: http://127.0.0.1:8080, gRPC: http://127.0.0.1:50051");
+    info!(
+        "サーバーを開始します: HTTP: http://{}:{}, gRPC: http://{}:{}",
+        config.server.http_host, config.server.http_port,
+        config.server.grpc_host, config.server.grpc_port
+    );
 
     // gRPCサービスの作成
     let grpc_user_service = UserServiceImpl::new(user_service.clone());
     let grpc_item_service = ItemServiceImpl::new(item_service.clone());
+
+    // HTTPサーバーアドレスとgRPCサーバーアドレスを作成
+    let http_addr = format!("{}:{}", config.server.http_host, config.server.http_port);
+    let grpc_addr = format!("{}:{}", config.server.grpc_host, config.server.grpc_port)
+        .parse()
+        .map_err(|_| StartupError::Configuration("Invalid gRPC address".to_string()))?;
 
     // HTTPサーバーの設定
     let http_server = HttpServer::new(move || {
@@ -192,12 +205,7 @@ async fn main() -> StartupResult<()> {
             .configure(configure_category_routes)
             .configure(configure_product_routes)
     })
-    .bind("127.0.0.1:8080")?;
-
-    // gRPCサーバーアドレスをパース
-    let grpc_addr = "127.0.0.1:50051"
-        .parse()
-        .map_err(|_| StartupError::Configuration("Invalid gRPC address".to_string()))?;
+    .bind(&http_addr)?;
 
     // gRPCサーバーの設定
     let grpc_server = Server::builder()
