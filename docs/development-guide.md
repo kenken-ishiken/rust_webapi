@@ -6,8 +6,11 @@
 
 - [開発環境のセットアップ](#開発環境のセットアップ)
 - [開発ワークフロー](#開発ワークフロー)
+- [アーキテクチャと設計](#アーキテクチャと設計)
 - [テスト](#テスト)
 - [コーディング規約](#コーディング規約)
+- [エラーハンドリング](#エラーハンドリング)
+- [メトリクス記録](#メトリクス記録)
 - [デバッグ](#デバッグ)
 - [よくある問題と解決策](#よくある問題と解決策)
 
@@ -94,6 +97,45 @@ cargo build
 cargo build --release
 ```
 
+## アーキテクチャと設計
+
+### 依存性注入（DI）
+
+プロジェクトでは`AppContainer`を使用した依存性注入パターンを採用しています：
+
+```rust
+// src/infrastructure/di/container.rs
+pub struct AppContainer {
+    pub item_handler: web::Data<ItemHandler>,
+    pub user_handler: web::Data<UserHandler>,
+    pub category_handler: web::Data<CategoryHandler>,
+    pub product_handler: web::Data<ProductHandler>,
+    // ...
+}
+
+// main.rsでの使用例
+let container = AppContainer::new(&app_config).await?;
+let server = build_http_server(&container, &app_config.server.bind)?;
+```
+
+### 削除操作の統一
+
+削除操作は戦略パターンを使用して統一されています：
+
+```rust
+// 削除ファサードの使用例
+let deletion_facade = /* DIコンテナから取得 */;
+
+// 論理削除
+deletion_facade.delete_item(id, DeleteKind::Logical).await?;
+
+// 物理削除  
+deletion_facade.delete_item(id, DeleteKind::Physical).await?;
+
+// 復元
+deletion_facade.delete_item(id, DeleteKind::Restore).await?;
+```
+
 ## テスト
 
 ### 単体テスト・統合テスト実行
@@ -107,6 +149,27 @@ cargo test test_name
 
 # 特定のパッケージのテストを実行
 cargo test -p domain
+
+# 並列実行数を制限（CI環境用）
+cargo test -- --test-threads=4
+```
+
+### MockBuilder の使用
+
+テストではMockBuilderを使用してモックを簡潔に作成できます：
+
+```rust
+use crate::tests::helpers::mock_builder::ItemMockBuilder;
+
+#[tokio::test]
+async fn test_example() {
+    let mock_repo = ItemMockBuilder::new()
+        .with_find_by_id(1, Some(test_item()))
+        .with_create_success()
+        .build();
+        
+    // テストコード
+}
 ```
 
 ### テストコンテナ
@@ -146,10 +209,80 @@ cargo clippy --all-targets -- -D warnings
 
 ### 主要な規約
 
-- `unwrap()` や `expect()` は避け、適切に `Result` / `Option` を扱います。
-- すべての I/O 処理は `async/await` で記述します。
-- 4 スペースインデント、snake_case を使用します。
-- 公開APIには適切なドキュメントコメントを追加します。
+- **エラーハンドリング**: `unwrap()` や `expect()` は使用禁止。すべて`AppError`で統一
+- **非同期処理**: すべての I/O 処理は `async/await` で記述
+- **フォーマット**: 4 スペースインデント、snake_case を使用
+- **ドキュメント**: 公開APIには適切なドキュメントコメントを追加
+- **テスト**: 各モジュールには対応するテストモジュールを作成
+
+## エラーハンドリング
+
+### 統一されたエラー型
+
+プロジェクト全体で`AppError`を使用します：
+
+```rust
+use crate::infrastructure::error::{AppError, AppResult};
+
+// エラーの作成
+AppError::not_found("User", user_id)
+AppError::validation_error("Invalid email format")
+AppError::internal_error("Database connection failed")
+
+// Result型の使用
+pub async fn find_user(id: u64) -> AppResult<User> {
+    repository.find_by_id(id)
+        .await?
+        .ok_or_else(|| AppError::not_found("User", id))
+}
+```
+
+### エラーレスポンス
+
+エラーは自動的にJSON形式でクライアントに返されます：
+
+```json
+{
+  "type": "NotFound",
+  "message": "User with ID 123 not found",
+  "timestamp": "2024-01-15T09:30:00Z"
+}
+```
+
+## メトリクス記録
+
+### 統一されたメトリクスAPI
+
+メトリクス記録は統一されたAPIを使用します：
+
+```rust
+use crate::infrastructure::metrics::Metrics;
+
+// 高レベルAPI（推奨）
+Metrics::with_metrics("user", "create", async {
+    // 処理内容
+    Ok(user)
+}).await
+
+// タイマー付き実行
+Metrics::with_timer("user", "find_all", async {
+    // 処理内容
+    users
+}).await
+
+// 個別記録
+Metrics::record_success("user", "update");
+Metrics::record_error("user", "delete");
+Metrics::record_duration("user", "batch_process", 1.23);
+```
+
+### メトリクスの確認
+
+Prometheusメトリクスは以下で確認できます：
+
+```bash
+curl http://localhost:8080/api/metrics
+```
 
 ## デバッグ
 
@@ -222,3 +355,15 @@ RUST_LOG=trace cargo run
 - `cargo clean`を実行して再ビルド
 - Rustのバージョンが1.77以上か確認
 - 依存クレートが競合していないか確認
+
+### テストの失敗
+
+- テストデータベースが起動しているか確認
+- `docker system prune`で古いコンテナを削除
+- 環境変数`TEST_LOG=debug`でテストログを確認
+
+### メトリクスが記録されない
+
+- メトリクスエンドポイント`/api/metrics`にアクセスできるか確認
+- `Metrics::init()`が初期化時に呼ばれているか確認
+- ログレベルを`debug`にしてメトリクス記録ログを確認

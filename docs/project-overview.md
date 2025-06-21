@@ -13,6 +13,14 @@
 - **セキュア**: JWT認証、Keycloak連携、適切な権限管理
 - **テスタブル**: 単体テスト、統合テスト、E2Eテストの完備
 
+### 最新の改善（2024年12月）
+
+- **依存性注入**: AppContainerによる依存関係の自動管理
+- **エラー処理統一**: AppErrorによる全レイヤでの一貫したエラーハンドリング
+- **メトリクス統一**: 統一されたメトリクスAPIによる保守性向上
+- **削除操作統一**: 戦略パターンによる柔軟な削除処理
+- **コード品質**: unwrap/expect完全除去、Clippy警告0件
+
 ## 技術スタック
 
 ### コア技術
@@ -57,22 +65,28 @@
 ```
 rust_webapi/
 ├── src/                      # メインアプリケーションコード
-│   ├── main.rs              # エントリーポイント
+│   ├── main.rs              # エントリーポイント（76行に簡素化）
 │   ├── lib.rs               # ライブラリルート
 │   ├── app_domain/          # ドメイン層
 │   │   ├── model/           # ドメインモデル
-│   │   └── repository/      # リポジトリインターフェース
+│   │   ├── repository/      # リポジトリインターフェース
+│   │   └── service/         # ドメインサービス（DeletionStrategy）
 │   ├── application/         # アプリケーション層
 │   │   ├── dto/             # データ転送オブジェクト
 │   │   └── service/         # ビジネスロジックサービス
+│   │                        # DeletionFacade（削除操作統一）
 │   ├── infrastructure/      # インフラストラクチャ層
 │   │   ├── repository/      # リポジトリ実装
+│   │   │   └── postgres/    # PostgreSQL実装（分割済み）
+│   │   ├── di/              # 依存性注入コンテナ
 │   │   ├── auth/            # 認証・認可
+│   │   ├── error.rs         # 統一エラー型（AppError）
 │   │   ├── logger/          # ロギング設定
-│   │   ├── metrics/         # メトリクス設定
+│   │   ├── metrics/         # 統一メトリクスシステム
 │   │   └── tracing/         # 分散トレーシング
 │   └── presentation/        # プレゼンテーション層
-│       └── api/             # HTTPハンドラー
+│       ├── api/             # HTTPハンドラー
+│       └── grpc/            # gRPCサービス
 ├── crates/                  # サブクレート
 │   └── domain/              # 共有ドメインロジック
 ├── tests/                   # 統合テスト

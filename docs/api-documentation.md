@@ -43,19 +43,24 @@
 }
 ```
 
-エラーレスポンス:
+エラーレスポンス（統一されたAppError形式）:
 ```json
 {
-  "error": {
-    "code": "PRODUCT_NOT_FOUND",
-    "message": "Product with ID 123 not found",
-    "details": {
-      // 追加のエラー情報
-    }
-  },
-  "meta": {
-    "request_id": "550e8400-e29b-41d4-a716-446655440000",
-    "timestamp": "2024-01-15T09:30:00Z"
+  "type": "NotFound",
+  "message": "Product with ID 123 not found",
+  "timestamp": "2024-01-15T09:30:00Z"
+}
+```
+
+詳細エラーレスポンス:
+```json
+{
+  "type": "ValidationError", 
+  "message": "Invalid request parameters",
+  "timestamp": "2024-01-15T09:30:00Z",
+  "details": {
+    "field": "sku",
+    "reason": "SKU must be unique"
   }
 }
 ```
@@ -119,17 +124,22 @@ curl -X POST "http://localhost:8081/auth/realms/rust-webapi/protocol/openid-conn
 | 422 | Unprocessable Entity | バリデーションエラー |
 | 500 | Internal Server Error | サーバーエラー |
 
-### エラーコード一覧
+### エラータイプ一覧（統一されたAppError）
 
-| エラーコード | 説明 | HTTPステータス |
+| エラータイプ | 説明 | HTTPステータス |
 |-------------|------|---------------|
-| INVALID_REQUEST | リクエストフォーマットエラー | 400 |
-| VALIDATION_FAILED | バリデーションエラー | 422 |
-| AUTHENTICATION_FAILED | 認証失敗 | 401 |
-| PERMISSION_DENIED | 権限不足 | 403 |
-| RESOURCE_NOT_FOUND | リソースが見つからない | 404 |
-| RESOURCE_ALREADY_EXISTS | リソースが既に存在 | 409 |
-| INTERNAL_ERROR | 内部エラー | 500 |
+| BadRequest | リクエストフォーマットエラー | 400 |
+| ValidationError | バリデーションエラー | 422 |
+| Unauthorized | 認証失敗 | 401 |
+| Forbidden | 権限不足 | 403 |
+| NotFound | リソースが見つからない | 404 |
+| Conflict | リソースの競合・重複 | 409 |
+| InternalError | 内部エラー | 500 |
+| ServiceUnavailable | サービス利用不可 | 503 |
+| TimeoutError | タイムアウトエラー | 408 |
+| NetworkError | ネットワークエラー | 502 |
+| ConfigurationError | 設定エラー | 500 |
+| SerializationError | シリアライゼーションエラー | 500 |
 
 ## エンドポイント一覧
 
@@ -140,9 +150,7 @@ curl -X POST "http://localhost:8081/auth/realms/rust-webapi/protocol/openid-conn
 - `GET /api/products/sku/{sku}` - SKUによる商品取得
 - `PUT /api/products/{id}` - 商品更新
 - `PATCH /api/products/{id}` - 商品部分更新
-- `DELETE /api/products/{id}` - 商品論理削除
-- `DELETE /api/products/{id}/permanent` - 商品物理削除
-- `POST /api/products/{id}/restore` - 商品復元
+- `DELETE /api/products/{id}` - 商品削除（統一された削除インターフェース）
 - `GET /api/products/{id}/deletion-check` - 削除可能性チェック
 - `DELETE /api/products/batch` - 商品一括削除
 - `GET /api/products/deleted` - 削除済み商品一覧
@@ -155,21 +163,28 @@ curl -X POST "http://localhost:8081/auth/realms/rust-webapi/protocol/openid-conn
 - `POST /api/categories` - カテゴリ作成
 - `GET /api/categories/{id}` - カテゴリ詳細取得
 - `PUT /api/categories/{id}` - カテゴリ更新
-- `DELETE /api/categories/{id}` - カテゴリ削除
+- `DELETE /api/categories/{id}` - カテゴリ削除（統一された削除インターフェース）
+- `GET /api/categories/tree` - カテゴリツリー取得
+- `GET /api/categories/{id}/children` - 子カテゴリ一覧取得
+- `GET /api/categories/{id}/path` - カテゴリパス取得
+- `POST /api/categories/{id}/move` - カテゴリ移動
 
 ### ユーザー管理
 - `GET /api/users` - ユーザー一覧取得
 - `POST /api/users` - ユーザー作成
 - `GET /api/users/{id}` - ユーザー詳細取得
 - `PUT /api/users/{id}` - ユーザー更新
-- `DELETE /api/users/{id}` - ユーザー削除
+- `DELETE /api/users/{id}` - ユーザー削除（統一された削除インターフェース）
 
 ### アイテム管理
 - `GET /api/items` - アイテム一覧取得
 - `POST /api/items` - アイテム作成
 - `GET /api/items/{id}` - アイテム詳細取得
 - `PUT /api/items/{id}` - アイテム更新
-- `DELETE /api/items/{id}` - アイテム削除
+- `DELETE /api/items/{id}` - アイテム削除（統一された削除インターフェース）
+- `GET /api/items/deleted` - 削除済みアイテム一覧
+- `GET /api/items/{id}/deletion-check` - 削除可能性チェック
+- `DELETE /api/items/batch` - アイテム一括削除
 
 ### 削除ログ管理
 - `GET /api/deletion-logs` - 全削除ログ取得
@@ -314,18 +329,40 @@ PUT /api/products/{id}
 - SKUは更新不可
 - 在庫数は別のAPIで管理
 
-### 商品削除（論理削除）
+### 統一された削除操作
 
 ```
 DELETE /api/products/{id}
+DELETE /api/categories/{id}
+DELETE /api/users/{id}
+DELETE /api/items/{id}
 ```
 
-**リクエストボディ:**
-```json
-{
-  "reason": "在庫切れのため",
-  "deleted_by": "user-123"
-}
+**クエリパラメータ:**
+
+| パラメータ | 型 | 必須 | 説明 | デフォルト |
+|-----------|-----|------|------|-----------|
+| kind | string | No | 削除種別 (logical/physical/restore) | logical |
+| reason | string | No | 削除理由 | - |
+
+**削除種別:**
+- `logical`: 論理削除（データは保持、削除フラグを設定）
+- `physical`: 物理削除（データを完全削除）
+- `restore`: 削除されたリソースの復元
+
+**リクエスト例:**
+```bash
+# 論理削除
+curl -X DELETE "http://localhost:8080/api/products/123?kind=logical&reason=在庫切れ" \
+  -H "Authorization: Bearer {token}"
+
+# 物理削除
+curl -X DELETE "http://localhost:8080/api/products/123?kind=physical" \
+  -H "Authorization: Bearer {token}"
+
+# 復元
+curl -X DELETE "http://localhost:8080/api/products/123?kind=restore" \
+  -H "Authorization: Bearer {token}"
 ```
 
 **レスポンス例:**
@@ -333,7 +370,8 @@ DELETE /api/products/{id}
 {
   "data": {
     "message": "Product successfully deleted",
-    "deletion_id": "del-550e8400-e29b-41d4"
+    "deletion_type": "logical",
+    "deleted_at": "2024-01-15T10:30:00Z"
   },
   "meta": {
     "request_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -342,21 +380,14 @@ DELETE /api/products/{id}
 }
 ```
 
-### 商品復元
-
-```
-POST /api/products/{id}/restore
-```
-
-**レスポンス例:**
+**エラーレスポンス例:**
 ```json
 {
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "sku": "PROD-001",
-    "name": "復元された商品",
-    "status": "active",
-    "restored_at": "2024-01-15T11:00:00Z"
+  "type": "ValidationError",
+  "message": "Cannot delete resource: active dependencies exist",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "details": {
+    "dependencies": ["active_orders", "reserved_inventory"]
   }
 }
 ```

@@ -2,21 +2,34 @@
 
 このディレクトリには、Rust WebAPI プロジェクトの詳細なドキュメントが含まれています。
 
+**最終更新**: 2024年12月（Phase 4-1: ドキュメント整備完了）
+
+## 最新の実装改善（2024年12月）
+
+以下のドキュメントは最新の実装内容を反映して更新されています：
+
+- ✅ [アーキテクチャガイド](architecture-guide.md) - DI、削除統一、エラー/メトリクス統一を反映
+- ✅ [API仕様書](api-documentation.md) - 統一されたエラーレスポンス形式、削除APIの更新
+- ✅ [開発ガイド](development-guide.md) - DI、エラーハンドリング、メトリクス記録の方法
+- ✅ [プロジェクト概要](project-overview.md) - 最新の改善内容を追加
+
 ## 利用可能なドキュメント
 
 ### API関連
 - [API リファレンス](api-reference.md) - エンドポイントの詳細仕様、リクエスト・レスポンス例、curl使用例
-- [API 仕様書](api-documentation.md) - REST API の包括的な仕様とエンドポイント一覧
+- [API 仕様書](api-documentation.md) - REST API の包括的な仕様とエンドポイント一覧 **[更新済み]**
+- [gRPC API](grpc-api.md) - Protocol Buffersを使用したgRPC API仕様
 
 ### アーキテクチャ・設計
-- [アーキテクチャガイド](architecture-guide.md) - システム設計、データフロー、コンポーネント構成
+- [アーキテクチャガイド](architecture-guide.md) - システム設計、データフロー、コンポーネント構成 **[更新済み]**
 - [詳細アーキテクチャ](architecture-detailed.md) - 深掘りしたアーキテクチャ解説
-- [プロジェクト概要](project-overview.md) - プロジェクト全体の概要と目標
+- [プロジェクト概要](project-overview.md) - プロジェクト全体の概要と目標 **[更新済み]**
 - [データベーススキーマ](database-schema.md) - データベース設計と関係性
 
 ### 開発・テスト
-- [開発ガイド](development-guide.md) - 開発環境のセットアップ、テスト、デバッグ
+- [開発ガイド](development-guide.md) - 開発環境のセットアップ、テスト、デバッグ **[更新済み]**
 - [開発ワークフロー＆テスティング](development-testing.md) - テスト戦略、コーディング規約、CI/CD
+- [設定ガイド](configuration-guide.md) - 環境変数と設定管理
 
 ### 運用・デプロイ
 - [運用ガイド](operations-guide.md) - デプロイ、監視、バックアップ、スケーリング
