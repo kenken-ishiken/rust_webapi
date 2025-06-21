@@ -95,7 +95,7 @@ async fn test_mock_item_repository_create() {
             item.id == 1 && item.name == "New Item"
         }))
         .times(1)
-        .returning(move |item| Ok(item));
+        .returning(Ok);
 
     let result = mock_repo.create(input_item).await.unwrap();
 
@@ -121,7 +121,7 @@ async fn test_mock_item_repository_update() {
         .expect_update()
         .with(function(move |item: &Item| item.id == 1))
         .times(1)
-        .returning(move |item| Ok(item));
+        .returning(Ok);
 
     let result = mock_repo.update(update_item.clone()).await.unwrap();
     assert_eq!(result.name, "Updated Item");
@@ -229,7 +229,7 @@ async fn test_mock_repository_sequence_operations() {
     mock_repo
         .expect_create()
         .times(1)
-        .returning(move |item| Ok(item));
+        .returning(Ok);
 
     mock_repo
         .expect_find_by_id()
@@ -243,7 +243,7 @@ async fn test_mock_repository_sequence_operations() {
     mock_repo
         .expect_update()
         .times(1)
-        .returning(move |item| Ok(item));
+        .returning(Ok);
 
     mock_repo
         .expect_delete()
