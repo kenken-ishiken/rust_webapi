@@ -1,0 +1,364 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Rust WebAPI クイックリファレンス
+
+このドキュメントは、Rust WebAPIプロジェクトでよく使用されるパターンとコマンドのクイックリファレンスです。Phase 3完了時点での最新のベストプラクティスを反映しています。
+
+## 🚀 開発フロー
+
+### 基本的な開発サイクル
+
+```bash
+# 1. 開発開始
+cargo check                    # コンパイル確認
+cargo test --lib              # ユニットテスト実行
+
+# 2. 新機能開発
+cargo test --lib <test_name>  # 特定テスト実行
+cargo run                     # ローカル実行
+
+# 3. 品質確認
+cargo clippy                  # Linter実行
+cargo fmt                     # フォーマット
+cargo test                    # 全テスト実行
+
+# 4. コミット
+git add .
+git commit -m "feat: ..."
+git push origin master
+```
+
+## 📝 コードテンプレート
+
+### サービス層の実装
+
+```rust
+use crate::infrastructure::error::{AppError, AppResult};
+use crate::infrastructure::metrics::Metrics;
+
+pub struct ItemService {
+    repository: Arc<dyn ItemRepository + Send + Sync>,
+}
+
+impl ItemService {
+    pub async fn find_by_id(&self, id: u64) -> AppResult<ItemResponse> {
+        Metrics::with_metrics("item", "find_by_id", async {
+            let item = self.repository.find_by_id(id).await?;
+            match item {
+                Some(item) => Ok(self.to_response(item)),
+                None => Err(AppError::not_found("Item", id)),
+            }
+        }).await
+    }
+}
+```
+
+### API ハンドラーの実装
+
+```rust
+use actix_web::{web, HttpResponse, Result as ActixResult};
+use crate::infrastructure::error::AppError;
+
+#[get("/items/{id}")]
+pub async fn get_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> ActixResult<HttpResponse> {
+    let id = path.into_inner();
+    
+    match data.item_service.find_by_id(id).await {
+        Ok(item) => Ok(HttpResponse::Ok().json(item)),
+        Err(e) => Err(e.into()),
+    }
+}
+```
+
+### 削除操作の実装
+
+```rust
+use crate::app_domain::service::deletion_service::DeleteKind;
+
+// 論理削除
+#[delete("/items/{id}")]
+pub async fn delete_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> ActixResult<HttpResponse> {
+    let id = path.into_inner();
+    data.deletion_facade.delete_item(id, DeleteKind::Logical).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+// 物理削除
+#[delete("/items/{id}/permanent")]
+pub async fn permanent_delete_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> ActixResult<HttpResponse> {
+    let id = path.into_inner();
+    data.deletion_facade.delete_item(id, DeleteKind::Physical).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+// 復元
+#[post("/items/{id}/restore")]
+pub async fn restore_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> ActixResult<HttpResponse> {
+    let id = path.into_inner();
+    data.deletion_facade.delete_item(id, DeleteKind::Restore).await?;
+    Ok(HttpResponse::Ok().json(json!({"message": "Item restored"})))
+}
+```
+
+### テストの実装
+
+```rust
+#[tokio::test]
+async fn test_find_by_id_success() {
+    let mut mock_repo = MockItemRepository::new();
+    mock_repo
+        .expect_find_by_id()
+        .with(eq(1u64))
+        .return_once(|_| Ok(Some(create_test_item())));
+
+    let service = ItemService::new(Arc::new(mock_repo));
+    let result = service.find_by_id(1).await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_find_by_id_not_found() {
+    let mut mock_repo = MockItemRepository::new();
+    mock_repo
+        .expect_find_by_id()
+        .with(eq(999u64))
+        .return_once(|_| Ok(None));
+
+    let service = ItemService::new(Arc::new(mock_repo));
+    let result = service.find_by_id(999).await;
+
+    assert!(matches!(result, Err(AppError::NotFound(_))));
+}
+```
+
+## 🔧 よく使うコマンド
+
+### 開発コマンド
+
+```bash
+# 開発サーバー起動
+cargo run
+
+# 特定のテスト実行
+cargo test test_find_by_id
+
+# メトリクステスト実行
+cargo test --lib infrastructure::metrics::tests
+
+# カバレッジレポート生成
+./scripts/coverage.sh
+
+# gRPCテスト
+./scripts/test_grpc.sh
+```
+
+### Docker コマンド
+
+```bash
+# ローカル環境起動
+docker-compose up -d
+
+# ログ確認
+docker-compose logs -f rust_webapi
+
+# データベース接続
+docker-compose exec postgres psql -U postgres -d rust_webapi
+
+# 環境停止・クリーンアップ
+docker-compose down -v
+```
+
+### k6 パフォーマンステスト
+
+```bash
+# スモークテスト
+cd k6 && npm run test:smoke
+
+# ロードテスト
+cd k6 && npm run test:load
+
+# ストレステスト
+cd k6 && npm run test:stress
+
+# スパイクテスト
+cd k6 && npm run test:spike
+```
+
+## 📊 メトリクス・ログ確認
+
+### メトリクス確認
+
+```bash
+# Prometheusメトリクス確認
+curl http://localhost:8080/metrics
+
+# 特定メトリクス検索
+curl http://localhost:8080/metrics | grep api_success_total
+```
+
+### ログ確認
+
+```bash
+# アプリケーションログ
+docker-compose logs rust_webapi
+
+# リアルタイムログ監視
+docker-compose logs -f rust_webapi
+
+# 構造化ログ検索（jqが必要）
+docker-compose logs rust_webapi | jq 'select(.level == "ERROR")'
+```
+
+## 🎯 エラーハンドリングパターン
+
+### AppError の使用
+
+```rust
+// ✅ 推奨
+AppError::not_found("Item", id)
+AppError::validation_error("Invalid email format")
+AppError::internal_error("Database connection failed")
+
+// ❌ 非推奨
+Err(AppError::NotFound(format!("Item {} not found", id)))
+anyhow::anyhow!("Something went wrong")
+```
+
+### Result型の処理
+
+```rust
+// ✅ 推奨 - Metrics::with_metrics使用
+Metrics::with_metrics("service", "operation", async {
+    let result = repository.operation().await?;
+    Ok(result)
+}).await
+
+// ✅ 推奨 - 手動メトリクス記録
+let timer = MetricsTimer::new("service", "operation");
+let result = repository.operation().await?;
+timer.observe();
+Ok(result)
+```
+
+## 🗂️ ファイル構造ナビゲーション
+
+### 主要ディレクトリ
+
+```
+src/
+├── app_domain/          # ドメイン層
+│   ├── model/          # ドメインモデル
+│   ├── repository/     # リポジトリトレイト
+│   └── service/        # ドメインサービス（削除戦略等）
+├── application/        # アプリケーション層
+│   ├── dto/           # データ転送オブジェクト
+│   └── service/       # アプリケーションサービス
+├── infrastructure/    # インフラストラクチャ層
+│   ├── error.rs       # エラー定義
+│   ├── metrics/       # メトリクス機能
+│   ├── config/        # 設定管理
+│   ├── di/           # 依存性注入
+│   └── repository/    # リポジトリ実装
+└── presentation/      # プレゼンテーション層
+    ├── api/          # REST API
+    └── grpc/         # gRPC API
+```
+
+### 設定ファイル
+
+```
+├── Cargo.toml              # プロジェクト設定
+├── docker-compose.yml      # ローカル開発環境
+├── Dockerfile              # コンテナイメージ
+├── initdb/                 # データベース初期化
+├── k6/                     # パフォーマンステスト
+├── k8s/                    # Kubernetes設定
+└── .cursor/rules/          # Cursor開発ルール
+```
+
+## 🧪 テスト戦略
+
+### テストレベル
+
+1. **ユニットテスト**: `cargo test --lib`
+2. **統合テスト**: `cargo test --test integration_tests`
+3. **Contract テスト**: `cargo test --test contract_deletion_strategy_tests`
+4. **E2Eテスト**: `cargo test --test e2e_tests`
+
+### モック使用パターン
+
+```rust
+// MockRepositoryBuilderの使用
+let mock_repo = MockItemRepository::new()
+    .with_find_by_id(1, Ok(Some(test_item())))
+    .with_create(Ok(test_item()))
+    .build();
+
+// 従来のmockall使用
+let mut mock_repo = MockItemRepository::new();
+mock_repo
+    .expect_find_by_id()
+    .with(eq(1u64))
+    .return_once(|_| Ok(Some(test_item())));
+```
+
+## 🔗 有用なリンク
+
+### 開発ドキュメント
+
+- **[README.md](mdc:README.md)** - プロジェクト概要
+- **[CONTRIBUTING.md](mdc:CONTRIBUTING.md)** - コントリビューションガイド
+- **[REMAINING_IMPROVEMENTS.md](mdc:REMAINING_IMPROVEMENTS.md)** - 改善タスク状況
+
+### API ドキュメント
+
+- **[docs/api-reference.md](mdc:docs/api-reference.md)** - API仕様
+- **[docs/grpc-api.md](mdc:docs/grpc-api.md)** - gRPC API仕様
+
+### 運用ドキュメント
+
+- **[o11y.md](mdc:o11y.md)** - 可観測性ガイド
+- **[docs/deployment-operations.md](mdc:docs/deployment-operations.md)** - デプロイ・運用ガイド
+
+## 📈 プロジェクト現状（Phase 3完了時点）
+
+### ✅ 完了済み機能
+
+- **エラーハンドリング統一**: AppError 100%使用、unwrap/expect除去
+- **メトリクス統一**: 統一マクロ・高レベルAPI実装
+- **削除戦略統一**: 戦略パターン・ファサードパターン実装
+- **テスト改善**: MockBuilder、Contract Test実装
+- **依存性注入**: DIコンテナ実装、main.rs 76行に削減
+
+### 🔄 進行中・今後の予定
+
+- **Phase 4-1**: ドキュメント整備（OpenAPI 3.0、アーキテクチャ図）
+- **Phase 4-2**: パフォーマンス最適化（k6テストSLA検証）
+- **Phase 2-2**: Repository分割完了（InMemoryリポジトリ実装）
+
+### 📊 品質指標
+
+- **テスト成功率**: 100%（全101件）
+- **Clippy警告**: 0件
+- **Dead code警告**: 0件
+- **コードカバレッジ**: 測定可能（coverage.sh使用）
+
+---
+
+このクイックリファレンスを活用して、効率的で一貫性のあるRust WebAPI開発を実現してください。

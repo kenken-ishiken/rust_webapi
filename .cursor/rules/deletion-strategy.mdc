@@ -1,0 +1,384 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 削除戦略統一ガイド
+
+このドキュメントは、Phase 2-3で実装された削除操作の統一パターンを説明します。戦略パターンとファサードパターンを活用した一貫性のある削除処理の実現方法を提供します。
+
+## 🎯 目的
+
+- **削除操作の統一**: 戦略パターンによる柔軟な削除方法の選択
+- **インターフェースの統一**: ファサードパターンによる統一されたAPI
+- **保守性の向上**: 削除ロジックの集約と重複コードの削減
+- **拡張性の確保**: 新しい削除戦略の容易な追加
+
+## 🏗️ アーキテクチャ概要
+
+### レイヤー構成
+
+```
+Presentation Layer (API Handlers)
+        ↓
+Application Layer (DeletionFacade)
+        ↓
+Domain Layer (DeletionStrategy)
+        ↓
+Infrastructure Layer (Repositories)
+```
+
+### 主要コンポーネント
+
+- **DeletionStrategy**: 削除戦略の抽象化
+- **DeletionFacade**: 複数エンティティの統一インターフェース
+- **DeleteKind**: 削除方法の種類（Logical/Physical/Restore）
+
+## 🎭 戦略パターンの実装
+
+### DeletionStrategy トレイト
+
+[src/app_domain/service/deletion_service.rs](mdc:src/app_domain/service/deletion_service.rs) で定義されています：
+
+```rust
+#[async_trait]
+pub trait DeletionStrategy: Send + Sync {
+    async fn delete(&self, id: u64, kind: DeleteKind) -> Result<(), DeletionError>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DeleteKind {
+    Logical,    // 論理削除（deleted フラグを true に設定）
+    Physical,   // 物理削除（レコードを完全に削除）
+    Restore,    // 復元（deleted フラグを false に設定）
+}
+```
+
+### ✅ 推奨パターン
+
+#### 1. 戦略の実装
+
+```rust
+pub struct ItemDeletionStrategy {
+    repository: Arc<dyn ItemRepository + Send + Sync>,
+}
+
+#[async_trait]
+impl DeletionStrategy for ItemDeletionStrategy {
+    async fn delete(&self, id: u64, kind: DeleteKind) -> Result<(), DeletionError> {
+        match kind {
+            DeleteKind::Logical => {
+                self.repository.logical_delete(id).await
+                    .map_err(|e| DeletionError::from_app_error(e))
+            }
+            DeleteKind::Physical => {
+                self.repository.physical_delete(id).await
+                    .map_err(|e| DeletionError::from_app_error(e))
+            }
+            DeleteKind::Restore => {
+                self.repository.restore(id).await
+                    .map_err(|e| DeletionError::from_app_error(e))
+            }
+        }
+    }
+}
+```
+
+#### 2. ファサードの使用
+
+```rust
+use crate::application::service::deletion_facade::DeletionFacade;
+
+// API ハンドラーでの使用
+pub async fn delete_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+    query: web::Query<DeleteQuery>,
+) -> Result<HttpResponse, Error> {
+    let id = path.into_inner();
+    let kind = query.kind.unwrap_or(DeleteKind::Logical);
+    
+    data.deletion_facade.delete_item(id, kind).await?;
+    
+    Ok(HttpResponse::NoContent().finish())
+}
+```
+
+## 🏛️ ファサードパターンの実装
+
+### DeletionFacade
+
+[src/application/service/deletion_facade.rs](mdc:src/application/service/deletion_facade.rs) で実装されています：
+
+```rust
+pub struct DeletionFacade {
+    item_strategy: Arc<dyn DeletionStrategy + Send + Sync>,
+    category_strategy: Arc<dyn DeletionStrategy + Send + Sync>,
+    product_strategy: Arc<dyn DeletionStrategy + Send + Sync>,
+}
+
+impl DeletionFacade {
+    pub async fn delete_item(&self, id: u64, kind: DeleteKind) -> AppResult<()> {
+        self.item_strategy.delete(id, kind).await
+            .map_err(|e| e.into())
+    }
+    
+    pub async fn delete_category(&self, id: u64, kind: DeleteKind) -> AppResult<()> {
+        self.category_strategy.delete(id, kind).await
+            .map_err(|e| e.into())
+    }
+    
+    pub async fn delete_product(&self, id: u64, kind: DeleteKind) -> AppResult<()> {
+        self.product_strategy.delete(id, kind).await
+            .map_err(|e| e.into())
+    }
+}
+```
+
+## 🔧 実装例
+
+### API ハンドラーでの統一パターン
+
+#### ✅ 推奨パターン
+
+```rust
+// 論理削除
+#[delete("/items/{id}")]
+pub async fn logical_delete_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> Result<HttpResponse, Error> {
+    let id = path.into_inner();
+    data.deletion_facade.delete_item(id, DeleteKind::Logical).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+// 物理削除
+#[delete("/items/{id}/permanent")]
+pub async fn physical_delete_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> Result<HttpResponse, Error> {
+    let id = path.into_inner();
+    data.deletion_facade.delete_item(id, DeleteKind::Physical).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+// 復元
+#[post("/items/{id}/restore")]
+pub async fn restore_item(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> Result<HttpResponse, Error> {
+    let id = path.into_inner();
+    data.deletion_facade.delete_item(id, DeleteKind::Restore).await?;
+    Ok(HttpResponse::Ok().json(json!({"message": "Item restored successfully"})))
+}
+```
+
+#### ❌ アンチパターン
+
+```rust
+// 旧パターン（統一前）- 使用禁止
+pub async fn delete_item_old(
+    data: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> Result<HttpResponse, Error> {
+    let id = path.into_inner();
+    // 直接サービスメソッドを呼び出し（統一性がない）
+    data.item_service.delete(id).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+```
+
+### gRPC サービスでの統一パターン
+
+```rust
+impl ItemService for ItemServiceImpl {
+    async fn delete_item(
+        &self,
+        request: Request<DeleteItemRequest>,
+    ) -> Result<Response<DeleteItemResponse>, Status> {
+        let req = request.into_inner();
+        let kind = match req.delete_type.as_str() {
+            "logical" => DeleteKind::Logical,
+            "physical" => DeleteKind::Physical,
+            _ => DeleteKind::Logical,
+        };
+        
+        self.deletion_facade.delete_item(req.id, kind).await
+            .map_err(|e| Status::internal(e.to_string()))?;
+            
+        Ok(Response::new(DeleteItemResponse {
+            success: true,
+            message: "Item deleted successfully".to_string(),
+        }))
+    }
+}
+```
+
+## 🧪 テストパターン
+
+### Contract Test の実装
+
+[tests/contract_deletion_strategy_tests.rs](mdc:tests/contract_deletion_strategy_tests.rs) で実装されています：
+
+```rust
+#[tokio::test]
+async fn test_deletion_strategy_logical_delete() {
+    let strategy = create_item_deletion_strategy().await;
+    
+    // 論理削除の実行
+    let result = strategy.delete(1, DeleteKind::Logical).await;
+    assert!(result.is_ok());
+    
+    // 削除状態の確認
+    // （実装に応じて適切な検証を行う）
+}
+
+#[tokio::test]
+async fn test_deletion_strategy_not_found() {
+    let strategy = create_item_deletion_strategy().await;
+    
+    // 存在しないIDで削除を試行
+    let result = strategy.delete(999, DeleteKind::Logical).await;
+    assert!(matches!(result, Err(DeletionError::NotFound(_))));
+}
+```
+
+### モックを使用したテスト
+
+```rust
+#[tokio::test]
+async fn test_deletion_facade_item_delete() {
+    let mut mock_strategy = MockDeletionStrategy::new();
+    mock_strategy
+        .expect_delete()
+        .with(eq(1u64), eq(DeleteKind::Logical))
+        .return_once(|_, _| Ok(()));
+    
+    let facade = DeletionFacade::new(
+        Arc::new(mock_strategy),
+        Arc::new(MockDeletionStrategy::new()),
+        Arc::new(MockDeletionStrategy::new()),
+    );
+    
+    let result = facade.delete_item(1, DeleteKind::Logical).await;
+    assert!(result.is_ok());
+}
+```
+
+## 🔄 エラーハンドリング
+
+### DeletionError の統一
+
+```rust
+#[derive(Debug, Clone)]
+pub enum DeletionError {
+    NotFound(String),
+    Validation(String),
+    Other(String),
+}
+
+impl From<DeletionError> for AppError {
+    fn from(err: DeletionError) -> Self {
+        match err {
+            DeletionError::NotFound(msg) => AppError::NotFound(msg),
+            DeletionError::Validation(msg) => AppError::ValidationError(msg),
+            DeletionError::Other(msg) => AppError::InternalServerError(msg),
+        }
+    }
+}
+```
+
+## 🚀 拡張パターン
+
+### 新しい削除戦略の追加
+
+```rust
+// 例: アーカイブ削除戦略
+#[derive(Debug, Clone, Copy)]
+pub enum DeleteKind {
+    Logical,
+    Physical,
+    Restore,
+    Archive,    // 新しい削除方法
+}
+
+// 戦略の実装
+pub struct ArchiveDeletionStrategy {
+    repository: Arc<dyn ItemRepository + Send + Sync>,
+    archive_repository: Arc<dyn ArchiveRepository + Send + Sync>,
+}
+
+#[async_trait]
+impl DeletionStrategy for ArchiveDeletionStrategy {
+    async fn delete(&self, id: u64, kind: DeleteKind) -> Result<(), DeletionError> {
+        match kind {
+            DeleteKind::Archive => {
+                // アーカイブ処理の実装
+                let item = self.repository.find_by_id(id).await?;
+                self.archive_repository.archive(item).await?;
+                self.repository.physical_delete(id).await?;
+                Ok(())
+            }
+            _ => {
+                // 既存の削除方法にフォールバック
+                self.repository.delete(id, kind).await
+            }
+        }
+    }
+}
+```
+
+## 📊 メトリクス統合
+
+削除操作でのメトリクス記録パターン：
+
+```rust
+impl ItemDeletionStrategy {
+    async fn delete(&self, id: u64, kind: DeleteKind) -> Result<(), DeletionError> {
+        let operation = format!("delete_{:?}", kind).to_lowercase();
+        
+        Metrics::with_metrics("deletion", &operation, async {
+            match kind {
+                DeleteKind::Logical => self.repository.logical_delete(id).await,
+                DeleteKind::Physical => self.repository.physical_delete(id).await,
+                DeleteKind::Restore => self.repository.restore(id).await,
+            }
+            .map_err(|e| DeletionError::from_app_error(e))
+        }).await
+    }
+}
+```
+
+## 🎯 ベストプラクティス
+
+### Do's
+
+- ✅ `DeletionFacade` を通じて削除操作を実行
+- ✅ `DeleteKind` で削除方法を明示的に指定
+- ✅ Contract Test で削除戦略の動作を保証
+- ✅ エラーハンドリングを `DeletionError` で統一
+- ✅ メトリクス記録を忘れずに実装
+
+### Don'ts
+
+- ❌ 旧削除メソッドの直接使用
+- ❌ 削除戦略を直接インスタンス化
+- ❌ エラーハンドリングの不統一
+- ❌ テストでの削除戦略の検証不足
+- ❌ メトリクス記録の漏れ
+
+## 🔗 関連ファイル
+
+- **[src/app_domain/service/deletion_service.rs](mdc:src/app_domain/service/deletion_service.rs)** - DeletionStrategy定義
+- **[src/application/service/deletion_facade.rs](mdc:src/application/service/deletion_facade.rs)** - DeletionFacade実装
+- **[src/presentation/api/item_handler.rs](mdc:src/presentation/api/item_handler.rs)** - API実装例
+- **[src/presentation/grpc/item_service.rs](mdc:src/presentation/grpc/item_service.rs)** - gRPC実装例
+- **[tests/contract_deletion_strategy_tests.rs](mdc:tests/contract_deletion_strategy_tests.rs)** - Contract Test
+- **[REMAINING_IMPROVEMENTS.md](mdc:REMAINING_IMPROVEMENTS.md)** - Phase 2-3完了状況
+
+---
+
+この削除戦略統一パターンに従うことで、一貫性があり拡張性の高い削除機能を実現し、保守性の向上と新機能の容易な追加を可能にします。

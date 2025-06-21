@@ -21,27 +21,41 @@ alwaysApply: false
 ### 🧪 テスト・品質管理
 - **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - TDD実践、テスト戦略、モック活用
 
+### 🚨 エラーハンドリング・観測性
+- **[error-handling-metrics.mdc](mdc:error-handling-metrics.mdc)** - エラーハンドリング統一、メトリクス記録、観測性向上
+
+### 🗑️ 削除戦略・アーキテクチャ
+- **[deletion-strategy.mdc](mdc:deletion-strategy.mdc)** - 削除操作統一、戦略パターン、ファサードパターン
+
+### ⚡ クイックリファレンス
+- **[quick-reference.mdc](mdc:quick-reference.mdc)** - よく使うパターン、コマンド、テンプレート集
+
 ## 🎯 使用場面別ガイド
 
 ### 新機能開発時
 1. **[development-guidelines.mdc](mdc:development-guidelines.mdc)** - 開発の基本方針を確認
-2. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - TDDサイクルでテスト作成
-3. **[api-development.mdc](mdc:api-development.mdc)** - API実装
+2. **[error-handling-metrics.mdc](mdc:error-handling-metrics.mdc)** - エラーハンドリングとメトリクス記録の統一パターンを確認
+3. **[deletion-strategy.mdc](mdc:deletion-strategy.mdc)** - 削除機能実装時の統一パターンを確認
+4. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - TDDサイクルでテスト作成
+5. **[api-development.mdc](mdc:api-development.mdc)** - API実装
 
 ### バグ修正・デバッグ時
 1. **[api-development.mdc](mdc:api-development.mdc)** - `curl`コマンドでAPI動作確認
-2. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - 再現テスト作成
-3. **[development-guidelines.mdc](mdc:development-guidelines.mdc)** - ログ・メトリクス確認方法を参照
+2. **[error-handling-metrics.mdc](mdc:error-handling-metrics.mdc)** - エラーハンドリングとメトリクス確認
+3. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - 再現テスト作成
+4. **[development-guidelines.mdc](mdc:development-guidelines.mdc)** - ログ・メトリクス確認方法を参照
 
 ### コードレビュー時
 1. **[development-guidelines.mdc](mdc:development-guidelines.mdc)** - スタイル規約とベストプラクティスをチェック
-2. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - テストの網羅性を確認
-3. **[api-development.mdc](mdc:api-development.mdc)** - API設計原則を確認
+2. **[error-handling-metrics.mdc](mdc:error-handling-metrics.mdc)** - エラーハンドリングとメトリクス記録の一貫性を確認
+3. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - テストの網羅性を確認
+4. **[api-development.mdc](mdc:api-development.mdc)** - API設計原則を確認
 
 ### 新メンバーオンボーディング時
 1. **[project-structure.mdc](mdc:project-structure.mdc)** - プロジェクト全体像を理解
 2. **[development-guidelines.mdc](mdc:development-guidelines.mdc)** - 開発の進め方を把握
-3. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - テスト方針を学ぶ
+3. **[error-handling-metrics.mdc](mdc:error-handling-metrics.mdc)** - エラーハンドリングとメトリクス記録の統一パターンを学ぶ
+4. **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - テスト方針を学ぶ
 
 ## 📁 ファイル参照マップ
 
@@ -88,7 +102,9 @@ alwaysApply: false
 ### 開発開始時のチェックリスト
 - [ ] **[project-structure.mdc](mdc:project-structure.mdc)** でプロジェクト構造を理解
 - [ ] **[development-guidelines.mdc](mdc:development-guidelines.mdc)** でコーディング規約を確認
+- [ ] **[error-handling-metrics.mdc](mdc:error-handling-metrics.mdc)** でエラーハンドリングとメトリクス記録の統一パターンを確認
 - [ ] **[testing-strategy.mdc](mdc:testing-strategy.mdc)** でTDDサイクルを理解
+- [ ] **[quick-reference.mdc](mdc:quick-reference.mdc)** でよく使うパターンとコマンドを確認
 
 ---
 
