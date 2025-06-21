@@ -4,15 +4,18 @@ use tracing::info;
 
 use crate::application::dto::item_dto::{BatchDeleteRequest, CreateItemRequest, UpdateItemRequest};
 use crate::application::service::item_service::ItemService;
+use crate::application::service::deletion_facade::DeletionFacade;
+use crate::app_domain::service::deletion_service::DeleteKind;
 use crate::infrastructure::auth::middleware::KeycloakUser;
 
 pub struct ItemHandler {
     service: Arc<ItemService>,
+    deletion_facade: Arc<DeletionFacade>,
 }
 
 impl ItemHandler {
-    pub fn new(service: Arc<ItemService>) -> Self {
-        Self { service }
+    pub fn new(service: Arc<ItemService>, deletion_facade: Arc<DeletionFacade>) -> Self {
+        Self { service, deletion_facade }
     }
 
     pub async fn index() -> impl Responder {
@@ -68,7 +71,8 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.service.delete(item_id).await?;
+        // デフォルトで論理削除を使用
+        data.deletion_facade.delete_item(item_id, DeleteKind::Logical).await?;
         info!("Deleted item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを削除しました"))
     }
@@ -80,7 +84,7 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.service.logical_delete(item_id).await?;
+        data.deletion_facade.delete_item(item_id, DeleteKind::Logical).await?;
         info!("Logically deleted item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを論理削除しました"))
     }
@@ -90,7 +94,7 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.service.physical_delete(item_id).await?;
+        data.deletion_facade.delete_item(item_id, DeleteKind::Physical).await?;
         info!("Physically deleted item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを物理削除しました"))
     }
@@ -100,7 +104,7 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.service.restore(item_id).await?;
+        data.deletion_facade.delete_item(item_id, DeleteKind::Restore).await?;
         info!("Restored item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを復元しました"))
     }
@@ -161,6 +165,14 @@ mod tests {
     };
     use mockall::predicate::*;
     use std::sync::Arc;
+
+    // Helper function to create handler with DeletionFacade
+    fn create_handler(mock_repo: MockItemRepository) -> web::Data<ItemHandler> {
+        let mock_repo_arc = Arc::new(mock_repo);
+        let service = Arc::new(ItemService::new(mock_repo_arc.clone()));
+        let deletion_facade = Arc::new(DeletionFacade::new(mock_repo_arc));
+        web::Data::new(ItemHandler::new(service, deletion_facade))
+    }
 
     impl KeycloakUser {
         fn mock() -> Self {
@@ -231,8 +243,7 @@ mod tests {
             .expect_find_all()
             .return_once(move || Ok(items.clone()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let user = KeycloakUser::mock();
 
         let resp = ItemHandler::get_items(handler, user).await;
@@ -257,8 +268,7 @@ mod tests {
             .with(eq(1u64))
             .return_once(move |_| Ok(Some(item.clone())));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::get_item(handler, path).await;
@@ -275,8 +285,7 @@ mod tests {
             .with(eq(999u64))
             .return_once(|_| Ok(None));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(999u64);
 
         let resp = ItemHandler::get_item(handler, path).await;
@@ -305,8 +314,7 @@ mod tests {
             .expect_create()
             .return_once(move |_| Ok(created_item.clone()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let json_req = web::Json(req);
 
         let resp = ItemHandler::create_item(handler, json_req).await;
@@ -348,8 +356,7 @@ mod tests {
             .expect_update()
             .return_once(move |_| Ok(updated_item.clone()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
         let json_req = web::Json(req);
 
@@ -372,8 +379,7 @@ mod tests {
             .with(eq(999u64))
             .return_once(|_| Ok(None));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(999u64);
         let json_req = web::Json(req);
 
@@ -387,12 +393,11 @@ mod tests {
     async fn test_delete_item_success() {
         let mut mock_repo = MockItemRepository::new();
         mock_repo
-            .expect_delete()
+            .expect_logical_delete()
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::delete_item(handler, path).await;
@@ -405,12 +410,11 @@ mod tests {
     async fn test_delete_item_not_found() {
         let mut mock_repo = MockItemRepository::new();
         mock_repo
-            .expect_delete()
+            .expect_logical_delete()
             .with(eq(999u64))
             .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(999u64);
 
         let resp = ItemHandler::delete_item(handler, path).await;
@@ -429,8 +433,7 @@ mod tests {
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::logical_delete_item(handler, path).await;
@@ -447,8 +450,7 @@ mod tests {
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::physical_delete_item(handler, path).await;
@@ -465,8 +467,7 @@ mod tests {
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::restore_item(handler, path).await;
@@ -505,8 +506,7 @@ mod tests {
             .with(eq(1u64))
             .return_once(move |_| Ok(validation));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let path = web::Path::from(1u64);
 
         let resp = ItemHandler::validate_item_deletion(handler, path).await;
@@ -528,8 +528,7 @@ mod tests {
             .with(eq(vec![1, 2, 3]), eq(false))
             .return_once(move |_, _| Ok(vec![1, 3]));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
         let json_req = web::Json(req);
 
         let resp = ItemHandler::batch_delete_items(handler, json_req).await;
@@ -562,8 +561,7 @@ mod tests {
             .expect_find_deleted()
             .return_once(move || Ok(deleted_items.clone()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
 
         let resp = ItemHandler::get_deleted_items(handler).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());
@@ -599,8 +597,7 @@ mod tests {
             .with(eq(None))
             .return_once(move |_| Ok(logs.clone()));
 
-        let service = Arc::new(ItemService::new(Arc::new(mock_repo)));
-        let handler = web::Data::new(ItemHandler::new(service));
+        let handler = create_handler(mock_repo);
 
         let resp = ItemHandler::get_deletion_logs(handler).await;
         let resp = resp.respond_to(&test::TestRequest::default().to_http_request());

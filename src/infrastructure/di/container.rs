@@ -12,6 +12,7 @@ use crate::application::service::{
     item_service::ItemService,
     product_service::ProductService,
     user_service::UserService,
+    deletion_facade::DeletionFacade,
 };
 use crate::infrastructure::repository::{
     category_repository::PostgresCategoryRepository,
@@ -47,6 +48,9 @@ pub struct AppContainer {
     pub category_service: Arc<CategoryService>,
     pub product_service: Arc<ProductService>,
     
+    // Deletion Facade
+    pub deletion_facade: Arc<DeletionFacade>,
+    
     // Handlers
     pub item_handler: web::Data<ItemHandler>,
     pub user_handler: web::Data<UserHandler>,
@@ -80,19 +84,22 @@ impl AppContainer {
         let category_service = Arc::new(CategoryService::new(category_repository.clone()));
         let product_service = Arc::new(ProductService::new(product_repository.clone()));
 
+        // 削除ファサードの作成
+        let deletion_facade = Arc::new(DeletionFacade::new(item_repository.clone()));
+
         // Keycloak認証の設定
         let keycloak_config = KeycloakConfig::from_auth_config(&config.auth);
         let keycloak_auth = web::Data::new(KeycloakAuth::new(keycloak_config));
 
         // ハンドラーの作成
-        let item_handler = web::Data::new(ItemHandler::new(item_service.clone()));
+        let item_handler = web::Data::new(ItemHandler::new(item_service.clone(), deletion_facade.clone()));
         let user_handler = web::Data::new(UserHandler::new(user_service.clone()));
         let category_handler = web::Data::new(CategoryHandler::new(category_service.clone()));
         let product_handler = web::Data::new(ProductHandler::new(product_service.clone()));
 
         // gRPCサービスの作成
         let grpc_user_service = UserServiceImpl::new(user_service.clone());
-        let grpc_item_service = ItemServiceImpl::new(item_service.clone());
+        let grpc_item_service = ItemServiceImpl::new(item_service.clone(), deletion_facade.clone());
 
         Self {
             item_repository,
@@ -103,6 +110,7 @@ impl AppContainer {
             user_service,
             category_service,
             product_service,
+            deletion_facade,
             item_handler,
             user_handler,
             category_handler,

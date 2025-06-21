@@ -3,6 +3,8 @@ use tonic::{Request, Response, Status};
 use tracing::info;
 
 use crate::application::service::item_service::ItemService;
+use crate::application::service::deletion_facade::DeletionFacade;
+use crate::app_domain::service::deletion_service::DeleteKind;
 
 // Include the generated proto code
 tonic::include_proto!("item");
@@ -12,11 +14,12 @@ pub use item_service_server::{ItemService as ItemServiceTrait, ItemServiceServer
 #[derive(Clone)]
 pub struct ItemServiceImpl {
     service: Arc<ItemService>,
+    deletion_facade: Arc<DeletionFacade>,
 }
 
 impl ItemServiceImpl {
-    pub fn new(service: Arc<ItemService>) -> Self {
-        Self { service }
+    pub fn new(service: Arc<ItemService>, deletion_facade: Arc<DeletionFacade>) -> Self {
+        Self { service, deletion_facade }
     }
 }
 
@@ -183,7 +186,7 @@ impl ItemServiceTrait for ItemServiceImpl {
     ) -> Result<Response<DeleteItemResponse>, Status> {
         let req = request.into_inner();
 
-        match self.service.delete(req.id).await {
+        match self.deletion_facade.delete_item(req.id, DeleteKind::Logical).await {
             Ok(_) => {
                 info!("gRPC: Deleted item {}", req.id);
                 let response = DeleteItemResponse { success: true };
@@ -206,8 +209,7 @@ impl ItemServiceTrait for ItemServiceImpl {
     ) -> Result<Response<LogicalDeleteItemResponse>, Status> {
         let req = request.into_inner();
 
-        // For now, delegate to regular delete - this can be expanded based on actual service methods
-        match self.service.delete(req.id).await {
+        match self.deletion_facade.delete_item(req.id, DeleteKind::Logical).await {
             Ok(_) => {
                 info!("gRPC: Logical delete item {}", req.id);
                 let response = LogicalDeleteItemResponse { success: true };
@@ -222,18 +224,40 @@ impl ItemServiceTrait for ItemServiceImpl {
 
     async fn physical_delete_item(
         &self,
-        _request: Request<PhysicalDeleteItemRequest>,
+        request: Request<PhysicalDeleteItemRequest>,
     ) -> Result<Response<PhysicalDeleteItemResponse>, Status> {
-        // Physical delete not implemented yet
-        Err(Status::unimplemented("物理削除は未実装です"))
+        let req = request.into_inner();
+
+        match self.deletion_facade.delete_item(req.id, DeleteKind::Physical).await {
+            Ok(_) => {
+                info!("gRPC: Physical delete item {}", req.id);
+                let response = PhysicalDeleteItemResponse { success: true };
+                Ok(Response::new(response))
+            }
+            Err(e) => {
+                info!("gRPC: Error physical deleting item {}: {}", req.id, e);
+                Err(Status::internal(format!("物理削除に失敗しました: {}", e)))
+            }
+        }
     }
 
     async fn restore_item(
         &self,
-        _request: Request<RestoreItemRequest>,
+        request: Request<RestoreItemRequest>,
     ) -> Result<Response<RestoreItemResponse>, Status> {
-        // Restore not implemented yet
-        Err(Status::unimplemented("復元は未実装です"))
+        let req = request.into_inner();
+
+        match self.deletion_facade.delete_item(req.id, DeleteKind::Restore).await {
+            Ok(_) => {
+                info!("gRPC: Restored item {}", req.id);
+                let response = RestoreItemResponse { success: true };
+                Ok(Response::new(response))
+            }
+            Err(e) => {
+                info!("gRPC: Error restoring item {}: {}", req.id, e);
+                Err(Status::internal(format!("復元に失敗しました: {}", e)))
+            }
+        }
     }
 
     async fn validate_item_deletion(
