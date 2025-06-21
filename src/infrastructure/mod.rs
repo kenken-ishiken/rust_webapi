@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod config;
+pub mod di;
 pub mod error;
 pub mod logger;
 pub mod metrics;

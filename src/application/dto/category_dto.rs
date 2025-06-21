@@ -7,7 +7,6 @@ pub struct CreateCategoryRequest {
     pub description: Option<String>,
     pub parent_id: Option<String>,
     pub sort_order: i32,
-    pub is_active: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -266,8 +265,7 @@ mod tests {
             "name": "Electronics",
             "description": "Electronic products",
             "parent_id": "cat_123",
-            "sort_order": 1,
-            "is_active": true
+            "sort_order": 1
         }"#;
         
         let request: CreateCategoryRequest = serde_json::from_str(json)
@@ -277,7 +275,6 @@ mod tests {
         assert_eq!(request.description, Some("Electronic products".to_string()));
         assert_eq!(request.parent_id, Some("cat_123".to_string()));
         assert_eq!(request.sort_order, 1);
-        assert_eq!(request.is_active, Some(true));
     }
 
     #[test]

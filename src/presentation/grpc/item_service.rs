@@ -9,6 +9,7 @@ tonic::include_proto!("item");
 
 pub use item_service_server::{ItemService as ItemServiceTrait, ItemServiceServer};
 
+#[derive(Clone)]
 pub struct ItemServiceImpl {
     service: Arc<ItemService>,
 }

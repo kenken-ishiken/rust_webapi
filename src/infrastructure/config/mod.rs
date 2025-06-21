@@ -7,7 +7,6 @@ pub struct AppConfig {
     pub database: DatabaseConfig,
     pub server: ServerConfig,
     pub auth: AuthConfig,
-    pub telemetry: TelemetryConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -31,11 +30,7 @@ pub struct AuthConfig {
     pub keycloak_client_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct TelemetryConfig {
-    pub service_name: String,
-    pub log_level: String,
-}
+
 
 impl AppConfig {
     /// 環境変数から設定を読み込む
@@ -44,7 +39,6 @@ impl AppConfig {
             database: DatabaseConfig::from_env()?,
             server: ServerConfig::from_env()?,
             auth: AuthConfig::from_env()?,
-            telemetry: TelemetryConfig::from_env()?,
         })
     }
 
@@ -116,14 +110,7 @@ impl AuthConfig {
     }
 }
 
-impl TelemetryConfig {
-    fn from_env() -> StartupResult<Self> {
-        Ok(Self {
-            service_name: env::var("SERVICE_NAME").unwrap_or_else(|_| "rust_webapi".to_string()),
-            log_level: env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
-        })
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
@@ -167,10 +154,6 @@ mod tests {
                 keycloak_realm: "test".to_string(),
                 keycloak_auth_server_url: "http://localhost:8080".to_string(),
                 keycloak_client_id: "test-client".to_string(),
-            },
-            telemetry: TelemetryConfig {
-                service_name: "test".to_string(),
-                log_level: "info".to_string(),
             },
         };
         

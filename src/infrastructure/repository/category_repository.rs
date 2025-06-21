@@ -15,7 +15,7 @@ impl PostgresCategoryRepository {
         Self { pool }
     }
 
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(test)]
     pub async fn init_table(&self) -> Result<(), sqlx::Error> {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS categories (

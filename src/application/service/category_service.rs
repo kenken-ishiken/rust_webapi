@@ -364,7 +364,6 @@ mod tests {
             description: Some("Electronic devices".to_string()),
             parent_id: None,
             sort_order: 1,
-            is_active: None,
         };
 
         let expected_category = Category {
@@ -401,7 +400,6 @@ mod tests {
             description: None,
             parent_id: None,
             sort_order: 1,
-            is_active: None,
         };
 
         mock_repo.expect_create().return_once(|_| {

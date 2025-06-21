@@ -9,6 +9,7 @@ tonic::include_proto!("user");
 
 pub use user_service_server::{UserService as UserServiceTrait, UserServiceServer};
 
+#[derive(Clone)]
 pub struct UserServiceImpl {
     service: Arc<UserService>,
 }
