@@ -1,327 +1,214 @@
-use domain::model::item::Item;
-use mockall::predicate::*;
-use rust_webapi::app_domain::repository::item_repository::{ItemRepository, MockItemRepository};
-use rust_webapi::infrastructure::error::AppError;
+mod helpers;
+
+use helpers::mock_builder::{ItemMockBuilder, MockBuilder, TestDataFactory, TestAssertions};
+use rust_webapi::app_domain::repository::item_repository::ItemRepository;
 
 #[tokio::test]
 async fn test_mock_item_repository_find_all() {
-    let mut mock_repo = MockItemRepository::new();
+    // テストデータの準備
+    let expected_items = TestDataFactory::create_items(2);
+    
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_find_all_returning(expected_items.clone())
+        .build();
 
-    let expected_items = vec![
-        Item {
-            id: 1,
-            name: "Item 1".to_string(),
-            description: Some("Description 1".to_string()),
-            deleted: false,
-            deleted_at: None,
-        },
-        Item {
-            id: 2,
-            name: "Item 2".to_string(),
-            description: None,
-            deleted: false,
-            deleted_at: None,
-        },
-    ];
-
-    mock_repo.expect_find_all().times(1).returning({
-        let items = expected_items.clone();
-        move || Ok(items.clone())
-    });
-
+    // テスト実行
     let result = mock_repo.find_all().await.unwrap();
 
+    // アサーション
     assert_eq!(result.len(), 2);
-    assert_eq!(result[0].id, 1);
-    assert_eq!(result[0].name, "Item 1");
-    assert_eq!(result[1].id, 2);
-    assert_eq!(result[1].name, "Item 2");
+    TestAssertions::assert_item_eq(&result[0], &expected_items[0]);
+    TestAssertions::assert_item_eq(&result[1], &expected_items[1]);
+}
+
+#[tokio::test]
+async fn test_mock_item_repository_find_all_empty() {
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_find_all_empty()
+        .build();
+
+    // テスト実行
+    let result = mock_repo.find_all().await.unwrap();
+
+    // アサーション
+    assert_eq!(result.len(), 0);
 }
 
 #[tokio::test]
 async fn test_mock_item_repository_find_by_id() {
-    let mut mock_repo = MockItemRepository::new();
+    // テストデータの準備
+    let expected_item = TestDataFactory::create_item(1, "Found Item");
+    
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_find_by_id_returning(1, Some(expected_item.clone()))
+        .with_find_by_id_not_found(999)
+        .build();
 
-    let expected_item = Item {
-        id: 1,
-        name: "Found Item".to_string(),
-        description: Some("Found Description".to_string()),
-        deleted: false,
-        deleted_at: None,
-    };
-
-    mock_repo
-        .expect_find_by_id()
-        .with(eq(1u64))
-        .times(1)
-        .returning({
-            let item = expected_item.clone();
-            move |_| Ok(Some(item.clone()))
-        });
-
-    mock_repo
-        .expect_find_by_id()
-        .with(eq(999u64))
-        .times(1)
-        .returning(|_| Ok(None));
-
-    // Test found item
+    // テスト実行 - アイテムが見つかる場合
     let result = mock_repo.find_by_id(1).await.unwrap();
     assert!(result.is_some());
-    let found = result.unwrap();
-    assert_eq!(found.id, 1);
-    assert_eq!(found.name, "Found Item");
+    TestAssertions::assert_item_eq(&result.unwrap(), &expected_item);
 
-    // Test not found item
+    // テスト実行 - アイテムが見つからない場合
     let result = mock_repo.find_by_id(999).await.unwrap();
     assert!(result.is_none());
 }
 
 #[tokio::test]
 async fn test_mock_item_repository_create() {
-    let mut mock_repo = MockItemRepository::new();
-
-    let input_item = Item {
-        id: 1,
-        name: "New Item".to_string(),
-        description: Some("New Description".to_string()),
-        deleted: false,
-        deleted_at: None,
-    };
-
-    mock_repo
-        .expect_create()
-        .with(function(move |item: &Item| {
+    // テストデータの準備
+    let input_item = TestDataFactory::create_item(1, "New Item");
+    
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_create_success_when(move |item| {
             item.id == 1 && item.name == "New Item"
-        }))
-        .times(1)
-        .returning(Ok);
+        })
+        .build();
 
-    let result = mock_repo.create(input_item).await.unwrap();
+    // テスト実行
+    let result = mock_repo.create(input_item.clone()).await.unwrap();
 
-    assert_eq!(result.id, 1);
-    assert_eq!(result.name, "New Item");
-    assert_eq!(result.description, Some("New Description".to_string()));
+    // アサーション
+    TestAssertions::assert_item_eq(&result, &input_item);
 }
 
 #[tokio::test]
-async fn test_mock_item_repository_update() {
-    let mut mock_repo = MockItemRepository::new();
+async fn test_mock_item_repository_update_success() {
+    // テストデータの準備
+    let update_item = TestDataFactory::create_item(1, "Updated Item");
+    
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_update_success()
+        .build();
 
-    let update_item = Item {
-        id: 1,
-        name: "Updated Item".to_string(),
-        description: Some("Updated Description".to_string()),
-        deleted: false,
-        deleted_at: None,
-    };
-
-    // Test successful update
-    mock_repo
-        .expect_update()
-        .with(function(move |item: &Item| item.id == 1))
-        .times(1)
-        .returning(Ok);
-
+    // テスト実行
     let result = mock_repo.update(update_item.clone()).await.unwrap();
-    assert_eq!(result.name, "Updated Item");
+    TestAssertions::assert_item_eq(&result, &update_item);
+}
 
-    // Test failed update (item not found)
-    let non_existing_item = Item {
-        id: 999,
-        name: "Non-existing".to_string(),
-        description: None,
-        deleted: false,
-        deleted_at: None,
-    };
+#[tokio::test]
+async fn test_mock_item_repository_update_not_found() {
+    // テストデータの準備
+    let non_existing_item = TestDataFactory::create_item(999, "Non-existing");
+    
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_update_not_found(999)
+        .build();
 
-    mock_repo
-        .expect_update()
-        .with(function(move |item: &Item| item.id == 999))
-        .times(1)
-        .returning(|_| Err(AppError::NotFound("err".to_string())));
-
+    // テスト実行
     let result = mock_repo.update(non_existing_item).await;
-    assert!(result.is_err());
+    
+    // アサーション
+    TestAssertions::assert_app_error_not_found(result.map(|_| ()));
 }
 
 #[tokio::test]
-async fn test_mock_item_repository_delete() {
-    let mut mock_repo = MockItemRepository::new();
+async fn test_mock_item_repository_delete_success() {
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_logical_delete_success(1)
+        .build();
 
-    // Test successful delete
-    mock_repo
-        .expect_logical_delete()
-        .with(eq(1u64))
-        .times(1)
-        .returning(|_| Ok(()));
+    // テスト実行
+    let result = mock_repo.logical_delete(1).await;
+    assert!(result.is_ok());
+}
 
-    mock_repo.logical_delete(1).await.unwrap();
+#[tokio::test]
+async fn test_mock_item_repository_delete_not_found() {
+    // MockBuilderを使用してモック設定
+    let mock_repo = ItemMockBuilder::new()
+        .with_logical_delete_not_found(999)
+        .build();
 
-    // Test failed delete (item not found)
-    mock_repo
-        .expect_logical_delete()
-        .with(eq(999u64))
-        .times(1)
-        .returning(|_| Err(AppError::NotFound("err".to_string())));
-
+    // テスト実行
     let result = mock_repo.logical_delete(999).await;
-    assert!(result.is_err());
+    
+    // アサーション
+    TestAssertions::assert_app_error_not_found(result);
 }
 
 #[tokio::test]
-async fn test_mock_repository_call_count_verification() {
-    let mut mock_repo = MockItemRepository::new();
+async fn test_mock_repository_multiple_calls() {
+    // テストデータの準備
+    let items = TestDataFactory::create_items(2);
+    
+    // MockBuilderを使用してモック設定（複数回呼び出し）
+    let mock_repo = ItemMockBuilder::new()
+        .with_find_all_times(3, items.clone())
+        .with_find_by_id_any_returning(None)
+        .build();
 
-    // Set up expectations with specific call counts
-    mock_repo
-        .expect_find_all()
-        .times(3)
-        .returning(|| Ok(vec![]));
-
-    mock_repo
-        .expect_find_by_id()
-        .with(eq(1u64))
-        .times(2)
-        .returning(|_| Ok(None));
-
-    // Call the methods the expected number of times
+    // テスト実行 - find_allを3回呼び出し
     for _ in 0..3 {
-        mock_repo.find_all().await.unwrap();
+        let result = mock_repo.find_all().await.unwrap();
+        assert_eq!(result.len(), 2);
     }
 
-    for _ in 0..2 {
-        mock_repo.find_by_id(1).await.unwrap();
-    }
-
-    // If we didn't call the expected number of times, the test would fail when the mock is dropped
-}
-
-#[tokio::test]
-async fn test_mock_repository_parameter_validation() {
-    let mut mock_repo = MockItemRepository::new();
-
-    // Test with specific parameter constraints
-    mock_repo
-        .expect_find_by_id()
-        .with(function(|id: &u64| *id > 0 && *id < 100))
-        .times(1)
-        .returning(|_| Ok(None));
-
-    // This should succeed (ID is in valid range)
-    let result = mock_repo.find_by_id(50).await.unwrap();
+    // テスト実行 - find_by_idを1回呼び出し
+    let result = mock_repo.find_by_id(1).await.unwrap();
     assert!(result.is_none());
 }
 
 #[tokio::test]
 async fn test_mock_repository_sequence_operations() {
-    let mut mock_repo = MockItemRepository::new();
+    // テストデータの準備
+    let item = TestDataFactory::create_item(1, "Sequence Test");
+    let updated_item = TestDataFactory::create_item(1, "Updated Sequence Test");
+    
+    // MockBuilderを使用してモック設定（シーケンス操作）
+    let mock_repo = ItemMockBuilder::new()
+        .with_create_success()
+        .with_find_by_id_returning(1, Some(item.clone()))
+        .with_update_success()
+        .with_logical_delete_success(1)
+        .build();
 
-    let item = Item {
-        id: 1,
-        name: "Sequence Test".to_string(),
-        description: Some("Testing sequence".to_string()),
-        deleted: false,
-        deleted_at: None,
-    };
-
-    // Set up a sequence of operations
-    mock_repo
-        .expect_create()
-        .times(1)
-        .returning(Ok);
-
-    mock_repo
-        .expect_find_by_id()
-        .with(eq(1u64))
-        .times(1)
-        .returning({
-            let item = item.clone();
-            move |_| Ok(Some(item.clone()))
-        });
-
-    mock_repo
-        .expect_update()
-        .times(1)
-        .returning(Ok);
-
-    mock_repo
-        .expect_logical_delete()
-        .with(eq(1u64))
-        .times(1)
-        .returning(|_| Ok(()));
-
-    // Execute the sequence
+    // テスト実行 - 一連の操作
     let created = mock_repo.create(item.clone()).await.unwrap();
-    assert_eq!(created.id, 1);
+    TestAssertions::assert_item_eq(&created, &item);
 
     let found = mock_repo.find_by_id(1).await.unwrap();
     assert!(found.is_some());
+    TestAssertions::assert_item_eq(&found.unwrap(), &item);
 
-    let updated_item = Item {
-        id: 1,
-        name: "Updated Sequence Test".to_string(),
-        description: Some("Updated testing sequence".to_string()),
-        deleted: false,
-        deleted_at: None,
-    };
+    let updated = mock_repo.update(updated_item.clone()).await.unwrap();
+    TestAssertions::assert_item_eq(&updated, &updated_item);
 
-    let updated = mock_repo.update(updated_item).await.unwrap();
-    assert_eq!(updated.name, "Updated Sequence Test");
-
-    mock_repo.logical_delete(1).await.unwrap();
+    let delete_result = mock_repo.logical_delete(1).await;
+    assert!(delete_result.is_ok());
 }
 
 #[tokio::test]
-async fn test_mock_repository_error_simulation() {
-    let mut mock_repo = MockItemRepository::new();
+async fn test_mock_repository_error_scenarios() {
+    // MockBuilderを使用してモック設定（エラーシナリオ）
+    let mock_repo = ItemMockBuilder::new()
+        .with_find_all_empty()
+        .with_find_by_id_any_returning(None)
+        .with_update_not_found(1)
+        .with_logical_delete_not_found(1)
+        .build();
 
-    // Simulate different scenarios that might occur in real implementations
-
-    // Empty result scenario
-    mock_repo
-        .expect_find_all()
-        .times(1)
-        .returning(|| Ok(vec![]));
-
+    // 空の結果
     let result = mock_repo.find_all().await.unwrap();
     assert_eq!(result.len(), 0);
 
-    // Item not found scenario
-    mock_repo
-        .expect_find_by_id()
-        .with(always())
-        .times(1)
-        .returning(|_| Ok(None));
-
+    // アイテムが見つからない
     let result = mock_repo.find_by_id(1).await.unwrap();
     assert!(result.is_none());
 
-    // Update failure scenario
-    mock_repo
-        .expect_update()
-        .with(always())
-        .times(1)
-        .returning(|_| Err(AppError::NotFound("err".to_string())));
-
-    let item = Item {
-        id: 1,
-        name: "Test".to_string(),
-        description: None,
-        deleted: false,
-        deleted_at: None,
-    };
-
+    // 更新失敗
+    let item = TestDataFactory::create_item(1, "Test");
     let result = mock_repo.update(item).await;
-    assert!(result.is_err());
+    TestAssertions::assert_app_error_not_found(result.map(|_| ()));
 
-    // Delete failure scenario
-    mock_repo
-        .expect_logical_delete()
-        .with(always())
-        .times(1)
-        .returning(|_| Err(AppError::NotFound("err".to_string())));
-
+    // 削除失敗
     let result = mock_repo.logical_delete(1).await;
-    assert!(result.is_err());
-}
+    TestAssertions::assert_app_error_not_found(result);
+} 

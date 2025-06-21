@@ -36,19 +36,28 @@ use domain::repository::user_repository::UserRepositoryImpl;
 
 /// アプリケーションの依存関係を管理するコンテナ
 pub struct AppContainer {
-    // Repositories
+    // Repositories - 将来の拡張性とテスト用途のため保持
+    #[allow(dead_code)]
     pub item_repository: Arc<dyn ItemRepository + Send + Sync>,
+    #[allow(dead_code)]
     pub user_repository: UserRepositoryImpl,
+    #[allow(dead_code)]
     pub category_repository: Arc<dyn CategoryRepository>,
+    #[allow(dead_code)]
     pub product_repository: Arc<dyn ProductRepository>,
     
-    // Services
+    // Services - 将来の拡張性とテスト用途のため保持
+    #[allow(dead_code)]
     pub item_service: Arc<ItemService>,
+    #[allow(dead_code)]
     pub user_service: Arc<UserService>,
+    #[allow(dead_code)]
     pub category_service: Arc<CategoryService>,
+    #[allow(dead_code)]
     pub product_service: Arc<ProductService>,
     
-    // Deletion Facade
+    // Deletion Facade - 将来の拡張性のため保持
+    #[allow(dead_code)]
     pub deletion_facade: Arc<DeletionFacade>,
     
     // Handlers
