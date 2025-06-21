@@ -1,0 +1,812 @@
+openapi: 3.1.0
+info:
+  title: Rust WebAPI
+  description: |
+    Rustで実装されたクラウドネイティブなREST APIサーバー。
+    ドメイン駆動設計（DDD）の原則に基づき、高速で型安全、かつスケーラブルなWebサービスを提供します。
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api-support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api
+    description: Development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: products
+    description: 商品管理API
+  - name: categories
+    description: カテゴリ管理API
+  - name: users
+    description: ユーザー管理API
+  - name: items
+    description: アイテム管理API
+  - name: system
+    description: システムAPI
+
+paths:
+  /health:
+    get:
+      tags:
+        - system
+      summary: ヘルスチェック
+      description: APIサーバーの稼働状況を確認
+      operationId: getHealth
+      responses:
+        '200':
+          description: サーバーは正常に稼働しています
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /metrics:
+    get:
+      tags:
+        - system
+      summary: Prometheusメトリクス取得
+      description: Prometheus形式のメトリクスを取得
+      operationId: getMetrics
+      responses:
+        '200':
+          description: メトリクスデータ
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /products:
+    get:
+      tags:
+        - products
+      summary: 商品一覧取得
+      description: 商品の一覧を取得します。ページネーション、フィルタリング、ソートに対応
+      operationId: getProducts
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - $ref: '#/components/parameters/OrderParam'
+        - name: status
+          in: query
+          description: ステータスフィルタ
+          schema:
+            type: string
+            enum: [active, inactive, all]
+            default: all
+        - name: category_id
+          in: query
+          description: カテゴリIDフィルタ
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 商品一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - products
+      summary: 商品作成
+      description: 新しい商品を作成します
+      operationId: createProduct
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: 商品作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /products/{id}:
+    get:
+      tags:
+        - products
+      summary: 商品詳細取得
+      description: 指定されたIDの商品詳細を取得します
+      operationId: getProductById
+      parameters:
+        - $ref: '#/components/parameters/ProductIdParam'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 商品詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - products
+      summary: 商品更新
+      description: 商品情報を更新します
+      operationId: updateProduct
+      parameters:
+        - $ref: '#/components/parameters/ProductIdParam'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      tags:
+        - products
+      summary: 商品削除
+      description: 商品を削除します（統一された削除インターフェース）
+      operationId: deleteProduct
+      parameters:
+        - $ref: '#/components/parameters/ProductIdParam'
+        - name: kind
+          in: query
+          description: 削除種別
+          schema:
+            type: string
+            enum: [logical, physical, restore]
+            default: logical
+        - name: reason
+          in: query
+          description: 削除理由
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 削除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /categories:
+    get:
+      tags:
+        - categories
+      summary: カテゴリ一覧取得
+      description: カテゴリの一覧を取得します
+      operationId: getCategories
+      parameters:
+        - name: include_inactive
+          in: query
+          description: 非アクティブなカテゴリを含めるか
+          schema:
+            type: boolean
+            default: false
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: カテゴリ一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - categories
+      summary: カテゴリ作成
+      description: 新しいカテゴリを作成します
+      operationId: createCategory
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '201':
+          description: カテゴリ作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /categories/{id}:
+    get:
+      tags:
+        - categories
+      summary: カテゴリ詳細取得
+      description: 指定されたIDのカテゴリ詳細を取得します
+      operationId: getCategoryById
+      parameters:
+        - $ref: '#/components/parameters/CategoryIdParam'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: カテゴリ詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /users:
+    get:
+      tags:
+        - users
+      summary: ユーザー一覧取得
+      description: ユーザーの一覧を取得します
+      operationId: getUsers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: ユーザー一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - users
+      summary: ユーザー作成
+      description: 新しいユーザーを作成します
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: ユーザー作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: ページ番号
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PerPageParam:
+      name: per_page
+      in: query
+      description: 1ページあたりの件数
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    SortParam:
+      name: sort
+      in: query
+      description: ソート項目
+      schema:
+        type: string
+        default: created_at
+
+    OrderParam:
+      name: order
+      in: query
+      description: ソート順
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+    ProductIdParam:
+      name: id
+      in: path
+      description: 商品ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    CategoryIdParam:
+      name: id
+      in: path
+      description: カテゴリID
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    AppError:
+      type: object
+      required:
+        - type
+        - message
+        - timestamp
+      properties:
+        type:
+          type: string
+          description: エラータイプ
+          enum:
+            - BadRequest
+            - ValidationError
+            - Unauthorized
+            - Forbidden
+            - NotFound
+            - Conflict
+            - InternalError
+            - ServiceUnavailable
+            - TimeoutError
+            - NetworkError
+        message:
+          type: string
+          description: エラーメッセージ
+        timestamp:
+          type: string
+          format: date-time
+          description: エラー発生時刻
+        details:
+          type: object
+          description: 追加のエラー詳細情報
+
+    ProductResponse:
+      type: object
+      required:
+        - id
+        - sku
+        - name
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          description: 商品SKU
+        name:
+          type: string
+          description: 商品名
+        description:
+          type: string
+          nullable: true
+          description: 商品説明
+        status:
+          type: string
+          enum: [active, inactive]
+          description: 商品ステータス
+        price:
+          $ref: '#/components/schemas/PriceInfo'
+        inventory:
+          $ref: '#/components/schemas/InventoryInfo'
+        category_ids:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateProductRequest:
+      type: object
+      required:
+        - sku
+        - name
+        - price
+        - initial_stock
+      properties:
+        sku:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9-]+$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        category_ids:
+          type: array
+          items:
+            type: string
+        price:
+          $ref: '#/components/schemas/PriceRequest'
+        initial_stock:
+          type: integer
+          minimum: 0
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        status:
+          type: string
+          enum: [active, inactive]
+        price:
+          $ref: '#/components/schemas/PriceRequest'
+
+    PriceInfo:
+      type: object
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          format: decimal
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+
+    PriceRequest:
+      type: object
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          format: decimal
+          pattern: '^\d+(\.\d{1,2})?$'
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+
+    InventoryInfo:
+      type: object
+      required:
+        - available
+        - reserved
+      properties:
+        available:
+          type: integer
+          minimum: 0
+        reserved:
+          type: integer
+          minimum: 0
+
+    ProductListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - items
+            - pagination
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductResponse'
+            pagination:
+              $ref: '#/components/schemas/PaginationInfo'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    CategoryResponse:
+      type: object
+      required:
+        - id
+        - name
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        parent_id:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateCategoryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        parent_id:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+          default: 0
+
+    CategoriesResponse:
+      type: object
+      required:
+        - categories
+        - total
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
+        total:
+          type: integer
+
+    UserResponse:
+      type: object
+      required:
+        - id
+        - username
+        - email
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+
+    DeleteResponse:
+      type: object
+      required:
+        - message
+        - deletion_type
+        - deleted_at
+      properties:
+        message:
+          type: string
+        deletion_type:
+          type: string
+          enum: [logical, physical, restore]
+        deleted_at:
+          type: string
+          format: date-time
+
+    PaginationInfo:
+      type: object
+      required:
+        - current_page
+        - per_page
+        - total_pages
+        - total_items
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+        total_items:
+          type: integer
+
+    ResponseMeta:
+      type: object
+      required:
+        - request_id
+        - timestamp
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequestError:
+      description: リクエストが不正です
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: BadRequest
+            message: Invalid request parameters
+            timestamp: "2024-01-15T09:30:00Z"
+
+    UnauthorizedError:
+      description: 認証が必要です
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: Unauthorized
+            message: Authentication required
+            timestamp: "2024-01-15T09:30:00Z"
+
+    ForbiddenError:
+      description: アクセス権限がありません
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: Forbidden
+            message: Access denied
+            timestamp: "2024-01-15T09:30:00Z"
+
+    NotFoundError:
+      description: リソースが見つかりません
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: NotFound
+            message: Resource not found
+            timestamp: "2024-01-15T09:30:00Z"
+
+    ConflictError:
+      description: リソースが競合しています
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: Conflict
+            message: Resource already exists
+            timestamp: "2024-01-15T09:30:00Z"
+
+    ValidationError:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: ValidationError
+            message: Validation failed
+            timestamp: "2024-01-15T09:30:00Z"
+            details:
+              field: sku
+              reason: SKU must be unique
+
+    InternalServerError:
+      description: サーバー内部エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppError'
+          example:
+            type: InternalError
+            message: An unexpected error occurred
+            timestamp: "2024-01-15T09:30:00Z" 

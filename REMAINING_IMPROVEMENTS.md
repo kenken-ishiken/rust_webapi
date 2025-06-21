@@ -390,8 +390,55 @@ src/infrastructure/repository/
 - ✅ **Contract Test完了**: DeletionStrategy動作保証、8つのContract Test実装
 - ✅ **Phase 3-2完了**: エラーハンドリング統一、AppError 100%使用、unwrap/expect除去
 - ✅ **Phase 3-3完了**: メトリクス統一、統一マクロ・高レベルAPI実装、古いAPI完全除去、全101件テスト成功
+- ✅ **Phase 4-1完了**: ドキュメント整備、OpenAPI 3.1仕様生成、Swagger UI設定、アーキテクチャ図3種類作成
+
+## Phase 4-1: ドキュメント整備（優先度: 低）✅ **完了**
+
+### 4.1.1 実装内容
+- ✅ **アーキテクチャガイドの更新** (`docs/architecture-guide.md`)
+  - 最新のアーキテクチャ図（Mermaid形式）を追加
+  - DI、削除統一、エラー/メトリクス統一の説明を追加
+- ✅ **API仕様書の更新** (`docs/api-documentation.md`)
+  - エラーレスポンス形式を統一されたAppErrorに更新
+  - 削除操作の統一インターフェースを反映
+- ✅ **開発ガイドの更新** (`docs/development-guide.md`)
+  - アーキテクチャと設計セクションを追加
+  - エラーハンドリング、メトリクス記録の使用方法を追加
+- ✅ **プロジェクト概要の更新** (`docs/project-overview.md`)
+  - 最新の改善内容を反映
+- ✅ **ドキュメントREADMEの更新** (`docs/README.md`)
+  - 更新済みドキュメントにマークを付与
+
+### 4.1.2 OpenAPI仕様とSwagger UI ✅
+- ✅ **OpenAPI 3.1仕様の生成** (`docs/openapi/openapi.yaml`)
+  - 完全なAPI仕様をOpenAPI形式で定義
+  - 統一されたエラーレスポンス形式を反映
+  - 削除操作の統一インターフェース（kind=logical/physical/restore）を反映
+- ✅ **Swagger UIの設定** (`docs/openapi/swagger-ui.html`)
+  - 対話的なAPIドキュメントビューアを追加
+  - Try it out機能でAPIテスト可能
+- ✅ **OpenAPIドキュメントREADME** (`docs/openapi/README.md`)
+  - 使用方法、検証方法、コード生成方法を記載
+
+### 4.1.3 アーキテクチャ図の追加 ✅
+- ✅ **シーケンス図** (`docs/diagrams/sequence-diagrams.md`)
+  - 商品作成フロー、削除フロー（統一インターフェース）
+  - 認証フロー、エラーハンドリングフロー
+  - メトリクス記録フロー、依存性注入フロー
+- ✅ **ER図** (`docs/diagrams/er-diagram.md`)
+  - データベーススキーマの完全な定義
+  - リレーションシップ、インデックス、制約の説明
+- ✅ **デプロイメント図** (`docs/diagrams/deployment-diagram.md`)
+  - Kubernetes構成図
+  - デプロイメントフロー
+  - 環境別設定、セキュリティ設定
+
+**完了基準**: ✅
+- ✅ OpenAPI 3.1仕様完備（全エンドポイント定義）
+- ✅ Swagger UI動作確認（対話的ドキュメント）
+- ✅ アーキテクチャ図3種類作成（Mermaid形式）
+- ✅ 既存ドキュメント5件更新（最新実装反映）
 
 ### 次の推奨タスク
-1. **Phase 4-1: ドキュメント整備**（OpenAPI 3.0、アーキテクチャ図作成、6時間見積もり）
-2. **Phase 4-2: パフォーマンス最適化**（k6テストSLA検証、6時間見積もり）
-3. **Phase 2-2: Repository分割完了**（InMemoryリポジトリ実装、6時間見積もり） 
+1. **Phase 4-2: パフォーマンス最適化**（k6テストSLA検証、6時間見積もり）
+2. **Phase 2-2: Repository分割完了**（InMemoryリポジトリ実装、6時間見積もり） 
