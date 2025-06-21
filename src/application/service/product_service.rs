@@ -13,7 +13,7 @@ use crate::application::dto::product_dto::{
     ProductImageResponse, ProductListResponse, ProductResponse, ProductSearchQuery,
     UpdateProductRequest,
 };
-use crate::infrastructure::metrics::{Metrics, increment_success_counter, increment_error_counter};
+use crate::infrastructure::metrics::Metrics;
 
 pub struct ProductService {
     repository: Arc<dyn ProductRepository>,
@@ -25,68 +25,68 @@ impl ProductService {
     }
 
     pub async fn find_by_id(&self, id: &str) -> Result<ProductResponse, ProductError> {
-        match self.repository.find_by_id(id).await {
-            Some(product) => {
-                let mut response = ProductResponse::from(product);
+        Metrics::with_metrics("product", "find_by_id", async {
+            match self.repository.find_by_id(id).await {
+                Some(product) => {
+                    let mut response = ProductResponse::from(product);
 
-                // Populate related data
-                if let Some(price) = self.repository.get_current_price(id).await {
-                    response.price = Some(price.into());
+                    // Populate related data
+                    if let Some(price) = self.repository.get_current_price(id).await {
+                        response.price = Some(price.into());
+                    }
+
+                    if let Some(inventory) = self.repository.get_inventory(id).await {
+                        response.inventory = Some(inventory.into());
+                    }
+
+                    let images = self.repository.get_images(id).await;
+                    response.images = images.into_iter().map(Into::into).collect();
+
+                    response.tags = self.repository.get_tags(id).await;
+                    response.attributes = self.repository.get_attributes(id).await;
+
+                    info!("Fetched product {}", id);
+                    Ok(response)
                 }
-
-                if let Some(inventory) = self.repository.get_inventory(id).await {
-                    response.inventory = Some(inventory.into());
+                None => {
+                    error!("Product {} not found", id);
+                    Err(ProductError::ProductNotFound)
                 }
-
-                let images = self.repository.get_images(id).await;
-                response.images = images.into_iter().map(Into::into).collect();
-
-                response.tags = self.repository.get_tags(id).await;
-                response.attributes = self.repository.get_attributes(id).await;
-
-                increment_success_counter("product", "find_by_id");
-                info!("Fetched product {}", id);
-                Ok(response)
             }
-            None => {
-                increment_error_counter("product", "find_by_id");
-                error!("Product {} not found", id);
-                Err(ProductError::ProductNotFound)
-            }
-        }
+        }).await
     }
 
     pub async fn find_by_sku(&self, sku: &str) -> Result<ProductResponse, ProductError> {
-        match self.repository.find_by_sku(sku).await {
-            Some(product) => {
-                let id = product.id.clone();
-                let mut response = ProductResponse::from(product);
+        Metrics::with_metrics("product", "find_by_sku", async {
+            match self.repository.find_by_sku(sku).await {
+                Some(product) => {
+                    let id = product.id.clone();
+                    let mut response = ProductResponse::from(product);
 
-                // Populate related data
-                if let Some(price) = self.repository.get_current_price(&id).await {
-                    response.price = Some(price.into());
+                    // Populate related data
+                    if let Some(price) = self.repository.get_current_price(&id).await {
+                        response.price = Some(price.into());
+                    }
+
+                    if let Some(inventory) = self.repository.get_inventory(&id).await {
+                        response.inventory = Some(inventory.into());
+                    }
+
+                    let images = self.repository.get_images(&id).await;
+                    response.images = images.into_iter().map(Into::into).collect();
+
+                    response.tags = self.repository.get_tags(&id).await;
+                    response.attributes = self.repository.get_attributes(&id).await;
+
+                    info!("Fetched product by SKU {}", sku);
+                    Ok(response)
                 }
-
-                if let Some(inventory) = self.repository.get_inventory(&id).await {
-                    response.inventory = Some(inventory.into());
+                None => {
+                    error!("Product with SKU {} not found", sku);
+                    Err(ProductError::ProductNotFound)
                 }
-
-                let images = self.repository.get_images(&id).await;
-                response.images = images.into_iter().map(Into::into).collect();
-
-                response.tags = self.repository.get_tags(&id).await;
-                response.attributes = self.repository.get_attributes(&id).await;
-
-                increment_success_counter("product", "find_by_sku");
-                info!("Fetched product by SKU {}", sku);
-                Ok(response)
             }
-            None => {
-                increment_error_counter("product", "find_by_sku");
-                error!("Product with SKU {} not found", sku);
-                Err(ProductError::ProductNotFound)
-            }
-        }
+        }).await
     }
 
     pub async fn search(&self, query: ProductSearchQuery) -> ProductListResponse {
@@ -130,7 +130,7 @@ impl ProductService {
         let total = product_responses.len() as i64;
         let has_more = query.limit.is_some_and(|limit| total >= limit);
 
-        increment_success_counter("product", "search");
+        Metrics::record_success("product", "search");
         info!("Found {} products", products.len());
 
         ProductListResponse {
@@ -146,7 +146,7 @@ impl ProductService {
     ) -> Result<ProductResponse, ProductError> {
         // Check if SKU already exists
         if self.repository.exists_by_sku(&request.sku, None).await {
-            increment_error_counter("product", "create");
+            Metrics::record_error("product", "create");
             return Err(ProductError::SkuAlreadyExists);
         }
 
@@ -218,7 +218,7 @@ impl ProductService {
             }
         }
 
-        increment_success_counter("product", "create");
+        Metrics::record_success("product", "create");
         info!("Created product {}", product_id);
 
         // Return full response
@@ -239,7 +239,7 @@ impl ProductService {
         // Check SKU uniqueness if being updated
         if let Some(ref new_sku) = request.sku {
             if new_sku != &product.sku && self.repository.exists_by_sku(new_sku, Some(id)).await {
-                increment_error_counter("product", "update");
+                Metrics::record_error("product", "update");
                 return Err(ProductError::SkuAlreadyExists);
             }
         }
@@ -314,7 +314,7 @@ impl ProductService {
             self.repository.set_attributes(id, attributes).await?;
         }
 
-        increment_success_counter("product", "update");
+        Metrics::record_success("product", "update");
         info!("Updated product {}", id);
 
         self.find_by_id(id).await
@@ -403,7 +403,7 @@ impl ProductService {
             }
         }
 
-        increment_success_counter("product", "patch");
+        Metrics::record_success("product", "patch");
         info!("Patched product {}", id);
 
         self.find_by_id(id).await
@@ -418,7 +418,7 @@ impl ProductService {
     ) -> Result<PriceResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
-            increment_error_counter("product", "update_price");
+            Metrics::record_error("product", "update_price");
             return Err(ProductError::ProductNotFound);
         }
 
@@ -427,7 +427,7 @@ impl ProductService {
 
         let updated_price = self.repository.update_price(id, price).await?;
 
-        increment_success_counter("product", "update_price");
+        Metrics::record_success("product", "update_price");
         info!("Updated price for product {}", id);
 
         Ok(updated_price.into())
@@ -440,7 +440,7 @@ impl ProductService {
     ) -> Result<InventoryResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
-            increment_error_counter("product", "update_inventory");
+            Metrics::record_error("product", "update_inventory");
             return Err(ProductError::ProductNotFound);
         }
 
@@ -449,7 +449,7 @@ impl ProductService {
 
         let updated_inventory = self.repository.update_inventory(id, inventory).await?;
 
-        increment_success_counter("product", "update_inventory");
+        Metrics::record_success("product", "update_inventory");
         info!("Updated inventory for product {}", id);
 
         Ok(updated_inventory.into())
@@ -462,14 +462,14 @@ impl ProductService {
     ) -> Result<ProductImageResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
-            increment_error_counter("product", "add_image");
+            Metrics::record_error("product", "add_image");
             return Err(ProductError::ProductNotFound);
         }
 
         let image = ProductImage::from(request);
         let added_image = self.repository.add_image(id, image).await?;
 
-        increment_success_counter("product", "add_image");
+        Metrics::record_success("product", "add_image");
         info!("Added image {} to product {}", added_image.id, id);
 
         Ok(added_image.into())
@@ -483,7 +483,7 @@ impl ProductService {
     ) -> Result<ProductImageResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
-            increment_error_counter("product", "update_image");
+            Metrics::record_error("product", "update_image");
             return Err(ProductError::ProductNotFound);
         }
 
@@ -492,7 +492,7 @@ impl ProductService {
 
         let updated_image = self.repository.update_image(id, image).await?;
 
-        increment_success_counter("product", "update_image");
+        Metrics::record_success("product", "update_image");
         info!("Updated image {} for product {}", image_id, id);
 
         Ok(updated_image.into())
@@ -501,7 +501,7 @@ impl ProductService {
     pub async fn delete_image(&self, id: &str, image_id: &str) -> Result<(), ProductError> {
         self.repository.delete_image(id, image_id).await?;
 
-        increment_success_counter("product", "delete_image");
+        Metrics::record_success("product", "delete_image");
         info!("Deleted image {} from product {}", image_id, id);
 
         Ok(())
@@ -514,7 +514,7 @@ impl ProductService {
     ) -> Result<(), ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
-            increment_error_counter("product", "reorder_images");
+            Metrics::record_error("product", "reorder_images");
             return Err(ProductError::ProductNotFound);
         }
 
@@ -526,7 +526,7 @@ impl ProductService {
 
         self.repository.reorder_images(id, image_orders).await?;
 
-        increment_success_counter("product", "reorder_images");
+        Metrics::record_success("product", "reorder_images");
         info!("Reordered images for product {}", id);
 
         Ok(())
@@ -535,7 +535,7 @@ impl ProductService {
     pub async fn set_main_image(&self, id: &str, image_id: &str) -> Result<(), ProductError> {
         self.repository.set_main_image(id, image_id).await?;
 
-        increment_success_counter("product", "set_main_image");
+        Metrics::record_success("product", "set_main_image");
         info!("Set main image {} for product {}", image_id, id);
 
         Ok(())
@@ -548,7 +548,7 @@ impl ProductService {
     ) -> Result<ProductHistoryResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
-            increment_error_counter("product", "get_history");
+            Metrics::record_error("product", "get_history");
             return Err(ProductError::ProductNotFound);
         }
 
@@ -562,7 +562,7 @@ impl ProductService {
 
         let history_response = history_items.into_iter().map(Into::into).collect();
 
-        increment_success_counter("product", "get_history");
+        Metrics::record_success("product", "get_history");
         info!("Fetched {} history items for product {}", total, id);
 
         Ok(ProductHistoryResponse {
@@ -604,7 +604,7 @@ impl ProductService {
             results.push(result);
         }
 
-        increment_success_counter("product", "batch_update");
+        Metrics::record_success("product", "batch_update");
         info!(
             "Batch update completed: {} success, {} errors",
             success_count, error_count
@@ -712,7 +712,7 @@ impl ProductService {
             results.push((product_response, inventory_response));
         }
 
-        increment_success_counter("product", "find_low_stock");
+        Metrics::record_success("product", "find_low_stock");
         info!("Found {} low stock products", results.len());
 
         results
@@ -726,7 +726,7 @@ impl ProductService {
             .map(ProductResponse::from)
             .collect::<Vec<_>>();
 
-        increment_success_counter("product", "find_out_of_stock");
+        Metrics::record_success("product", "find_out_of_stock");
         info!("Found {} out of stock products", results.len());
 
         results

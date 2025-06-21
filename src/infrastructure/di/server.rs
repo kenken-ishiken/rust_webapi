@@ -3,10 +3,7 @@ use tracing_actix_web::TracingLogger;
 use actix_web::dev::Service;
 use std::time::Instant;
 
-use crate::infrastructure::metrics::{
-    increment_error_counter, increment_success_counter, metrics_handler,
-    observe_request_duration,
-};
+use crate::infrastructure::metrics::{Metrics, metrics_handler};
 use crate::presentation::api::{
     item_handler::ItemHandler,
     user_handler::UserHandler,
@@ -46,13 +43,13 @@ pub fn build_http_server(
                         let res = fut.await?;
                         if path != "/api/metrics" {
                             let elapsed = start.elapsed().as_secs_f64();
-                            // Observe request duration
-                            observe_request_duration("rust_webapi", &path, elapsed);
+                            // Record request duration
+                            Metrics::record_duration("rust_webapi", &path, elapsed);
                             // Count success vs error based on status code
                             if res.status().is_server_error() {
-                                increment_error_counter("rust_webapi", &path);
+                                Metrics::record_error("rust_webapi", &path);
                             } else {
-                                increment_success_counter("rust_webapi", &path);
+                                Metrics::record_success("rust_webapi", &path);
                             }
                         }
                         Ok(res)

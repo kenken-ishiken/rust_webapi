@@ -20,15 +20,13 @@ impl UserService {
     }
 
     pub async fn find_by_id(&self, id: u64) -> Option<User> {
-        Metrics::with_timer("user", "find_by_id", async {
+        Metrics::with_metrics("user", "find_by_id", async {
             let user = self.repository.find_by_id(id).await;
-            if user.is_some() {
-                Metrics::record_success("user", "find_by_id");
-            } else {
-                Metrics::record_error("user", "find_by_id");
+            match user {
+                Some(user) => Ok(user),
+                None => Err("User not found"),
             }
-            user
-        }).await
+        }).await.ok()
     }
 
     pub async fn create(&self, req: CreateUserRequest) -> User {
@@ -46,7 +44,7 @@ impl UserService {
     }
 
     pub async fn update(&self, id: u64, req: UpdateUserRequest) -> Option<User> {
-        Metrics::with_timer("user", "update", async {
+        Metrics::with_metrics("user", "update", async {
             if let Some(mut user) = self.repository.find_by_id(id).await {
                 if let Some(username) = req.username {
                     user.username = username;
@@ -55,27 +53,22 @@ impl UserService {
                     user.email = email;
                 }
                 let updated_user = self.repository.update(user).await;
-                if updated_user.is_some() {
-                    Metrics::record_success("user", "update");
-                }
-                updated_user
+                Ok(updated_user)
             } else {
-                Metrics::record_error("user", "update");
-                None
+                Err("User not found")
             }
-        }).await
+        }).await.ok().flatten()
     }
 
     pub async fn delete(&self, id: u64) -> bool {
-        Metrics::with_timer("user", "delete", async {
+        Metrics::with_metrics("user", "delete", async {
             let result = self.repository.delete(id).await;
             if result {
-                Metrics::record_success("user", "delete");
+                Ok(result)
             } else {
-                Metrics::record_error("user", "delete");
+                Err("Failed to delete user")
             }
-            result
-        }).await
+        }).await.unwrap_or(false)
     }
 }
 

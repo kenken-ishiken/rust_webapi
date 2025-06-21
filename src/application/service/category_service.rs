@@ -12,7 +12,7 @@ use crate::application::dto::category_dto::{
     CategoryResponse, CategoryTreesResponse, CreateCategoryRequest, MoveCategoryRequest,
     UpdateCategoryRequest,
 };
-use crate::infrastructure::metrics::{Metrics, increment_success_counter, increment_error_counter};
+use crate::infrastructure::metrics::Metrics;
 
 /// カテゴリ関連のユースケースを提供するサービス層。
 ///
@@ -39,7 +39,7 @@ impl CategoryService {
 
         let category_list = self.build_category_list_response(&categories).await;
 
-        increment_success_counter("category", "find_all");
+        Metrics::record_success("category", "find_all");
         info!("Fetched {} categories", categories.len());
 
         let total = category_list.len();
@@ -85,12 +85,12 @@ impl CategoryService {
     pub async fn find_by_id(&self, id: &str) -> Result<CategoryResponse, CategoryError> {
         match self.repository.find_by_id(id).await {
             Some(category) => {
-                increment_success_counter("category", "find_by_id");
+                Metrics::record_success("category", "find_by_id");
                 info!("Fetched category {}", id);
                 Ok(category.into())
             }
             None => {
-                increment_error_counter("category", "find_by_id");
+                Metrics::record_error("category", "find_by_id");
                 error!("Category {} not found", id);
                 Err(CategoryError::NotFound(
                     "カテゴリが見つかりません".to_string(),
@@ -114,7 +114,7 @@ impl CategoryService {
 
         let category_list = self.build_category_list_response(&categories).await;
 
-        increment_success_counter("category", "find_by_parent");
+        Metrics::record_success("category", "find_by_parent");
         info!(
             "Fetched {} categories for parent {:?}",
             categories.len(),
@@ -151,7 +151,7 @@ impl CategoryService {
             }
         }
 
-        increment_success_counter("category", "find_path");
+        Metrics::record_success("category", "find_path");
         info!("Fetched path for category {}, depth: {}", id, path.depth);
 
         Ok(CategoryPathResponse {
@@ -164,7 +164,7 @@ impl CategoryService {
     pub async fn find_tree(&self, include_inactive: bool) -> CategoryTreesResponse {
         let trees = self.repository.find_tree(include_inactive).await;
 
-        increment_success_counter("category", "find_tree");
+        Metrics::record_success("category", "find_tree");
         info!("Fetched category tree with {} root categories", trees.len());
 
         CategoryTreesResponse {
@@ -187,12 +187,12 @@ impl CategoryService {
 
         match self.repository.create(category).await {
             Ok(created_category) => {
-                increment_success_counter("category", "create");
+                Metrics::record_success("category", "create");
                 info!("Created category with id {}", created_category.id);
                 Ok(created_category.into())
             }
             Err(e) => {
-                increment_error_counter("category", "create");
+                Metrics::record_error("category", "create");
                 error!("Failed to create category: {}", e);
                 Err(e)
             }
@@ -234,12 +234,12 @@ impl CategoryService {
 
         match self.repository.update(category).await {
             Ok(updated_category) => {
-                increment_success_counter("category", "update");
+                Metrics::record_success("category", "update");
                 info!("Updated category {}", id);
                 Ok(updated_category.into())
             }
             Err(e) => {
-                increment_error_counter("category", "update");
+                Metrics::record_error("category", "update");
                 error!("Failed to update category {}: {}", id, e);
                 Err(e)
             }
@@ -262,7 +262,7 @@ impl CategoryService {
             .await
         {
             Ok(moved_category) => {
-                increment_success_counter("category", "move");
+                Metrics::record_success("category", "move");
                 info!(
                     "Moved category {} to parent {:?} with sort order {}",
                     id, parent_id, sort_order
@@ -270,7 +270,7 @@ impl CategoryService {
                 Ok(moved_category.into())
             }
             Err(e) => {
-                increment_error_counter("category", "move");
+                Metrics::record_error("category", "move");
                 error!("Failed to move category {}: {}", id, e);
                 Err(e)
             }

@@ -270,11 +270,17 @@ src/infrastructure/repository/
   - `Metrics::with_metrics()` - Result型の自動成功/失敗記録
   - `Metrics::with_timer()` - 自動時間測定
   - `Metrics::record_success/error/duration()` - 個別記録
-- ✅ **ItemService統一**: 全メソッドで新APIを使用（8メソッド）
-- ✅ **UserService統一**: 全メソッドで新APIを使用（5メソッド）
-- ✅ **CategoryService/ProductService**: 既存API併用（段階的移行）
+- ✅ **全サービス統一**: ItemService、UserService、ProductService、CategoryService
+- ✅ **サーバーミドルウェア統一**: HTTPリクエストメトリクス記録の統一
 
-### 3.3.3 テスト実装 ✅
+### 3.3.3 古いメトリクスAPI除去 ✅
+**除去対象**:
+- ✅ `increment_success_counter/increment_error_counter/observe_request_duration`の直接使用を除去
+- ✅ 全アプリケーションサービスで新統一APIに移行（4サービス）
+- ✅ インフラストラクチャ層（server.rs）でのメトリクス記録統一
+- ✅ 重複したメトリクス記録コードの削除
+
+### 3.3.4 テスト実装 ✅
 **新規テスト**: 7件のメトリクステスト実装
 - ✅ `test_metrics_macro()` - マクロ動作確認
 - ✅ `test_metrics_timer()` - タイマー機能確認
@@ -284,7 +290,8 @@ src/infrastructure/repository/
 
 **完了基準**: ✅
 - ✅ 全APIハンドラでメトリクス記録100%（既存機能維持）
-- ✅ メトリクス関連重複コード削減（ItemService/UserServiceで統一API使用）
+- ✅ メトリクス関連重複コード削除完了（4サービス統一）
+- ✅ 古いメトリクスAPI使用箇所0件（完全移行）
 - ✅ Prometheus形式でのメトリクス出力（既存機能維持）
 - ✅ 全101件のテスト成功（既存機能との互換性保証）
 
@@ -382,7 +389,7 @@ src/infrastructure/repository/
 - ✅ **Phase 3-1完了**: MockBuilder実装、テストコード重複34.9%削減
 - ✅ **Contract Test完了**: DeletionStrategy動作保証、8つのContract Test実装
 - ✅ **Phase 3-2完了**: エラーハンドリング統一、AppError 100%使用、unwrap/expect除去
-- ✅ **Phase 3-3完了**: メトリクス統一、統一マクロ・高レベルAPI実装、全101件テスト成功
+- ✅ **Phase 3-3完了**: メトリクス統一、統一マクロ・高レベルAPI実装、古いAPI完全除去、全101件テスト成功
 
 ### 次の推奨タスク
 1. **Phase 4-1: ドキュメント整備**（OpenAPI 3.0、アーキテクチャ図作成、6時間見積もり）

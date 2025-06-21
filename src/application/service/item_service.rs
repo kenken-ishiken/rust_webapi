@@ -122,29 +122,29 @@ impl ItemService {
     }
 
     pub async fn batch_delete(&self, req: BatchDeleteRequest) -> AppResult<BatchDeleteResponse> {
-        let timer = crate::infrastructure::metrics::MetricsTimer::new("item", "batch_delete");
-        let is_physical = req.is_physical.unwrap_or(false);
-        let all_ids = req.ids.clone();
+        Metrics::with_timer("item", "batch_delete", async {
+            let is_physical = req.is_physical.unwrap_or(false);
+            let all_ids = req.ids.clone();
 
-        let successful_ids = self.repository.batch_delete(req.ids, is_physical).await?;
-        let failed_ids: Vec<u64> = all_ids
-            .into_iter()
-            .filter(|id| !successful_ids.contains(id))
-            .collect();
+            let successful_ids = self.repository.batch_delete(req.ids, is_physical).await?;
+            let failed_ids: Vec<u64> = all_ids
+                .into_iter()
+                .filter(|id| !successful_ids.contains(id))
+                .collect();
 
-        // 個別に成功/失敗をメトリクスに記録
-        if !successful_ids.is_empty() {
-            Metrics::record_success("item", "batch_delete");
-        }
-        if !failed_ids.is_empty() {
-            Metrics::record_error("item", "batch_delete");
-        }
+            // 個別に成功/失敗をメトリクスに記録
+            if !successful_ids.is_empty() {
+                Metrics::record_success("item", "batch_delete");
+            }
+            if !failed_ids.is_empty() {
+                Metrics::record_error("item", "batch_delete");
+            }
 
-        timer.observe();
-        Ok(BatchDeleteResponse {
-            successful_ids,
-            failed_ids,
-        })
+            Ok(BatchDeleteResponse {
+                successful_ids,
+                failed_ids,
+            })
+        }).await
     }
 
     pub async fn get_deletion_logs(
