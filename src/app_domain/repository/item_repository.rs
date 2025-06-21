@@ -1,8 +1,7 @@
-use async_trait::async_trait;
-use mockall::automock;
-use domain::model::item::{Item, DeletionValidation, DeletionLog};
 use crate::infrastructure::error::AppResult;
-
+use async_trait::async_trait;
+use domain::model::item::{DeletionLog, DeletionValidation, Item};
+use mockall::automock;
 
 #[automock]
 #[async_trait]
@@ -12,7 +11,7 @@ pub trait ItemRepository {
     async fn create(&self, item: Item) -> AppResult<Item>;
     async fn update(&self, item: Item) -> AppResult<Item>;
     async fn delete(&self, id: u64) -> AppResult<()>;
-    
+
     // New methods for product deletion API
     async fn logical_delete(&self, id: u64) -> AppResult<()>;
     async fn physical_delete(&self, id: u64) -> AppResult<()>;

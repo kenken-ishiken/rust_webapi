@@ -1,6 +1,6 @@
-use domain::model::user::User;
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
-use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
+use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
+use domain::model::user::User;
 
 pub struct UserService {
     repository: domain::repository::user_repository::UserRepositoryImpl,
@@ -29,7 +29,11 @@ impl UserService {
 
     pub async fn create(&self, req: CreateUserRequest) -> User {
         // IDはリポジトリ/DB側で生成
-        let user = User { id: 0, username: req.username, email: req.email };
+        let user = User {
+            id: 0,
+            username: req.username,
+            email: req.email,
+        };
         let created_user = self.repository.create(user).await;
         increment_success_counter("user", "create");
         created_user
@@ -68,10 +72,10 @@ impl UserService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockall::predicate::*;
-    use mockall::mock;
-    use std::sync::Arc;
     use domain::repository::user_repository::UserRepository;
+    use mockall::mock;
+    use mockall::predicate::*;
+    use std::sync::Arc;
 
     mock! {
         UserRep {}
@@ -88,13 +92,20 @@ mod tests {
     #[tokio::test]
     async fn test_find_all() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_find_all()
-            .return_once(|| {
-                vec![
-                    User { id: 1, username: "user1".to_string(), email: "user1@example.com".to_string() },
-                    User { id: 2, username: "user2".to_string(), email: "user2@example.com".to_string() },
-                ]
-            });
+        mock_repo.expect_find_all().return_once(|| {
+            vec![
+                User {
+                    id: 1,
+                    username: "user1".to_string(),
+                    email: "user1@example.com".to_string(),
+                },
+                User {
+                    id: 2,
+                    username: "user2".to_string(),
+                    email: "user2@example.com".to_string(),
+                },
+            ]
+        });
 
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.find_all().await;
@@ -109,13 +120,16 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_id_found() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
-            .return_once(|_| Some(User {
-                id: 1,
-                username: "user1".to_string(),
-                email: "user1@example.com".to_string(),
-            }));
+            .return_once(|_| {
+                Some(User {
+                    id: 1,
+                    username: "user1".to_string(),
+                    email: "user1@example.com".to_string(),
+                })
+            });
 
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.find_by_id(1).await;
@@ -130,7 +144,8 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_id_not_found() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
 
@@ -143,7 +158,8 @@ mod tests {
     #[tokio::test]
     async fn test_create() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_create()
+        mock_repo
+            .expect_create()
             .withf(|user| user.username == "newuser" && user.email == "newuser@example.com")
             .return_once(|user| User {
                 id: 42,
@@ -169,22 +185,24 @@ mod tests {
         let mut mock_repo = MockUserRep::new();
 
         // First expect find_by_id
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
-            .return_once(|_| Some(User {
-                id: 1,
-                username: "oldname".to_string(),
-                email: "old@example.com".to_string(),
-            }));
+            .return_once(|_| {
+                Some(User {
+                    id: 1,
+                    username: "oldname".to_string(),
+                    email: "old@example.com".to_string(),
+                })
+            });
 
         // Then expect update
-        mock_repo.expect_update()
+        mock_repo
+            .expect_update()
             .withf(|user| {
-                user.id == 1 &&
-                user.username == "newname" &&
-                user.email == "new@example.com"
+                user.id == 1 && user.username == "newname" && user.email == "new@example.com"
             })
-            .return_once(|user| Some(user));
+            .return_once(Some);
 
         let service = UserService::new(Arc::new(mock_repo));
         let request = UpdateUserRequest {
@@ -204,7 +222,8 @@ mod tests {
     #[tokio::test]
     async fn test_update_not_found() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
 
@@ -222,7 +241,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_success() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
 
@@ -235,7 +255,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_not_found() {
         let mut mock_repo = MockUserRep::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(999u64))
             .return_once(|_| false);
 

@@ -1,21 +1,19 @@
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::app_domain::model::product::{
-    Product, ProductError, Price, Inventory, ProductImage,
-    Dimensions, ShippingInfo,
+    Dimensions, Inventory, Price, Product, ProductError, ProductImage, ShippingInfo,
 };
 use crate::app_domain::repository::product_repository::ProductRepository;
 use crate::application::dto::product_dto::{
-    CreateProductRequest, UpdateProductRequest, PatchProductRequest,
-    PriceRequest, InventoryRequest, ProductImageRequest, 
-    ImageReorderRequest, BatchUpdateRequest,
-    ProductResponse, ProductListResponse, PriceResponse, InventoryResponse,
-    ProductImageResponse, ProductHistoryResponse, BatchUpdateResponse,
-    BatchUpdateResult, ProductSearchQuery, ProductHistoryQuery,
+    BatchUpdateRequest, BatchUpdateResponse, BatchUpdateResult, CreateProductRequest,
+    ImageReorderRequest, InventoryRequest, InventoryResponse, PatchProductRequest, PriceRequest,
+    PriceResponse, ProductHistoryQuery, ProductHistoryResponse, ProductImageRequest,
+    ProductImageResponse, ProductListResponse, ProductResponse, ProductSearchQuery,
+    UpdateProductRequest,
 };
-use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
+use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
 
 pub struct ProductService {
     repository: Arc<dyn ProductRepository>,
@@ -30,19 +28,19 @@ impl ProductService {
         match self.repository.find_by_id(id).await {
             Some(product) => {
                 let mut response = ProductResponse::from(product);
-                
+
                 // Populate related data
                 if let Some(price) = self.repository.get_current_price(id).await {
                     response.price = Some(price.into());
                 }
-                
+
                 if let Some(inventory) = self.repository.get_inventory(id).await {
                     response.inventory = Some(inventory.into());
                 }
-                
+
                 let images = self.repository.get_images(id).await;
                 response.images = images.into_iter().map(Into::into).collect();
-                
+
                 response.tags = self.repository.get_tags(id).await;
                 response.attributes = self.repository.get_attributes(id).await;
 
@@ -63,19 +61,19 @@ impl ProductService {
             Some(product) => {
                 let id = product.id.clone();
                 let mut response = ProductResponse::from(product);
-                
+
                 // Populate related data
                 if let Some(price) = self.repository.get_current_price(&id).await {
                     response.price = Some(price.into());
                 }
-                
+
                 if let Some(inventory) = self.repository.get_inventory(&id).await {
                     response.inventory = Some(inventory.into());
                 }
-                
+
                 let images = self.repository.get_images(&id).await;
                 response.images = images.into_iter().map(Into::into).collect();
-                
+
                 response.tags = self.repository.get_tags(&id).await;
                 response.attributes = self.repository.get_attributes(&id).await;
 
@@ -92,41 +90,45 @@ impl ProductService {
     }
 
     pub async fn search(&self, query: ProductSearchQuery) -> ProductListResponse {
-        let tag_vec: Option<Vec<&str>> = query.tags.as_ref().map(|tags| 
-            tags.split(',').map(|s| s.trim()).collect()
-        );
+        let tag_vec: Option<Vec<&str>> = query
+            .tags
+            .as_ref()
+            .map(|tags| tags.split(',').map(|s| s.trim()).collect());
 
-        let products = self.repository.search(
-            &query.q.unwrap_or_default(),
-            query.category_id.as_deref(),
-            tag_vec,
-            query.min_price,
-            query.max_price,
-            query.in_stock_only.unwrap_or(false),
-            query.limit,
-            query.offset,
-        ).await;
+        let products = self
+            .repository
+            .search(
+                &query.q.unwrap_or_default(),
+                query.category_id.as_deref(),
+                tag_vec,
+                query.min_price,
+                query.max_price,
+                query.in_stock_only.unwrap_or(false),
+                query.limit,
+                query.offset,
+            )
+            .await;
 
         let mut product_responses = Vec::new();
         for product in &products {
             let mut response = ProductResponse::from(product.clone());
-            
+
             // Populate basic related data for listing
             if let Some(price) = self.repository.get_current_price(&product.id).await {
                 response.price = Some(price.into());
             }
-            
+
             if let Some(inventory) = self.repository.get_inventory(&product.id).await {
                 response.inventory = Some(inventory.into());
             }
 
             response.tags = self.repository.get_tags(&product.id).await;
-            
+
             product_responses.push(response);
         }
 
         let total = product_responses.len() as i64;
-        let has_more = query.limit.map_or(false, |limit| total >= limit);
+        let has_more = query.limit.is_some_and(|limit| total >= limit);
 
         increment_success_counter("product", "search");
         info!("Found {} products", products.len());
@@ -138,7 +140,10 @@ impl ProductService {
         }
     }
 
-    pub async fn create(&self, request: CreateProductRequest) -> Result<ProductResponse, ProductError> {
+    pub async fn create(
+        &self,
+        request: CreateProductRequest,
+    ) -> Result<ProductResponse, ProductError> {
         // Check if SKU already exists
         if self.repository.exists_by_sku(&request.sku, None).await {
             increment_error_counter("product", "create");
@@ -146,21 +151,28 @@ impl ProductService {
         }
 
         let product_id = Uuid::new_v4().to_string();
-        
+
         // Create dimensions if provided
         let dimensions = if let Some(dim_req) = request.dimensions {
-            Some(Dimensions::new(dim_req.width, dim_req.height, dim_req.depth)?)
+            Some(Dimensions::new(
+                dim_req.width,
+                dim_req.height,
+                dim_req.depth,
+            )?)
         } else {
             None
         };
 
         // Create shipping info
-        let shipping_info = request.shipping_info
-            .map(Into::into)
-            .unwrap_or_default();
+        let shipping_info = request.shipping_info.map(Into::into).unwrap_or_default();
 
         // Create product
-        let mut product = Product::new(product_id.clone(), request.name, request.sku, request.status)?;
+        let mut product = Product::new(
+            product_id.clone(),
+            request.name,
+            request.sku,
+            request.status,
+        )?;
         product.description = request.description;
         product.brand = request.brand;
         product.category_id = request.category_id;
@@ -179,12 +191,16 @@ impl ProductService {
         // Set initial price
         let price = Price::from(request.price);
         price.validate()?;
-        self.repository.update_price(&product_id, price.clone()).await?;
+        self.repository
+            .update_price(&product_id, price.clone())
+            .await?;
 
         // Set initial inventory
         let inventory = Inventory::from(request.inventory);
         inventory.validate()?;
-        self.repository.update_inventory(&product_id, inventory.clone()).await?;
+        self.repository
+            .update_inventory(&product_id, inventory.clone())
+            .await?;
 
         // Add tags if provided
         if let Some(tags) = request.tags {
@@ -196,7 +212,9 @@ impl ProductService {
         // Add attributes if provided
         if let Some(attributes) = request.attributes {
             if !attributes.is_empty() {
-                self.repository.set_attributes(&product_id, attributes).await?;
+                self.repository
+                    .set_attributes(&product_id, attributes)
+                    .await?;
             }
         }
 
@@ -207,8 +225,15 @@ impl ProductService {
         self.find_by_id(&product_id).await
     }
 
-    pub async fn update(&self, id: &str, request: UpdateProductRequest) -> Result<ProductResponse, ProductError> {
-        let mut product = self.repository.find_by_id(id).await
+    pub async fn update(
+        &self,
+        id: &str,
+        request: UpdateProductRequest,
+    ) -> Result<ProductResponse, ProductError> {
+        let mut product = self
+            .repository
+            .find_by_id(id)
+            .await
             .ok_or(ProductError::ProductNotFound)?;
 
         // Check SKU uniqueness if being updated
@@ -295,8 +320,15 @@ impl ProductService {
         self.find_by_id(id).await
     }
 
-    pub async fn patch(&self, id: &str, request: PatchProductRequest) -> Result<ProductResponse, ProductError> {
-        let mut product = self.repository.find_by_id(id).await
+    pub async fn patch(
+        &self,
+        id: &str,
+        request: PatchProductRequest,
+    ) -> Result<ProductResponse, ProductError> {
+        let mut product = self
+            .repository
+            .find_by_id(id)
+            .await
             .ok_or(ProductError::ProductNotFound)?;
 
         // Update basic fields
@@ -323,15 +355,15 @@ impl ProductService {
         if let Some(price_patch) = request.price {
             if let Some(current_price) = self.repository.get_current_price(id).await {
                 let mut new_price = current_price;
-                
+
                 if let Some(selling_price) = price_patch.selling_price {
                     new_price.selling_price = selling_price;
                 }
-                
+
                 if let Some(list_price) = price_patch.list_price {
                     new_price.list_price = Some(list_price);
                 }
-                
+
                 if let Some(discount_price) = price_patch.discount_price {
                     new_price.discount_price = Some(discount_price);
                 }
@@ -347,25 +379,27 @@ impl ProductService {
                 if let Some(quantity) = inventory_patch.quantity {
                     current_inventory.update_quantity(quantity)?;
                 }
-                
+
                 if let Some(reserved_quantity) = inventory_patch.reserved_quantity {
                     current_inventory.reserved_quantity = reserved_quantity;
                 }
-                
+
                 if let Some(alert_threshold) = inventory_patch.alert_threshold {
                     current_inventory.alert_threshold = Some(alert_threshold);
                 }
-                
+
                 if let Some(track_inventory) = inventory_patch.track_inventory {
                     current_inventory.track_inventory = track_inventory;
                 }
-                
+
                 if let Some(allow_backorder) = inventory_patch.allow_backorder {
                     current_inventory.allow_backorder = allow_backorder;
                 }
 
                 current_inventory.validate()?;
-                self.repository.update_inventory(id, current_inventory).await?;
+                self.repository
+                    .update_inventory(id, current_inventory)
+                    .await?;
             }
         }
 
@@ -377,14 +411,18 @@ impl ProductService {
 
     pub async fn delete(&self, id: &str) -> Result<(), ProductError> {
         self.repository.delete(id).await?;
-        
+
         increment_success_counter("product", "delete");
         info!("Deleted product {}", id);
-        
+
         Ok(())
     }
 
-    pub async fn update_price(&self, id: &str, request: PriceRequest) -> Result<PriceResponse, ProductError> {
+    pub async fn update_price(
+        &self,
+        id: &str,
+        request: PriceRequest,
+    ) -> Result<PriceResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
             increment_error_counter("product", "update_price");
@@ -402,7 +440,11 @@ impl ProductService {
         Ok(updated_price.into())
     }
 
-    pub async fn update_inventory(&self, id: &str, request: InventoryRequest) -> Result<InventoryResponse, ProductError> {
+    pub async fn update_inventory(
+        &self,
+        id: &str,
+        request: InventoryRequest,
+    ) -> Result<InventoryResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
             increment_error_counter("product", "update_inventory");
@@ -420,7 +462,11 @@ impl ProductService {
         Ok(updated_inventory.into())
     }
 
-    pub async fn add_image(&self, id: &str, request: ProductImageRequest) -> Result<ProductImageResponse, ProductError> {
+    pub async fn add_image(
+        &self,
+        id: &str,
+        request: ProductImageRequest,
+    ) -> Result<ProductImageResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
             increment_error_counter("product", "add_image");
@@ -436,7 +482,12 @@ impl ProductService {
         Ok(added_image.into())
     }
 
-    pub async fn update_image(&self, id: &str, image_id: &str, request: ProductImageRequest) -> Result<ProductImageResponse, ProductError> {
+    pub async fn update_image(
+        &self,
+        id: &str,
+        image_id: &str,
+        request: ProductImageRequest,
+    ) -> Result<ProductImageResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
             increment_error_counter("product", "update_image");
@@ -463,14 +514,19 @@ impl ProductService {
         Ok(())
     }
 
-    pub async fn reorder_images(&self, id: &str, request: ImageReorderRequest) -> Result<(), ProductError> {
+    pub async fn reorder_images(
+        &self,
+        id: &str,
+        request: ImageReorderRequest,
+    ) -> Result<(), ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
             increment_error_counter("product", "reorder_images");
             return Err(ProductError::ProductNotFound);
         }
 
-        let image_orders = request.image_orders
+        let image_orders = request
+            .image_orders
             .into_iter()
             .map(|item| (item.image_id, item.sort_order))
             .collect();
@@ -492,27 +548,26 @@ impl ProductService {
         Ok(())
     }
 
-    pub async fn get_history(&self, id: &str, query: ProductHistoryQuery) -> Result<ProductHistoryResponse, ProductError> {
+    pub async fn get_history(
+        &self,
+        id: &str,
+        query: ProductHistoryQuery,
+    ) -> Result<ProductHistoryResponse, ProductError> {
         // Verify product exists
         if self.repository.find_by_id(id).await.is_none() {
             increment_error_counter("product", "get_history");
             return Err(ProductError::ProductNotFound);
         }
 
-        let history_items = self.repository.get_history(
-            id,
-            query.field.as_deref(),
-            query.limit,
-            query.offset,
-        ).await;
+        let history_items = self
+            .repository
+            .get_history(id, query.field.as_deref(), query.limit, query.offset)
+            .await;
 
         let total = history_items.len() as i64;
-        let has_more = query.limit.map_or(false, |limit| total >= limit);
+        let has_more = query.limit.is_some_and(|limit| total >= limit);
 
-        let history_response = history_items
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        let history_response = history_items.into_iter().map(Into::into).collect();
 
         increment_success_counter("product", "get_history");
         info!("Fetched {} history items for product {}", total, id);
@@ -524,7 +579,10 @@ impl ProductService {
         })
     }
 
-    pub async fn batch_update(&self, request: BatchUpdateRequest) -> Result<BatchUpdateResponse, ProductError> {
+    pub async fn batch_update(
+        &self,
+        request: BatchUpdateRequest,
+    ) -> Result<BatchUpdateResponse, ProductError> {
         let mut results = Vec::new();
         let mut success_count = 0;
         let mut error_count = 0;
@@ -554,7 +612,10 @@ impl ProductService {
         }
 
         increment_success_counter("product", "batch_update");
-        info!("Batch update completed: {} success, {} errors", success_count, error_count);
+        info!(
+            "Batch update completed: {} success, {} errors",
+            success_count, error_count
+        );
 
         Ok(BatchUpdateResponse {
             results,
@@ -563,8 +624,14 @@ impl ProductService {
         })
     }
 
-    async fn apply_batch_update(&self, update_item: &crate::application::dto::product_dto::BatchUpdateItem) -> Result<ProductResponse, ProductError> {
-        let mut product = self.repository.find_by_id(&update_item.id).await
+    async fn apply_batch_update(
+        &self,
+        update_item: &crate::application::dto::product_dto::BatchUpdateItem,
+    ) -> Result<ProductResponse, ProductError> {
+        let mut product = self
+            .repository
+            .find_by_id(&update_item.id)
+            .await
             .ok_or(ProductError::ProductNotFound)?;
 
         // Update name if provided
@@ -584,58 +651,67 @@ impl ProductService {
         if let Some(ref price_patch) = update_item.price {
             if let Some(current_price) = self.repository.get_current_price(&update_item.id).await {
                 let mut new_price = current_price;
-                
+
                 if let Some(selling_price) = price_patch.selling_price {
                     new_price.selling_price = selling_price;
                 }
-                
+
                 if let Some(list_price) = price_patch.list_price {
                     new_price.list_price = Some(list_price);
                 }
-                
+
                 if let Some(discount_price) = price_patch.discount_price {
                     new_price.discount_price = Some(discount_price);
                 }
 
                 new_price.validate()?;
-                self.repository.update_price(&update_item.id, new_price).await?;
+                self.repository
+                    .update_price(&update_item.id, new_price)
+                    .await?;
             }
         }
 
         // Update inventory if provided
         if let Some(ref inventory_patch) = update_item.inventory {
-            if let Some(mut current_inventory) = self.repository.get_inventory(&update_item.id).await {
+            if let Some(mut current_inventory) =
+                self.repository.get_inventory(&update_item.id).await
+            {
                 if let Some(quantity) = inventory_patch.quantity {
                     current_inventory.update_quantity(quantity)?;
                 }
-                
+
                 if let Some(reserved_quantity) = inventory_patch.reserved_quantity {
                     current_inventory.reserved_quantity = reserved_quantity;
                 }
-                
+
                 if let Some(alert_threshold) = inventory_patch.alert_threshold {
                     current_inventory.alert_threshold = Some(alert_threshold);
                 }
-                
+
                 if let Some(track_inventory) = inventory_patch.track_inventory {
                     current_inventory.track_inventory = track_inventory;
                 }
-                
+
                 if let Some(allow_backorder) = inventory_patch.allow_backorder {
                     current_inventory.allow_backorder = allow_backorder;
                 }
 
                 current_inventory.validate()?;
-                self.repository.update_inventory(&update_item.id, current_inventory).await?;
+                self.repository
+                    .update_inventory(&update_item.id, current_inventory)
+                    .await?;
             }
         }
 
         self.find_by_id(&update_item.id).await
     }
 
-    pub async fn find_low_stock_products(&self, threshold: Option<i32>) -> Vec<(ProductResponse, InventoryResponse)> {
+    pub async fn find_low_stock_products(
+        &self,
+        threshold: Option<i32>,
+    ) -> Vec<(ProductResponse, InventoryResponse)> {
         let low_stock_products = self.repository.find_low_stock_products(threshold).await;
-        
+
         let mut results = Vec::new();
         for (product, inventory) in low_stock_products {
             let product_response = ProductResponse::from(product);
@@ -651,7 +727,7 @@ impl ProductService {
 
     pub async fn find_out_of_stock_products(&self) -> Vec<ProductResponse> {
         let out_of_stock_products = self.repository.find_out_of_stock_products().await;
-        
+
         let results = out_of_stock_products
             .into_iter()
             .map(ProductResponse::from)

@@ -1,19 +1,25 @@
-use domain::model::item::{Item, DeletionType};
 use crate::application::dto::item_dto::{
-    CreateItemRequest, UpdateItemRequest, ItemResponse, 
-    BatchDeleteRequest, BatchDeleteResponse, DeletionValidationResponse, DeletionLogResponse
+    BatchDeleteRequest, BatchDeleteResponse, CreateItemRequest, DeletionLogResponse,
+    DeletionValidationResponse, ItemResponse, UpdateItemRequest,
 };
-use std::sync::Mutex;
-use crate::infrastructure::metrics::{increment_success_counter, increment_error_counter};
 use crate::infrastructure::error::{AppError, AppResult};
+use crate::infrastructure::metrics::{increment_error_counter, increment_success_counter};
+use domain::model::item::{DeletionType, Item};
+use std::sync::Mutex;
 
 pub struct ItemService {
-    repository: std::sync::Arc<dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync>,
+    repository: std::sync::Arc<
+        dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync,
+    >,
     counter: Mutex<u64>,
 }
 
 impl ItemService {
-    pub fn new(repository: std::sync::Arc<dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync>) -> Self {
+    pub fn new(
+        repository: std::sync::Arc<
+            dyn crate::app_domain::repository::item_repository::ItemRepository + Send + Sync,
+        >,
+    ) -> Self {
         Self {
             repository,
             counter: Mutex::new(0),
@@ -23,7 +29,10 @@ impl ItemService {
     pub async fn find_all(&self) -> AppResult<Vec<ItemResponse>> {
         let items = self.repository.find_all().await?;
         increment_success_counter("item", "find_all");
-        Ok(items.into_iter().map(|item| self.to_response(item)).collect())
+        Ok(items
+            .into_iter()
+            .map(|item| self.to_response(item))
+            .collect())
     }
 
     pub async fn find_by_id(&self, id: u64) -> AppResult<ItemResponse> {
@@ -32,7 +41,7 @@ impl ItemService {
             Some(item) => {
                 increment_success_counter("item", "find_by_id");
                 Ok(self.to_response(item))
-            },
+            }
             None => {
                 increment_error_counter("item", "find_by_id");
                 Err(AppError::NotFound(format!("Item with id {} not found", id)))
@@ -42,7 +51,9 @@ impl ItemService {
 
     pub async fn create(&self, req: CreateItemRequest) -> AppResult<ItemResponse> {
         let id = {
-            let mut counter = self.counter.lock()
+            let mut counter = self
+                .counter
+                .lock()
                 .map_err(|_| AppError::InternalServerError("Failed to acquire lock".to_string()))?;
             let id = *counter;
             *counter += 1;
@@ -75,7 +86,7 @@ impl ItemService {
                 let updated = self.repository.update(item).await?;
                 increment_success_counter("item", "update");
                 Ok(self.to_response(updated))
-            },
+            }
             None => {
                 increment_error_counter("item", "update");
                 Err(AppError::NotFound(format!("Item with id {} not found", id)))
@@ -88,33 +99,36 @@ impl ItemService {
         increment_success_counter("item", "delete");
         Ok(())
     }
-    
+
     // New methods for product deletion API
-    
+
     pub async fn logical_delete(&self, id: u64) -> AppResult<()> {
         self.repository.logical_delete(id).await?;
         increment_success_counter("item", "logical_delete");
         Ok(())
     }
-    
+
     pub async fn physical_delete(&self, id: u64) -> AppResult<()> {
         self.repository.physical_delete(id).await?;
         increment_success_counter("item", "physical_delete");
         Ok(())
     }
-    
+
     pub async fn restore(&self, id: u64) -> AppResult<()> {
         self.repository.restore(id).await?;
         increment_success_counter("item", "restore");
         Ok(())
     }
-    
+
     pub async fn find_deleted(&self) -> AppResult<Vec<ItemResponse>> {
         let items = self.repository.find_deleted().await?;
         increment_success_counter("item", "find_deleted");
-        Ok(items.into_iter().map(|item| self.to_response(item)).collect())
+        Ok(items
+            .into_iter()
+            .map(|item| self.to_response(item))
+            .collect())
     }
-    
+
     pub async fn validate_deletion(&self, id: u64) -> AppResult<DeletionValidationResponse> {
         // First check if the item exists
         let item_opt = self.repository.find_by_id(id).await?;
@@ -122,10 +136,10 @@ impl ItemService {
             increment_error_counter("item", "validate_deletion");
             return Err(AppError::NotFound(format!("Item with id {} not found", id)));
         }
-        
+
         let validation = self.repository.validate_deletion(id).await?;
         increment_success_counter("item", "validate_deletion");
-        
+
         Ok(DeletionValidationResponse {
             can_delete: validation.can_delete,
             related_orders: validation.related_data.related_orders,
@@ -133,34 +147,39 @@ impl ItemService {
             related_categories: validation.related_data.related_categories,
         })
     }
-    
+
     pub async fn batch_delete(&self, req: BatchDeleteRequest) -> AppResult<BatchDeleteResponse> {
         let is_physical = req.is_physical.unwrap_or(false);
         let all_ids = req.ids.clone();
-        
+
         let successful_ids = self.repository.batch_delete(req.ids, is_physical).await?;
-        let failed_ids: Vec<u64> = all_ids.into_iter()
+        let failed_ids: Vec<u64> = all_ids
+            .into_iter()
             .filter(|id| !successful_ids.contains(id))
             .collect();
-        
+
         if !successful_ids.is_empty() {
             increment_success_counter("item", "batch_delete");
         }
         if !failed_ids.is_empty() {
             increment_error_counter("item", "batch_delete");
         }
-        
+
         Ok(BatchDeleteResponse {
             successful_ids,
             failed_ids,
         })
     }
-    
-    pub async fn get_deletion_logs(&self, item_id: Option<u64>) -> AppResult<Vec<DeletionLogResponse>> {
+
+    pub async fn get_deletion_logs(
+        &self,
+        item_id: Option<u64>,
+    ) -> AppResult<Vec<DeletionLogResponse>> {
         let logs = self.repository.get_deletion_logs(item_id).await?;
         increment_success_counter("item", "get_deletion_logs");
-        
-        Ok(logs.into_iter()
+
+        Ok(logs
+            .into_iter()
             .map(|log| DeletionLogResponse {
                 id: log.id,
                 item_id: log.item_id,
@@ -175,7 +194,7 @@ impl ItemService {
             })
             .collect())
     }
-    
+
     // Helper method to convert domain Item to ItemResponse DTO
     fn to_response(&self, item: Item) -> ItemResponse {
         ItemResponse {
@@ -191,11 +210,11 @@ impl ItemService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_domain::repository::item_repository::MockItemRepository;
+    use chrono::Utc;
+    use domain::model::item::{DeletionLog, DeletionValidation, RelatedDataCount};
     use mockall::predicate::*;
     use std::sync::Arc;
-    use crate::app_domain::repository::item_repository::MockItemRepository;
-    use domain::model::item::{DeletionValidation, RelatedDataCount, DeletionLog};
-    use chrono::Utc;
 
     #[tokio::test]
     async fn test_find_all() {
@@ -217,7 +236,8 @@ mod tests {
         ];
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_all()
+        mock_repo
+            .expect_find_all()
             .return_once(move || Ok(items.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
@@ -241,7 +261,8 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Ok(Some(item.clone())));
 
@@ -255,7 +276,8 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_id_not_found() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| Ok(None));
 
@@ -281,11 +303,12 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_create()
+        mock_repo
+            .expect_create()
             .with(function(|item: &Item| {
-                item.name == "New Item" && 
-                item.description == Some("New Description".to_string()) &&
-                !item.deleted
+                item.name == "New Item"
+                    && item.description == Some("New Description".to_string())
+                    && !item.deleted
             }))
             .return_once(move |_| Ok(created_item.clone()));
 
@@ -295,7 +318,7 @@ mod tests {
         assert_eq!(result.id, 0);
         assert_eq!(result.name, "New Item");
         assert_eq!(result.description, Some("New Description".to_string()));
-        assert_eq!(result.deleted, false);
+        assert!(!result.deleted);
         assert!(result.deleted_at.is_none());
     }
 
@@ -323,16 +346,18 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Ok(Some(existing_item)));
 
-        mock_repo.expect_update()
+        mock_repo
+            .expect_update()
             .with(function(|item: &Item| {
-                item.id == 1 && 
-                item.name == "Updated Item" && 
-                item.description == Some("Updated Description".to_string()) &&
-                !item.deleted
+                item.id == 1
+                    && item.name == "Updated Item"
+                    && item.description == Some("Updated Description".to_string())
+                    && !item.deleted
             }))
             .return_once(move |_| Ok(updated_item));
 
@@ -342,7 +367,7 @@ mod tests {
         assert_eq!(result.id, 1);
         assert_eq!(result.name, "Updated Item");
         assert_eq!(result.description, Some("Updated Description".to_string()));
-        assert_eq!(result.deleted, false);
+        assert!(!result.deleted);
         assert!(result.deleted_at.is_none());
     }
 
@@ -354,7 +379,8 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| Ok(None));
 
@@ -367,7 +393,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_success() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
@@ -380,7 +407,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_not_found() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(999u64))
             .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
 
@@ -389,13 +417,14 @@ mod tests {
 
         assert!(result.is_err());
     }
-    
+
     // New tests for product deletion API
-    
+
     #[tokio::test]
     async fn test_logical_delete_success() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_logical_delete()
+        mock_repo
+            .expect_logical_delete()
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
@@ -404,11 +433,12 @@ mod tests {
 
         assert!(result.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_logical_delete_not_found() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_logical_delete()
+        mock_repo
+            .expect_logical_delete()
             .with(eq(999u64))
             .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
 
@@ -417,11 +447,12 @@ mod tests {
 
         assert!(result.is_err());
     }
-    
+
     #[tokio::test]
     async fn test_physical_delete_success() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_physical_delete()
+        mock_repo
+            .expect_physical_delete()
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
@@ -430,11 +461,12 @@ mod tests {
 
         assert!(result.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_restore_success() {
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_restore()
+        mock_repo
+            .expect_restore()
             .with(eq(1u64))
             .return_once(|_| Ok(()));
 
@@ -443,7 +475,7 @@ mod tests {
 
         assert!(result.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_find_deleted() {
         let deleted_items = vec![
@@ -464,7 +496,8 @@ mod tests {
         ];
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_deleted()
+        mock_repo
+            .expect_find_deleted()
             .return_once(move || Ok(deleted_items.clone()));
 
         let service = ItemService::new(Arc::new(mock_repo));
@@ -473,14 +506,14 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].id, 1);
         assert_eq!(result[0].name, "Deleted Item 1");
-        assert_eq!(result[0].deleted, true);
+        assert!(result[0].deleted);
         assert!(result[0].deleted_at.is_some());
         assert_eq!(result[1].id, 2);
         assert_eq!(result[1].name, "Deleted Item 2");
-        assert_eq!(result[1].deleted, true);
+        assert!(result[1].deleted);
         assert!(result[1].deleted_at.is_some());
     }
-    
+
     #[tokio::test]
     async fn test_validate_deletion() {
         let validation = DeletionValidation {
@@ -493,17 +526,21 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
-            .return_once(|_| Ok(Some(Item {
-                id: 1,
-                name: "Test Item".to_string(),
-                description: None,
-                deleted: false,
-                deleted_at: None,
-            })));
-            
-        mock_repo.expect_validate_deletion()
+            .return_once(|_| {
+                Ok(Some(Item {
+                    id: 1,
+                    name: "Test Item".to_string(),
+                    description: None,
+                    deleted: false,
+                    deleted_at: None,
+                }))
+            });
+
+        mock_repo
+            .expect_validate_deletion()
             .with(eq(1u64))
             .return_once(move |_| Ok(validation));
 
@@ -512,12 +549,12 @@ mod tests {
 
         assert!(result.is_ok());
         let validation_response = result.unwrap();
-        assert_eq!(validation_response.can_delete, true);
+        assert!(validation_response.can_delete);
         assert_eq!(validation_response.related_orders, 0);
         assert_eq!(validation_response.related_reviews, 0);
         assert_eq!(validation_response.related_categories, 0);
     }
-    
+
     #[tokio::test]
     async fn test_batch_delete() {
         let req = BatchDeleteRequest {
@@ -528,7 +565,8 @@ mod tests {
         let successful_ids = vec![1, 3];
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_batch_delete()
+        mock_repo
+            .expect_batch_delete()
             .with(eq(vec![1, 2, 3]), eq(false))
             .return_once(move |_, _| Ok(successful_ids.clone()));
 
@@ -538,7 +576,7 @@ mod tests {
         assert_eq!(result.successful_ids, vec![1, 3]);
         assert_eq!(result.failed_ids, vec![2]);
     }
-    
+
     #[tokio::test]
     async fn test_get_deletion_logs() {
         let now = Utc::now();
@@ -562,7 +600,8 @@ mod tests {
         ];
 
         let mut mock_repo = MockItemRepository::new();
-        mock_repo.expect_get_deletion_logs()
+        mock_repo
+            .expect_get_deletion_logs()
             .with(eq(None))
             .return_once(move |_| Ok(logs.clone()));
 
@@ -575,7 +614,7 @@ mod tests {
         assert_eq!(result[0].item_name, "Item 1");
         assert_eq!(result[0].deletion_type, "Logical");
         assert_eq!(result[0].deleted_by, "test_user");
-        
+
         assert_eq!(result[1].id, 2);
         assert_eq!(result[1].item_id, 2);
         assert_eq!(result[1].item_name, "Item 2");

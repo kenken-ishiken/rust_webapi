@@ -1,12 +1,16 @@
 #![allow(dead_code)]
+use domain::repository::user_repository::UserRepository;
+use rust_webapi::app_domain::repository::category_repository::CategoryRepository;
+use rust_webapi::app_domain::repository::item_repository::ItemRepository;
+use rust_webapi::infrastructure::repository::category_repository::PostgresCategoryRepository;
+use rust_webapi::infrastructure::repository::item_repository::{
+    InMemoryItemRepository, PostgresItemRepository,
+};
+use rust_webapi::infrastructure::repository::user_repository::{
+    InMemoryUserRepository, PostgresUserRepository,
+};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
-use rust_webapi::app_domain::repository::item_repository::ItemRepository;
-use rust_webapi::app_domain::repository::category_repository::CategoryRepository;
-use rust_webapi::infrastructure::repository::item_repository::{InMemoryItemRepository, PostgresItemRepository};
-use rust_webapi::infrastructure::repository::user_repository::{InMemoryUserRepository, PostgresUserRepository};
-use rust_webapi::infrastructure::repository::category_repository::PostgresCategoryRepository;
-use domain::repository::user_repository::UserRepository;
 
 /// Test environment configuration
 #[derive(Debug, Clone)]
@@ -24,7 +28,7 @@ pub struct TestRepositoryFactory {
 
 impl TestRepositoryFactory {
     /// Create a new test repository factory
-    /// 
+    ///
     /// This will attempt to use PostgreSQL with testcontainers if Docker is available,
     /// otherwise it will fall back to in-memory implementations.
     pub async fn new() -> Self {
@@ -54,9 +58,9 @@ impl TestRepositoryFactory {
 
     /// Try to create a PostgreSQL testcontainer
     async fn try_postgres() -> Result<Pool<Postgres>, Box<dyn std::error::Error + Send + Sync>> {
-        use testcontainers_modules::postgres;
         use sqlx::postgres::PgPoolOptions;
         use std::time::Duration;
+        use testcontainers_modules::postgres;
 
         // Check if Docker is available
         if !Self::is_docker_available() {
@@ -79,8 +83,9 @@ impl TestRepositoryFactory {
             PgPoolOptions::new()
                 .max_connections(5)
                 .acquire_timeout(Duration::from_secs(5))
-                .connect(&conn_str)
-        ).await??;
+                .connect(&conn_str),
+        )
+        .await??;
 
         // Verify connection with a simple query
         sqlx::query("SELECT 1").execute(&pool).await?;
@@ -107,9 +112,7 @@ impl TestRepositoryFactory {
             TestEnvironment::PostgreSQL(pool) => {
                 Arc::new(PostgresItemRepository::new(pool.clone()))
             }
-            TestEnvironment::InMemory => {
-                Arc::new(InMemoryItemRepository::new())
-            }
+            TestEnvironment::InMemory => Arc::new(InMemoryItemRepository::new()),
         }
     }
 
@@ -119,9 +122,7 @@ impl TestRepositoryFactory {
             TestEnvironment::PostgreSQL(pool) => {
                 Arc::new(PostgresItemRepository::new(pool.clone()))
             }
-            TestEnvironment::InMemory => {
-                Arc::new(InMemoryItemRepository::new())
-            }
+            TestEnvironment::InMemory => Arc::new(InMemoryItemRepository::new()),
         }
     }
 
@@ -131,9 +132,7 @@ impl TestRepositoryFactory {
             TestEnvironment::PostgreSQL(pool) => {
                 Arc::new(PostgresUserRepository::new(pool.clone()))
             }
-            TestEnvironment::InMemory => {
-                Arc::new(InMemoryUserRepository::new())
-            }
+            TestEnvironment::InMemory => Arc::new(InMemoryUserRepository::new()),
         }
     }
 
@@ -176,14 +175,18 @@ macro_rules! integration_test {
         #[tokio::test]
         async fn $test_name() {
             let factory = $crate::helpers::test_environment::TestRepositoryFactory::new().await;
-            println!("🧪 Running test '{}' with {} environment", 
-                stringify!($test_name), 
+            println!(
+                "🧪 Running test '{}' with {} environment",
+                stringify!($test_name),
                 factory.environment_type()
             );
-            
-            let test_fn: Box<dyn Fn($crate::helpers::test_environment::TestRepositoryFactory) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> = 
-                Box::new(|factory| Box::pin($test_body(factory)));
-            
+
+            let test_fn: Box<
+                dyn Fn(
+                    $crate::helpers::test_environment::TestRepositoryFactory,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
+            > = Box::new(|factory| Box::pin($test_body(factory)));
+
             test_fn(factory).await;
         }
     };
@@ -196,17 +199,26 @@ macro_rules! postgres_only_test {
         #[tokio::test]
         async fn $test_name() {
             let factory = $crate::helpers::test_environment::TestRepositoryFactory::new().await;
-            
+
             if !factory.is_postgres() {
-                println!("⏭️  Skipping PostgreSQL-only test '{}' (Docker not available)", stringify!($test_name));
+                println!(
+                    "⏭️  Skipping PostgreSQL-only test '{}' (Docker not available)",
+                    stringify!($test_name)
+                );
                 return;
             }
-            
-            println!("🧪 Running PostgreSQL-only test '{}'", stringify!($test_name));
-            
-            let test_fn: Box<dyn Fn($crate::helpers::test_environment::TestRepositoryFactory) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> = 
-                Box::new(|factory| Box::pin($test_body(factory)));
-            
+
+            println!(
+                "🧪 Running PostgreSQL-only test '{}'",
+                stringify!($test_name)
+            );
+
+            let test_fn: Box<
+                dyn Fn(
+                    $crate::helpers::test_environment::TestRepositoryFactory,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
+            > = Box::new(|factory| Box::pin($test_body(factory)));
+
             test_fn(factory).await;
         }
     };
@@ -218,15 +230,22 @@ macro_rules! in_memory_only_test {
     ($test_name:ident, $test_body:expr) => {
         #[tokio::test]
         async fn $test_name() {
-            let factory = $crate::helpers::test_environment::TestRepositoryFactory::with_environment(
-                $crate::helpers::test_environment::TestEnvironment::InMemory
+            let factory =
+                $crate::helpers::test_environment::TestRepositoryFactory::with_environment(
+                    $crate::helpers::test_environment::TestEnvironment::InMemory,
+                );
+
+            println!(
+                "🧪 Running in-memory-only test '{}'",
+                stringify!($test_name)
             );
-            
-            println!("🧪 Running in-memory-only test '{}'", stringify!($test_name));
-            
-            let test_fn: Box<dyn Fn($crate::helpers::test_environment::TestRepositoryFactory) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> = 
-                Box::new(|factory| Box::pin($test_body(factory)));
-            
+
+            let test_fn: Box<
+                dyn Fn(
+                    $crate::helpers::test_environment::TestRepositoryFactory,
+                ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
+            > = Box::new(|factory| Box::pin($test_body(factory)));
+
             test_fn(factory).await;
         }
     };

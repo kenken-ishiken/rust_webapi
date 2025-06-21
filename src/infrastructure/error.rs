@@ -1,39 +1,37 @@
-use thiserror::Error;
 use actix_web::{error::ResponseError, HttpResponse};
+use thiserror::Error;
 // use std::fmt;
 
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Database error: {0}")]
     DatabaseError(#[from] sqlx::Error),
-    
+
     #[error("Not found: {0}")]
     NotFound(String),
-    
+
     // #[error("Bad request: {0}")]
     // BadRequest(String),
-    
+
     // #[error("Unauthorized: {0}")]
     // Unauthorized(String),
-    
+
     // #[error("Forbidden: {0}")]
     // Forbidden(String),
-    
+
     // #[error("Conflict: {0}")]
     // Conflict(String),
-    
     #[error("Internal server error: {0}")]
     InternalServerError(String),
-    
+
     // #[error("Service unavailable: {0}")]
     // ServiceUnavailable(String),
-    
+
     // #[error("Validation error: {0}")]
     // ValidationError(String),
-    
     #[error("Authentication error: {0}")]
     AuthenticationError(String),
-    
+
     #[error("External service error: {0}")]
     ExternalServiceError(String),
 }
@@ -48,7 +46,7 @@ impl ResponseError for AppError {
                     "database_error",
                     "データベースエラーが発生しました".to_string(),
                 )
-            },
+            }
             AppError::NotFound(msg) => (
                 actix_web::http::StatusCode::NOT_FOUND,
                 "not_found",
@@ -81,7 +79,7 @@ impl ResponseError for AppError {
                     "internal_server_error",
                     "サーバーエラーが発生しました".to_string(),
                 )
-            },
+            }
             // AppError::ServiceUnavailable(msg) => (
             //     actix_web::http::StatusCode::SERVICE_UNAVAILABLE,
             //     "service_unavailable",
@@ -104,9 +102,9 @@ impl ResponseError for AppError {
                     "external_service_error",
                     msg.clone(),
                 )
-            },
+            }
         };
-        
+
         HttpResponse::build(status).json(serde_json::json!({
             "error": {
                 "type": error_type,
@@ -123,19 +121,19 @@ impl AppError {
     // pub fn not_found(entity: &str, id: impl fmt::Display) -> Self {
     //     AppError::NotFound(format!("{} with id {} not found", entity, id))
     // }
-    
+
     // pub fn bad_request(msg: impl Into<String>) -> Self {
     //     AppError::BadRequest(msg.into())
     // }
-    
+
     // pub fn unauthorized(msg: impl Into<String>) -> Self {
     //     AppError::Unauthorized(msg.into())
     // }
-    
+
     // pub fn internal_error(msg: impl Into<String>) -> Self {
     //     AppError::InternalServerError(msg.into())
     // }
-    
+
     // pub fn validation_error(msg: impl Into<String>) -> Self {
     //     AppError::ValidationError(msg.into())
     // }

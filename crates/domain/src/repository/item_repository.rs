@@ -1,6 +1,6 @@
-use crate::model::item::{Item, DeletionValidation, DeletionLog};
-use std::sync::Arc;
+use crate::model::item::{DeletionLog, DeletionValidation, Item};
 use async_trait::async_trait;
+use std::sync::Arc;
 
 #[async_trait]
 pub trait ItemRepository: Send + Sync {
@@ -9,7 +9,7 @@ pub trait ItemRepository: Send + Sync {
     async fn create(&self, item: Item) -> Item;
     async fn update(&self, item: Item) -> Option<Item>;
     async fn delete(&self, id: u64) -> bool;
-    
+
     // New methods for product deletion API
     async fn logical_delete(&self, id: u64) -> bool;
     async fn physical_delete(&self, id: u64) -> bool;
@@ -23,9 +23,9 @@ pub trait ItemRepository: Send + Sync {
 pub type ItemRepositoryImpl = Arc<dyn ItemRepository>;
 
 #[cfg(test)]
-pub use mockall::predicate::*;
-#[cfg(test)]
 pub use mockall::mock;
+#[cfg(test)]
+pub use mockall::predicate::*;
 
 #[cfg(test)]
 mock! {
@@ -50,8 +50,8 @@ mock! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::item::{DeletionType, RelatedDataCount};
     use chrono::Utc;
-    use crate::model::item::{RelatedDataCount, DeletionType};
 
     #[tokio::test]
     async fn test_find_all_success() {
@@ -71,7 +71,8 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_find_all()
+        mock_repo
+            .expect_find_all()
             .return_once(move || vec![item1.clone(), item2.clone()]);
 
         let result = mock_repo.find_all().await;
@@ -96,7 +97,8 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(1u64))
             .return_once(move |_| Some(item.clone()));
 
@@ -112,7 +114,8 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_id_not_found() {
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_find_by_id()
+        mock_repo
+            .expect_find_by_id()
             .with(eq(999u64))
             .return_once(|_| None);
 
@@ -132,9 +135,12 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_create()
+        mock_repo
+            .expect_create()
             .with(function(move |i: &Item| {
-                i.id == 1 && i.name == "New Item" && i.description == Some("New Description".to_string())
+                i.id == 1
+                    && i.name == "New Item"
+                    && i.description == Some("New Description".to_string())
             }))
             .return_once(move |item| item);
 
@@ -156,7 +162,8 @@ mod tests {
         };
 
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_update()
+        mock_repo
+            .expect_update()
             .with(function(move |i: &Item| {
                 i.id == 1 && i.name == "Updated Item"
             }))
@@ -174,7 +181,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_success() {
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_delete()
+        mock_repo
+            .expect_delete()
             .with(eq(1u64))
             .return_once(|_| true);
 
@@ -182,11 +190,12 @@ mod tests {
 
         assert!(result);
     }
-    
+
     #[tokio::test]
     async fn test_logical_delete_success() {
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_logical_delete()
+        mock_repo
+            .expect_logical_delete()
             .with(eq(1u64))
             .return_once(|_| true);
 
@@ -194,11 +203,12 @@ mod tests {
 
         assert!(result);
     }
-    
+
     #[tokio::test]
     async fn test_physical_delete_success() {
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_physical_delete()
+        mock_repo
+            .expect_physical_delete()
             .with(eq(1u64))
             .return_once(|_| true);
 
@@ -206,11 +216,12 @@ mod tests {
 
         assert!(result);
     }
-    
+
     #[tokio::test]
     async fn test_restore_success() {
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_restore()
+        mock_repo
+            .expect_restore()
             .with(eq(1u64))
             .return_once(|_| true);
 
@@ -218,7 +229,7 @@ mod tests {
 
         assert!(result);
     }
-    
+
     #[tokio::test]
     async fn test_find_deleted_success() {
         let now = Utc::now();
@@ -238,32 +249,34 @@ mod tests {
                 deleted_at: Some(now),
             },
         ];
-        
+
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_find_deleted()
+        mock_repo
+            .expect_find_deleted()
             .return_once(move || items.clone());
-            
+
         let result = mock_repo.find_deleted().await;
-        
+
         assert_eq!(result.len(), 2);
         assert!(result[0].deleted);
         assert!(result[0].deleted_at.is_some());
         assert!(result[1].deleted);
         assert!(result[1].deleted_at.is_some());
     }
-    
+
     #[tokio::test]
     async fn test_batch_delete_success() {
         let ids = vec![1, 2, 3];
         let successful_ids = vec![1, 3];
-        
+
         let mut mock_repo = MockItemRepo::new();
-        mock_repo.expect_batch_delete()
+        mock_repo
+            .expect_batch_delete()
             .with(eq(ids.clone()), eq(false))
             .return_once(move |_, _| successful_ids.clone());
-            
+
         let result = mock_repo.batch_delete(ids, false).await;
-        
+
         assert_eq!(result.len(), 2);
         assert_eq!(result, vec![1, 3]);
     }
