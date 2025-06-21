@@ -68,14 +68,14 @@ async fn test_postgres_item_repository() {
     assert_eq!(result.description, Some("Updated Description".to_string()));
 
     // 6. Test deleting an item
-    repo.delete(1).await.unwrap();
+    repo.logical_delete(1).await.unwrap();
 
     // Verify deletion
     let all_items_after_delete = repo.find_all().await.unwrap();
     assert_eq!(all_items_after_delete.len(), 0);
 
     // 7. Test deleting a non-existent item
-    let result = repo.delete(999).await;
+    let result = repo.logical_delete(999).await;
     assert!(result.is_err());
 }
 

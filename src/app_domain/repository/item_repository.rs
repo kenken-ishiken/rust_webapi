@@ -10,7 +10,7 @@ pub trait ItemRepository {
     async fn find_by_id(&self, id: u64) -> AppResult<Option<Item>>;
     async fn create(&self, item: Item) -> AppResult<Item>;
     async fn update(&self, item: Item) -> AppResult<Item>;
-    async fn delete(&self, id: u64) -> AppResult<()>;
+
 
     // New methods for product deletion API
     async fn logical_delete(&self, id: u64) -> AppResult<()>;

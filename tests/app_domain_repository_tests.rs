@@ -151,21 +151,21 @@ async fn test_mock_item_repository_delete() {
 
     // Test successful delete
     mock_repo
-        .expect_delete()
+        .expect_logical_delete()
         .with(eq(1u64))
         .times(1)
         .returning(|_| Ok(()));
 
-    mock_repo.delete(1).await.unwrap();
+    mock_repo.logical_delete(1).await.unwrap();
 
     // Test failed delete (item not found)
     mock_repo
-        .expect_delete()
+        .expect_logical_delete()
         .with(eq(999u64))
         .times(1)
         .returning(|_| Err(AppError::NotFound("err".to_string())));
 
-    let result = mock_repo.delete(999).await;
+    let result = mock_repo.logical_delete(999).await;
     assert!(result.is_err());
 }
 
@@ -246,7 +246,7 @@ async fn test_mock_repository_sequence_operations() {
         .returning(Ok);
 
     mock_repo
-        .expect_delete()
+        .expect_logical_delete()
         .with(eq(1u64))
         .times(1)
         .returning(|_| Ok(()));
@@ -269,7 +269,7 @@ async fn test_mock_repository_sequence_operations() {
     let updated = mock_repo.update(updated_item).await.unwrap();
     assert_eq!(updated.name, "Updated Sequence Test");
 
-    mock_repo.delete(1).await.unwrap();
+    mock_repo.logical_delete(1).await.unwrap();
 }
 
 #[tokio::test]
@@ -317,11 +317,11 @@ async fn test_mock_repository_error_simulation() {
 
     // Delete failure scenario
     mock_repo
-        .expect_delete()
+        .expect_logical_delete()
         .with(always())
         .times(1)
         .returning(|_| Err(AppError::NotFound("err".to_string())));
 
-    let result = mock_repo.delete(1).await;
+    let result = mock_repo.logical_delete(1).await;
     assert!(result.is_err());
 }

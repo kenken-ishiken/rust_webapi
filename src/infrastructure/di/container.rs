@@ -85,7 +85,11 @@ impl AppContainer {
         let product_service = Arc::new(ProductService::new(product_repository.clone()));
 
         // 削除ファサードの作成
-        let deletion_facade = Arc::new(DeletionFacade::new(item_repository.clone()));
+        let deletion_facade = Arc::new(DeletionFacade::new(
+            item_repository.clone(),
+            category_repository.clone(),
+            product_repository.clone(),
+        ));
 
         // Keycloak認証の設定
         let keycloak_config = KeycloakConfig::from_auth_config(&config.auth);
@@ -94,8 +98,8 @@ impl AppContainer {
         // ハンドラーの作成
         let item_handler = web::Data::new(ItemHandler::new(item_service.clone(), deletion_facade.clone()));
         let user_handler = web::Data::new(UserHandler::new(user_service.clone()));
-        let category_handler = web::Data::new(CategoryHandler::new(category_service.clone()));
-        let product_handler = web::Data::new(ProductHandler::new(product_service.clone()));
+        let category_handler = web::Data::new(CategoryHandler::new(category_service.clone(), deletion_facade.clone()));
+        let product_handler = web::Data::new(ProductHandler::new(product_service.clone(), deletion_facade.clone()));
 
         // gRPCサービスの作成
         let grpc_user_service = UserServiceImpl::new(user_service.clone());

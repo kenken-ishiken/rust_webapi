@@ -72,7 +72,10 @@ async fn test_delete_item(
     path: web::Path<u64>,
 ) -> impl actix_web::Responder {
     let item_id = path.into_inner();
-    let result = item_service.delete(item_id).await;
+    let result = item_service.batch_delete(rust_webapi::application::dto::item_dto::BatchDeleteRequest {
+        ids: vec![item_id],
+        is_physical: Some(false),
+    }).await;
     match result {
         Ok(_) => HttpResponse::NoContent().finish(),
         Err(_) => HttpResponse::InternalServerError().json("Error deleting item"),

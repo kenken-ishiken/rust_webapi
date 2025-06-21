@@ -409,7 +409,7 @@ async fn test_postgres_repository_transaction_behavior() {
     );
 
     // Test that deletes are atomic
-    let deleted = repo.delete(1).await;
+    let deleted = repo.logical_delete(1).await;
     assert!(deleted.is_ok());
 
     // Verify the item is completely gone

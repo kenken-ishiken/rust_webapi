@@ -94,31 +94,7 @@ impl ItemService {
         }
     }
 
-    pub async fn delete(&self, id: u64) -> AppResult<()> {
-        self.repository.delete(id).await?;
-        increment_success_counter("item", "delete");
-        Ok(())
-    }
-
     // New methods for product deletion API
-
-    pub async fn logical_delete(&self, id: u64) -> AppResult<()> {
-        self.repository.logical_delete(id).await?;
-        increment_success_counter("item", "logical_delete");
-        Ok(())
-    }
-
-    pub async fn physical_delete(&self, id: u64) -> AppResult<()> {
-        self.repository.physical_delete(id).await?;
-        increment_success_counter("item", "physical_delete");
-        Ok(())
-    }
-
-    pub async fn restore(&self, id: u64) -> AppResult<()> {
-        self.repository.restore(id).await?;
-        increment_success_counter("item", "restore");
-        Ok(())
-    }
 
     pub async fn find_deleted(&self) -> AppResult<Vec<ItemResponse>> {
         let items = self.repository.find_deleted().await?;
@@ -390,91 +366,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
-    async fn test_delete_success() {
-        let mut mock_repo = MockItemRepository::new();
-        mock_repo
-            .expect_delete()
-            .with(eq(1u64))
-            .return_once(|_| Ok(()));
-
-        let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.delete(1).await;
-
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_delete_not_found() {
-        let mut mock_repo = MockItemRepository::new();
-        mock_repo
-            .expect_delete()
-            .with(eq(999u64))
-            .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
-
-        let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.delete(999).await;
-
-        assert!(result.is_err());
-    }
-
     // New tests for product deletion API
-
-    #[tokio::test]
-    async fn test_logical_delete_success() {
-        let mut mock_repo = MockItemRepository::new();
-        mock_repo
-            .expect_logical_delete()
-            .with(eq(1u64))
-            .return_once(|_| Ok(()));
-
-        let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.logical_delete(1).await;
-
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_logical_delete_not_found() {
-        let mut mock_repo = MockItemRepository::new();
-        mock_repo
-            .expect_logical_delete()
-            .with(eq(999u64))
-            .return_once(|_| Err(AppError::NotFound("Item not found".to_string())));
-
-        let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.logical_delete(999).await;
-
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_physical_delete_success() {
-        let mut mock_repo = MockItemRepository::new();
-        mock_repo
-            .expect_physical_delete()
-            .with(eq(1u64))
-            .return_once(|_| Ok(()));
-
-        let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.physical_delete(1).await;
-
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_restore_success() {
-        let mut mock_repo = MockItemRepository::new();
-        mock_repo
-            .expect_restore()
-            .with(eq(1u64))
-            .return_once(|_| Ok(()));
-
-        let service = ItemService::new(Arc::new(mock_repo));
-        let result = service.restore(1).await;
-
-        assert!(result.is_ok());
-    }
 
     #[tokio::test]
     async fn test_find_deleted() {

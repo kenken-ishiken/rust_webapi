@@ -409,14 +409,7 @@ impl ProductService {
         self.find_by_id(id).await
     }
 
-    pub async fn delete(&self, id: &str) -> Result<(), ProductError> {
-        self.repository.delete(id).await?;
 
-        increment_success_counter("product", "delete");
-        info!("Deleted product {}", id);
-
-        Ok(())
-    }
 
     pub async fn update_price(
         &self,

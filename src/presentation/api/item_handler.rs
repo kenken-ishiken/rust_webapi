@@ -165,12 +165,29 @@ mod tests {
     };
     use mockall::predicate::*;
     use std::sync::Arc;
+    use sqlx::PgPool;
 
     // Helper function to create handler with DeletionFacade
     fn create_handler(mock_repo: MockItemRepository) -> web::Data<ItemHandler> {
+        use crate::app_domain::repository::category_repository::MockCategoryRepository;
+        use crate::infrastructure::repository::postgres::product_repository::PostgresProductRepository;
+        
         let mock_repo_arc = Arc::new(mock_repo);
         let service = Arc::new(ItemService::new(mock_repo_arc.clone()));
-        let deletion_facade = Arc::new(DeletionFacade::new(mock_repo_arc));
+        
+        // Create mock repositories for DeletionFacade
+        let mock_category_repo = Arc::new(MockCategoryRepository::new());
+        
+        // Create a lazy connection pool for ProductRepository (won't actually connect)
+        let pool = sqlx::PgPool::connect_lazy("postgres://dummy:dummy@localhost/dummy").unwrap();
+        let mock_product_repo = Arc::new(PostgresProductRepository::new(pool));
+        
+        let deletion_facade = Arc::new(DeletionFacade::new(
+            mock_repo_arc,
+            mock_category_repo,
+            mock_product_repo,
+        ));
+        
         web::Data::new(ItemHandler::new(service, deletion_facade))
     }
 

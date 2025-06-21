@@ -66,14 +66,14 @@ async fn test_in_memory_item_repository_operations() {
     assert!(result.is_err());
 
     // Test delete existing
-    repo.delete(1).await.unwrap();
+    repo.logical_delete(1).await.unwrap();
 
     // Verify deletion
     let all_items = repo.find_all().await.unwrap();
     assert_eq!(all_items.len(), 0);
 
     // Test delete non-existing
-    let result = repo.delete(999).await;
+    let result = repo.logical_delete(999).await;
     assert!(result.is_err());
 }
 
@@ -250,7 +250,7 @@ async fn test_batch_operations_performance() {
     // Test batch delete (every third ID)
     let mut deleted_count = 0;
     for i in (3..=1000).step_by(3) {
-        if repo.delete(i).await.is_ok() {
+        if repo.logical_delete(i).await.is_ok() {
             deleted_count += 1;
         }
     }

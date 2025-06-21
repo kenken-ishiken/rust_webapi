@@ -246,29 +246,7 @@ impl CategoryService {
         }
     }
 
-    /// カテゴリを削除します。
-    pub async fn delete(&self, id: &str) -> Result<bool, CategoryError> {
-        match self.repository.delete(id).await {
-            Ok(deleted) => {
-                if deleted {
-                    increment_success_counter("category", "delete");
-                    info!("Deleted category {}", id);
-                } else {
-                    increment_error_counter("category", "delete");
-                    error!("Category {} not found for deletion", id);
-                    return Err(CategoryError::NotFound(
-                        "カテゴリが見つかりません".to_string(),
-                    ));
-                }
-                Ok(deleted)
-            }
-            Err(e) => {
-                increment_error_counter("category", "delete");
-                error!("Failed to delete category {}: {}", id, e);
-                Err(e)
-            }
-        }
-    }
+
 
     /// 親カテゴリ変更および並び順変更を行います。
     pub async fn move_category(
@@ -469,44 +447,7 @@ mod tests {
         assert_eq!(response.name, "Updated Electronics");
     }
 
-    #[tokio::test]
-    async fn test_delete_success() {
-        let mut mock_repo = MockCategoryRepository::new();
 
-        mock_repo
-            .expect_delete()
-            .with(eq("cat_123"))
-            .return_once(|_| Ok(true));
-
-        let service = CategoryService::new(Arc::new(mock_repo));
-        let result = service.delete("cat_123").await;
-
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_delete_has_children() {
-        let mut mock_repo = MockCategoryRepository::new();
-
-        mock_repo
-            .expect_delete()
-            .with(eq("cat_123"))
-            .return_once(|_| {
-                Err(CategoryError::HasChildren(
-                    "子カテゴリが存在するため削除できません".to_string(),
-                ))
-            });
-
-        let service = CategoryService::new(Arc::new(mock_repo));
-        let result = service.delete("cat_123").await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            CategoryError::HasChildren(_) => (),
-            _ => panic!("Expected HasChildren error"),
-        }
-    }
 
     #[tokio::test]
     async fn test_move_category_success() {

@@ -75,10 +75,7 @@ impl ItemRepository for InMemoryItemRepository {
         )))
     }
 
-    async fn delete(&self, id: u64) -> AppResult<()> {
-        // For backward compatibility, we'll make this perform a physical delete
-        self.physical_delete(id).await
-    }
+
 
     async fn logical_delete(&self, id: u64) -> AppResult<()> {
         let mut items = self
@@ -338,10 +335,7 @@ impl ItemRepository for PostgresItemRepository {
         }
     }
 
-    async fn delete(&self, id: u64) -> AppResult<()> {
-        // For backward compatibility, we'll make this method perform a physical delete
-        self.physical_delete(id).await
-    }
+
 
     async fn logical_delete(&self, id: u64) -> AppResult<()> {
         let now = Utc::now();
@@ -625,8 +619,8 @@ mod tests {
         assert_eq!(result.name, "Updated Item");
         assert_eq!(result.description, Some("Updated Description".to_string()));
 
-        // 6. アイテム削除のテスト
-        let deleted = repo.delete(1).await;
+        // 6. アイテム論理削除のテスト
+        let deleted = repo.logical_delete(1).await;
         assert!(deleted.is_ok());
 
         // 削除後の検証
@@ -634,7 +628,7 @@ mod tests {
         assert_eq!(all_items_after_delete.len(), 0);
 
         // 7. 存在しないアイテムの削除テスト
-        let not_deleted = repo.delete(999).await;
+        let not_deleted = repo.logical_delete(999).await;
         assert!(not_deleted.is_err());
     }
 }
