@@ -25,7 +25,7 @@ impl PostgresContainer {
             // Create a static Docker client
             static DOCKER: std::sync::OnceLock<testcontainers::clients::Cli> =
                 std::sync::OnceLock::new();
-            let docker = DOCKER.get_or_init(|| testcontainers::clients::Cli::default());
+            let docker = DOCKER.get_or_init(testcontainers::clients::Cli::default);
 
             CONTAINER.with(|c| {
                 if c.borrow().is_none() {
@@ -150,5 +150,5 @@ impl PostgresContainer {
 
 // Use thread_local storage to keep the container alive
 thread_local! {
-    static CONTAINER: std::cell::RefCell<Option<testcontainers::Container<'static, postgres::Postgres>>> = std::cell::RefCell::new(None);
+    static CONTAINER: std::cell::RefCell<Option<testcontainers::Container<'static, postgres::Postgres>>> = const { std::cell::RefCell::new(None) };
 }

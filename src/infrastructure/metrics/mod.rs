@@ -1,37 +1,36 @@
-use actix_web::{HttpResponse, Responder};
+use actix_web::{HttpResponse, Result as ActixResult};
 use lazy_static::lazy_static;
 use prometheus::{
-    gather, register_histogram_vec, register_int_counter_vec, Encoder, HistogramVec, IntCounterVec,
-    Registry, TextEncoder,
+    CounterVec, HistogramVec, Opts, Registry, TextEncoder, Encoder,
 };
 
 lazy_static! {
-    pub static ref REGISTRY: Registry = Registry::new();
-    pub static ref API_SUCCESS_COUNTER: IntCounterVec = register_int_counter_vec!(
-        "api_success_count",
-        "Number of successful API calls",
+    static ref API_SUCCESS_COUNTER: CounterVec = CounterVec::new(
+        Opts::new("api_success_total", "Total number of successful API requests"),
         &["service", "endpoint"]
-    ).unwrap();
-    pub static ref API_ERROR_COUNTER: IntCounterVec = register_int_counter_vec!(
-        "api_error_count",
-        "Number of failed API calls",
+    ).expect("Failed to create API_SUCCESS_COUNTER");
+    
+    static ref API_ERROR_COUNTER: CounterVec = CounterVec::new(
+        Opts::new("api_error_total", "Total number of API errors"),
         &["service", "endpoint"]
-    ).unwrap();
-    // Histogram for request durations in seconds, labeled by service and endpoint
-    pub static ref API_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
-        "api_request_duration_seconds",
-        "HTTP request duration in seconds",
+    ).expect("Failed to create API_ERROR_COUNTER");
+    
+    static ref API_REQUEST_DURATION_HISTOGRAM: HistogramVec = HistogramVec::new(
+        prometheus::HistogramOpts::new(
+            "api_request_duration_seconds", 
+            "API request duration in seconds"
+        ),
         &["service", "endpoint"]
-    ).unwrap();
+    ).expect("Failed to create API_REQUEST_DURATION_HISTOGRAM");
+    
+    static ref REGISTRY: Registry = Registry::new();
 }
 
 pub fn init_metrics() {
-    let r = REGISTRY.clone();
-    r.register(Box::new(API_SUCCESS_COUNTER.clone())).unwrap();
-    r.register(Box::new(API_ERROR_COUNTER.clone())).unwrap();
-    // Register histogram for request durations
-    r.register(Box::new(API_REQUEST_DURATION_HISTOGRAM.clone()))
-        .unwrap();
+    // Register metrics - these are static and should not fail after initial creation
+    let _ = REGISTRY.register(Box::new(API_SUCCESS_COUNTER.clone()));
+    let _ = REGISTRY.register(Box::new(API_ERROR_COUNTER.clone()));
+    let _ = REGISTRY.register(Box::new(API_REQUEST_DURATION_HISTOGRAM.clone()));
 }
 
 pub fn increment_success_counter(service: &str, endpoint: &str) {
@@ -52,15 +51,25 @@ pub fn observe_request_duration(service: &str, endpoint: &str, seconds: f64) {
         .observe(seconds);
 }
 
-pub async fn metrics_handler() -> impl Responder {
+pub async fn metrics_handler() -> ActixResult<HttpResponse> {
     let encoder = TextEncoder::new();
-    let metric_families = gather();
+    let metric_families = REGISTRY.gather();
     let mut buffer = Vec::new();
-    encoder.encode(&metric_families, &mut buffer).unwrap();
-
-    HttpResponse::Ok()
-        .content_type("text/plain; charset=utf-8")
-        .body(String::from_utf8(buffer).unwrap())
+    encoder.encode(&metric_families, &mut buffer)
+        .map_err(|e| {
+            tracing::error!("Failed to encode metrics: {}", e);
+            actix_web::error::ErrorInternalServerError("Failed to encode metrics")
+        })?;
+    
+    let response = String::from_utf8(buffer)
+        .map_err(|e| {
+            tracing::error!("Failed to convert metrics to UTF-8: {}", e);
+            actix_web::error::ErrorInternalServerError("Failed to convert metrics")
+        })?;
+    
+    Ok(HttpResponse::Ok()
+        .content_type("text/plain; version=0.0.4")
+        .body(response))
 }
 // Unit tests for metrics endpoint
 #[cfg(test)]
@@ -70,7 +79,9 @@ mod tests {
 
     #[actix_web::test]
     async fn test_metrics_handler_outputs_metrics() {
-        // Ensure metrics are initialized via register macros
+        // Initialize metrics before using them
+        init_metrics();
+        
         // Emit some sample metrics
         increment_success_counter("rust_webapi", "/test");
         increment_error_counter("rust_webapi", "/test");
@@ -85,14 +96,17 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         // Read body as text
         let body = test::read_body(resp).await;
-        let body_str = std::str::from_utf8(&body).expect("Response not UTF-8");
+        let body_str = match std::str::from_utf8(&body) {
+            Ok(s) => s,
+            Err(_) => panic!("Response not UTF-8"),
+        };
         // Check that counters and histogram metrics are present with correct labels
         assert!(
-            body_str.contains("api_success_count"),
+            body_str.contains("api_success_total"),
             "Missing success counter"
         );
         assert!(
-            body_str.contains("api_error_count"),
+            body_str.contains("api_error_total"),
             "Missing error counter"
         );
         assert!(

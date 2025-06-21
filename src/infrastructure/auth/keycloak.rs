@@ -12,7 +12,6 @@ pub enum KeycloakError {
     TokenExpired,
     JwtError(jsonwebtoken::errors::Error),
     ReqwestError(reqwest::Error),
-    #[allow(dead_code)]
     Other(String),
 }
 
@@ -98,16 +97,13 @@ impl KeycloakConfig {
             client_id,
         }
     }
-
-    pub fn from_env() -> Self {
-        let realm =
-            std::env::var("KEYCLOAK_REALM").expect("KEYCLOAK_REALM must be set in .env file");
-        let auth_server_url = std::env::var("KEYCLOAK_AUTH_SERVER_URL")
-            .expect("KEYCLOAK_AUTH_SERVER_URL must be set in .env file");
-        let client_id = std::env::var("KEYCLOAK_CLIENT_ID")
-            .expect("KEYCLOAK_CLIENT_ID must be set in .env file");
-
-        Self::new(realm, auth_server_url, client_id)
+    
+    pub fn from_auth_config(config: &crate::infrastructure::config::AuthConfig) -> Self {
+        Self::new(
+            config.keycloak_realm.clone(),
+            config.keycloak_auth_server_url.clone(),
+            config.keycloak_client_id.clone(),
+        )
     }
 
     pub fn get_jwks_url(&self) -> String {

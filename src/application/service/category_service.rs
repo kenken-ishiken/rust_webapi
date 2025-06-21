@@ -276,17 +276,18 @@ impl CategoryService {
         id: &str,
         req: MoveCategoryRequest,
     ) -> Result<CategoryResponse, CategoryError> {
-        let parent_id = req.parent_id.clone();
+        let parent_id = req.new_parent_id.clone();
+        let sort_order = req.new_sort_order.unwrap_or(0);
         match self
             .repository
-            .move_category(id, req.parent_id, req.sort_order)
+            .move_category(id, req.new_parent_id, sort_order)
             .await
         {
             Ok(moved_category) => {
                 increment_success_counter("category", "move");
                 info!(
                     "Moved category {} to parent {:?} with sort order {}",
-                    id, parent_id, req.sort_order
+                    id, parent_id, sort_order
                 );
                 Ok(moved_category.into())
             }
@@ -363,6 +364,7 @@ mod tests {
             description: Some("Electronic devices".to_string()),
             parent_id: None,
             sort_order: 1,
+            is_active: None,
         };
 
         let expected_category = Category {
@@ -399,6 +401,7 @@ mod tests {
             description: None,
             parent_id: None,
             sort_order: 1,
+            is_active: None,
         };
 
         mock_repo.expect_create().return_once(|_| {
@@ -528,8 +531,8 @@ mod tests {
             .return_once(move |_, _, _| Ok(moved_category));
 
         let request = MoveCategoryRequest {
-            parent_id: Some("cat_parent".to_string()),
-            sort_order: 2,
+            new_parent_id: Some("cat_parent".to_string()),
+            new_sort_order: Some(2),
         };
 
         let service = CategoryService::new(Arc::new(mock_repo));

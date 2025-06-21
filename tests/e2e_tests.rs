@@ -282,7 +282,7 @@ async fn test_e2e_items_crud_workflow() {
     assert_eq!(resp.status(), 200);
     let items: Value = test::read_body_json(resp).await;
     let items_array = items.as_array().unwrap();
-    assert!(items_array.len() >= 1);
+    assert!(!items_array.is_empty());
 
     let found_item = items_array.iter().find(|item| item["id"] == item_id);
     assert!(found_item.is_some());
@@ -376,7 +376,7 @@ async fn test_e2e_users_crud_workflow() {
     assert_eq!(resp.status(), 200);
     let users: Value = test::read_body_json(resp).await;
     let users_array = users.as_array().unwrap();
-    assert!(users_array.len() >= 1);
+    assert!(!users_array.is_empty());
 
     let found_user = users_array.iter().find(|user| user["id"] == user_id);
     assert!(found_user.is_some());
