@@ -27,23 +27,27 @@ impl Default for InMemoryUserRepository {
 #[async_trait]
 impl UserRepository for InMemoryUserRepository {
     async fn find_all(&self) -> Vec<User> {
-        let users = self.users.lock().unwrap();
+        let users = self.users.lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         users.values().cloned().collect()
     }
 
     async fn find_by_id(&self, id: u64) -> Option<User> {
-        let users = self.users.lock().unwrap();
+        let users = self.users.lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         users.get(&id).cloned()
     }
 
     async fn create(&self, user: User) -> User {
-        let mut users = self.users.lock().unwrap();
+        let mut users = self.users.lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         users.insert(user.id, user.clone());
         user
     }
 
     async fn update(&self, user: User) -> Option<User> {
-        let mut users = self.users.lock().unwrap();
+        let mut users = self.users.lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let std::collections::hash_map::Entry::Occupied(mut e) = users.entry(user.id) {
             e.insert(user.clone());
             Some(user)
@@ -53,7 +57,8 @@ impl UserRepository for InMemoryUserRepository {
     }
 
     async fn delete(&self, id: u64) -> bool {
-        let mut users = self.users.lock().unwrap();
+        let mut users = self.users.lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         users.remove(&id).is_some()
     }
 }

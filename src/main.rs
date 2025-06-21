@@ -21,6 +21,7 @@ use crate::infrastructure::metrics::{
     observe_request_duration,
 };
 use crate::infrastructure::tracing::init_tracing;
+use crate::infrastructure::startup_error::{StartupError, StartupResult};
 use actix_web::dev::Service;
 use std::time::Instant;
 
@@ -51,35 +52,27 @@ use crate::presentation::grpc::item_service::{ItemServiceImpl, ItemServiceServer
 use crate::presentation::grpc::user_service::{UserServiceImpl, UserServiceServer};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> StartupResult<()> {
     // 環境変数の読み込み
     dotenv().ok();
 
     // Initialize tracing and OpenTelemetry (Datadog compatible)
-    init_tracing().expect("failed to initialize tracing");
+    init_tracing().map_err(|e| StartupError::TracingInit(e.to_string()))?;
     info!("Tracing initialized");
 
     init_metrics();
     info!("Metrics initialized");
 
     // データベース接続プールの作成
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
+    let database_url = std::env::var("DATABASE_URL")
+        .map_err(|_| StartupError::EnvVarMissing("DATABASE_URL".to_string()))?;
 
-    let pool = match PgPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
-        .await
-    {
-        Ok(pool) => {
-            info!("✅ PostgreSQL データベース接続に成功しました");
-            pool
-        }
-        Err(e) => {
-            error!("❌ PostgreSQL データベース接続に失敗しました: {}", e);
-            std::process::exit(1);
-        }
-    };
+        .await?;
+    
+    info!("✅ PostgreSQL データベース接続に成功しました");
 
     // リポジトリの作成
     let item_repository: Arc<dyn ItemRepository + Send + Sync> =
@@ -97,7 +90,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let product_service = Arc::new(ProductService::new(product_repository.clone()));
 
     // Keycloak認証の設定
-    let keycloak_config = KeycloakConfig::from_env();
+    let keycloak_config = KeycloakConfig::from_env_safe()
+        .map_err(|e| StartupError::Configuration(e.to_string()))?;
     let keycloak_auth = web::Data::new(KeycloakAuth::new(keycloak_config));
 
     // ハンドラーの作成
@@ -200,24 +194,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     })
     .bind("127.0.0.1:8080")?;
 
+    // gRPCサーバーアドレスをパース
+    let grpc_addr = "127.0.0.1:50051"
+        .parse()
+        .map_err(|_| StartupError::Configuration("Invalid gRPC address".to_string()))?;
+
     // gRPCサーバーの設定
     let grpc_server = Server::builder()
         .add_service(UserServiceServer::new(grpc_user_service))
         .add_service(ItemServiceServer::new(grpc_item_service))
-        .serve("127.0.0.1:50051".parse().unwrap());
+        .serve(grpc_addr);
 
     // 両方のサーバーを並行して実行
     tokio::select! {
         result = http_server.run() => {
             if let Err(e) = result {
                 error!("HTTPサーバーエラー: {}", e);
-                return Err(e.into());
+                return Err(StartupError::ServerBind(e.to_string()));
             }
         }
         result = grpc_server => {
             if let Err(e) = result {
                 error!("gRPCサーバーエラー: {}", e);
-                return Err(e.into());
+                return Err(StartupError::GrpcServer(e.to_string()));
             }
         }
     }

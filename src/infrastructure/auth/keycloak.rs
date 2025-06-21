@@ -12,7 +12,6 @@ pub enum KeycloakError {
     TokenExpired,
     JwtError(jsonwebtoken::errors::Error),
     ReqwestError(reqwest::Error),
-    #[allow(dead_code)]
     Other(String),
 }
 
@@ -108,6 +107,17 @@ impl KeycloakConfig {
             .expect("KEYCLOAK_CLIENT_ID must be set in .env file");
 
         Self::new(realm, auth_server_url, client_id)
+    }
+    
+    pub fn from_env_safe() -> Result<Self, KeycloakError> {
+        let realm = std::env::var("KEYCLOAK_REALM")
+            .map_err(|_| KeycloakError::Other("KEYCLOAK_REALM must be set in .env file".to_string()))?;
+        let auth_server_url = std::env::var("KEYCLOAK_AUTH_SERVER_URL")
+            .map_err(|_| KeycloakError::Other("KEYCLOAK_AUTH_SERVER_URL must be set in .env file".to_string()))?;
+        let client_id = std::env::var("KEYCLOAK_CLIENT_ID")
+            .map_err(|_| KeycloakError::Other("KEYCLOAK_CLIENT_ID must be set in .env file".to_string()))?;
+
+        Ok(Self::new(realm, auth_server_url, client_id))
     }
 
     pub fn get_jwks_url(&self) -> String {

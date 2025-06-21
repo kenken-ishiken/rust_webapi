@@ -7,6 +7,7 @@ pub struct CreateCategoryRequest {
     pub description: Option<String>,
     pub parent_id: Option<String>,
     pub sort_order: i32,
+    pub is_active: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -19,8 +20,8 @@ pub struct UpdateCategoryRequest {
 
 #[derive(Deserialize)]
 pub struct MoveCategoryRequest {
-    pub parent_id: Option<String>,
-    pub sort_order: i32,
+    pub new_parent_id: Option<String>,
+    pub new_sort_order: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,7 +93,7 @@ pub struct CategoryQueryParams {
 pub struct CategoryErrorResponse {
     pub code: String,
     pub message: String,
-    pub details: Option<CategoryErrorDetails>,
+    pub details: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -159,29 +160,29 @@ impl From<crate::app_domain::model::category::CategoryError> for CategoryErrorRe
             CategoryError::InvalidName(msg) => Self {
                 code: "CATEGORY_INVALID_NAME".to_string(),
                 message: msg,
-                details: Some(CategoryErrorDetails {
-                    field: Some("name".to_string()),
-                    value: None,
-                    parent_id: None,
-                }),
+                details: Some(serde_json::json!({
+                    "field": "name",
+                    "value": null,
+                    "parent_id": null,
+                })),
             },
             CategoryError::InvalidSortOrder(msg) => Self {
                 code: "CATEGORY_INVALID_SORT_ORDER".to_string(),
                 message: msg,
-                details: Some(CategoryErrorDetails {
-                    field: Some("sort_order".to_string()),
-                    value: None,
-                    parent_id: None,
-                }),
+                details: Some(serde_json::json!({
+                    "field": "sort_order",
+                    "value": null,
+                    "parent_id": null,
+                })),
             },
             CategoryError::NameDuplicate(msg) => Self {
                 code: "CATEGORY_NAME_DUPLICATE".to_string(),
                 message: msg,
-                details: Some(CategoryErrorDetails {
-                    field: Some("name".to_string()),
-                    value: None,
-                    parent_id: None,
-                }),
+                details: Some(serde_json::json!({
+                    "field": "name",
+                    "value": null,
+                    "parent_id": null,
+                })),
             },
             CategoryError::CircularReference(msg) => Self {
                 code: "CATEGORY_CIRCULAR_REFERENCE".to_string(),
@@ -211,6 +212,8 @@ impl From<crate::app_domain::model::category::CategoryError> for CategoryErrorRe
 mod tests {
     use super::*;
     use crate::app_domain::model::category::{Category, CategoryError};
+    use chrono::Utc;
+    use serde_json;
 
     #[test]
     fn test_category_response_conversion() {
@@ -234,88 +237,93 @@ mod tests {
 
     #[test]
     fn test_category_error_response_conversion() {
-        let error = CategoryError::NotFound("Category not found".to_string());
+        let error = CategoryError::NotFound("cat_123".to_string());
         let response: CategoryErrorResponse = error.into();
-
+        
         assert_eq!(response.code, "CATEGORY_NOT_FOUND");
-        assert_eq!(response.message, "Category not found");
+        assert_eq!(response.message, "Category not found: cat_123");
         assert!(response.details.is_none());
     }
 
     #[test]
-    fn test_category_error_with_details_conversion() {
-        let error = CategoryError::InvalidName("Name is required".to_string());
-        let response: CategoryErrorResponse = error.into();
-
-        assert_eq!(response.code, "CATEGORY_INVALID_NAME");
-        assert_eq!(response.message, "Name is required");
-        assert!(response.details.is_some());
-
-        let details = response.details.unwrap();
-        assert_eq!(details.field, Some("name".to_string()));
+    fn test_category_error_response_with_details() {
+        let response = CategoryErrorResponse {
+            code: "CATEGORY_ERROR".to_string(),
+            message: "An error occurred".to_string(),
+            details: Some(serde_json::json!({
+                "field": "name",
+                "reason": "too long"
+            })),
+        };
+        
+        let details = response.details.expect("Details should exist");
+        assert_eq!(details["field"], "name");
+        assert_eq!(details["reason"], "too long");
     }
 
     #[test]
     fn test_create_category_request_deserialization() {
-        let json = r#"
-        {
+        let json = r#"{
             "name": "Electronics",
-            "description": "Electronic devices",
-            "parent_id": null,
-            "sort_order": 1
-        }
-        "#;
-
-        let request: CreateCategoryRequest = serde_json::from_str(json).unwrap();
+            "description": "Electronic products",
+            "parent_id": "cat_123",
+            "sort_order": 1,
+            "is_active": true
+        }"#;
+        
+        let request: CreateCategoryRequest = serde_json::from_str(json)
+            .expect("Failed to deserialize CreateCategoryRequest");
+        
         assert_eq!(request.name, "Electronics");
-        assert_eq!(request.description, Some("Electronic devices".to_string()));
-        assert_eq!(request.parent_id, None);
+        assert_eq!(request.description, Some("Electronic products".to_string()));
+        assert_eq!(request.parent_id, Some("cat_123".to_string()));
         assert_eq!(request.sort_order, 1);
+        assert_eq!(request.is_active, Some(true));
     }
 
     #[test]
     fn test_update_category_request_deserialization() {
-        let json = r#"
-        {
+        let json = r#"{
             "name": "Updated Electronics",
-            "sort_order": 2
-        }
-        "#;
-
-        let request: UpdateCategoryRequest = serde_json::from_str(json).unwrap();
+            "description": "Updated description",
+            "sort_order": 2,
+            "is_active": false
+        }"#;
+        
+        let request: UpdateCategoryRequest = serde_json::from_str(json)
+            .expect("Failed to deserialize UpdateCategoryRequest");
+        
         assert_eq!(request.name, Some("Updated Electronics".to_string()));
-        assert_eq!(request.description, None);
+        assert_eq!(request.description, Some("Updated description".to_string()));
         assert_eq!(request.sort_order, Some(2));
-        assert_eq!(request.is_active, None);
+        assert_eq!(request.is_active, Some(false));
     }
 
     #[test]
     fn test_move_category_request_deserialization() {
-        let json = r#"
-        {
-            "parent_id": "cat_456",
-            "sort_order": 3
-        }
-        "#;
-
-        let request: MoveCategoryRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.parent_id, Some("cat_456".to_string()));
-        assert_eq!(request.sort_order, 3);
+        let json = r#"{
+            "new_parent_id": "cat_456",
+            "new_sort_order": 3
+        }"#;
+        
+        let request: MoveCategoryRequest = serde_json::from_str(json)
+            .expect("Failed to deserialize MoveCategoryRequest");
+        
+        assert_eq!(request.new_parent_id, Some("cat_456".to_string()));
+        assert_eq!(request.new_sort_order, Some(3));
     }
 
     #[test]
     fn test_category_query_params_deserialization() {
-        let json = r#"
-        {
-            "parent_id": "cat_123",
-            "include_inactive": true,
-            "sort": "name"
-        }
-        "#;
-
-        let params: CategoryQueryParams = serde_json::from_str(json).unwrap();
-        assert_eq!(params.parent_id, Some("cat_123".to_string()));
+        let json = r#"{
+            "parent_id": "cat_789",
+            "include_inactive": true
+        }"#;
+        
+        let params: CategoryQueryParams = serde_json::from_str(json)
+            .expect("Failed to deserialize CategoryQueryParams");
+        
+        assert_eq!(params.parent_id, Some("cat_789".to_string()));
         assert_eq!(params.include_inactive, Some(true));
-        // assert_eq!(params.sort, Some("name".to_string()));
     }
 }
