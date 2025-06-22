@@ -175,7 +175,8 @@ impl KeycloakAuth {
         // トークンを検証
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
-        validation.set_audience(&[&self.config.client_id]);
+        // audienceとして"account"と client_id の両方を許可
+        validation.set_audience(&["account", &self.config.client_id]);
         validation.set_issuer(&[format!(
             "{}/realms/{}",
             self.config.auth_server_url, self.config.realm

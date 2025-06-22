@@ -265,7 +265,7 @@ impl CategoryHandler {
 // Configure category routes
 pub fn configure_category_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/categories")
+        web::scope("/categories")
             .route("", web::get().to(CategoryHandler::get_categories))
             .route("", web::post().to(CategoryHandler::create_category))
             .route("/tree", web::get().to(CategoryHandler::get_category_tree))

@@ -117,10 +117,11 @@ pub fn build_http_server(
                         .route("/users", web::post().to(UserHandler::create_user))
                         .route("/users/{id}", web::get().to(UserHandler::get_user))
                         .route("/users/{id}", web::put().to(UserHandler::update_user))
-                        .route("/users/{id}", web::delete().to(UserHandler::delete_user)),
+                        .route("/users/{id}", web::delete().to(UserHandler::delete_user))
+                        // Configure categories and products routes
+                        .configure(configure_category_routes)
+                        .configure(configure_product_routes),
                 )
-                .configure(configure_category_routes)
-                .configure(configure_product_routes)
         }
     })
     // Performance optimizations

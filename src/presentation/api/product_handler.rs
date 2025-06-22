@@ -579,8 +579,7 @@ pub struct LowStockQuery {
 // Product configuration function to register all routes
 pub fn configure_product_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/products")
-            // Basic CRUD operations
+        web::scope("/products")
             .route("", web::get().to(ProductHandler::search_products))
             .route("", web::post().to(ProductHandler::create_product))
             .route("/{id}", web::get().to(ProductHandler::get_product))
