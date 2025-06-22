@@ -31,6 +31,8 @@ lazy_static! {
 /// 
 /// # 使用例
 /// ```rust
+/// use rust_webapi::metrics;
+/// 
 /// // 成功カウンター
 /// metrics!(success, "user", "find_by_id");
 /// 
@@ -69,6 +71,8 @@ macro_rules! metrics {
 /// 
 /// # 例
 /// ```rust
+/// use rust_webapi::infrastructure::metrics::MetricsTimer;
+/// 
 /// let timer = MetricsTimer::new("user", "find_by_id");
 /// // ... 処理 ...
 /// timer.observe(); // 自動的に経過時間を記録
