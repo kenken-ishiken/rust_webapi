@@ -21,7 +21,7 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  -t, --test TYPE      Test type: smoke, load, stress, spike, items, products, categories, users (default: smoke)"
+    echo "  -t, --test TYPE      Test type: smoke, load, stress, spike, sla, items, products, categories, users (default: smoke)"
     echo "  -o, --output DIR     Output directory for results (default: ./results)"
     echo "  -e, --env ENV        Environment: local, dev, staging, prod (default: local)"
     echo "  -d, --duration MIN   Override test duration in minutes (optional)"
@@ -133,6 +133,10 @@ case $TEST_TYPE in
     users)
         TEST_FILE="tests/users.js"
         TEST_NAME="Users API Test"
+        ;;
+    sla)
+        TEST_FILE="tests/sla/sla-validation-test.js"
+        TEST_NAME="SLA Validation Test"
         ;;
     *)
         echo -e "${RED}Error: Unknown test type: $TEST_TYPE${NC}"
