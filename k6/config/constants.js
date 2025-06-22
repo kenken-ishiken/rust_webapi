@@ -57,3 +57,21 @@ export const SLA = {
     P99_RESPONSE_TIME: 1000, // 99th percentile should be under 1000ms
     ERROR_RATE: 0.01,        // Error rate should be under 1%
 };
+
+// SLA validation requirements from REMAINING_IMPROVEMENTS.md
+export const STRICT_SLA = {
+    P95_RESPONSE_TIME: 250,    // 95th percentile should be under 250ms
+    P99_RESPONSE_TIME: 400,    // 99th percentile should be under 400ms
+    ERROR_RATE: 0.001,         // Error rate should be under 0.1%
+    MIN_THROUGHPUT: 500,       // Minimum 500 requests per second
+    CONCURRENT_USERS: 1000,    // Support 1000 concurrent users
+};
+
+// SLA test stages for ramping up to 1000 users
+export const SLA_TEST_STAGES = [
+    { duration: '1m', target: 100 },   // Warm up
+    { duration: '2m', target: 500 },   // Ramp to 500 users
+    { duration: '2m', target: 1000 },  // Ramp to 1000 users
+    { duration: '5m', target: 1000 },  // Maintain 1000 users
+    { duration: '1m', target: 0 },     // Ramp down
+];

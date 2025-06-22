@@ -1,7 +1,7 @@
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpServer, middleware};
 use tracing_actix_web::TracingLogger;
 use actix_web::dev::Service;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 
 use crate::infrastructure::metrics::{Metrics, metrics_handler};
 use crate::presentation::api::{
@@ -31,6 +31,19 @@ pub fn build_http_server(
                 .app_data(category_handler.clone())
                 .app_data(product_handler.clone())
                 .app_data(keycloak_auth.clone())
+                // Configure JSON handling with size limit
+                .app_data(
+                    web::JsonConfig::default()
+                        .limit(4096) // 4KB limit for JSON payloads
+                        .error_handler(|err, _req| {
+                            use crate::infrastructure::error::AppError;
+                            AppError::bad_request(err.to_string()).into()
+                        })
+                )
+                // Enable response compression
+                .wrap(middleware::Compress::default())
+                // Normalize paths (remove trailing slashes)
+                .wrap(middleware::NormalizePath::trim())
                 // HTTP request tracing middleware
                 .wrap(TracingLogger::default())
                 // Metrics middleware: record request counts and durations
@@ -110,6 +123,11 @@ pub fn build_http_server(
                 .configure(configure_product_routes)
         }
     })
+    // Performance optimizations
+    .workers(num_cpus::get() * 2) // Optimize worker threads
+    .keep_alive(Duration::from_secs(75)) // Keep-alive timeout
+    .client_request_timeout(Duration::from_secs(60)) // Client request timeout
+    .client_disconnect_timeout(Duration::from_secs(5)) // Client disconnect timeout
     .bind(addr)?
     .run();
     

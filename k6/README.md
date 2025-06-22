@@ -30,20 +30,22 @@ The test suite includes:
 
 ## Quick Start
 
-1. **Run a smoke test** (minimal load to verify everything works):
+1. **Set up test environment**:
    ```bash
-   ./run-tests.sh -t smoke
+   ./setup-test-environment.sh
    ```
 
-2. **Run a load test** (normal expected load):
+2. **Run SLA baseline measurements**:
    ```bash
-   ./run-tests.sh -t load
+   ./sla-baseline-measurement.sh
    ```
 
-3. **Run tests for specific endpoints**:
+3. **Run individual tests**:
    ```bash
-   ./run-tests.sh -t products  # Test product endpoints
-   ./run-tests.sh -t users     # Test user endpoints
+   ./run-tests.sh -t smoke      # Minimal load test
+   ./run-tests.sh -t load       # Normal expected load
+   ./run-tests.sh -t sla        # SLA validation test
+   ./run-tests.sh -t products   # Test product endpoints
    ```
 
 ## Test Types
@@ -73,6 +75,21 @@ The test suite includes:
    - Spike: 50 → 500 VUs
    - Purpose: Test sudden traffic increase
    - Thresholds: p95 < 3s, error rate < 20%
+
+5. **SLA Validation Test** (`tests/sla/sla-validation-test.js`)
+   - Duration: 5 minutes (configurable)
+   - VUs: 1000 concurrent users
+   - Purpose: Validate against SLA requirements
+   - SLA Targets:
+     - 95th percentile response time < 250ms
+     - Error rate < 0.1%
+     - Throughput > 500 req/s
+   - Scenario Mix:
+     - 40% Product browsing
+     - 25% Category navigation
+     - 20% Item operations
+     - 10% Mixed reads
+     - 5% Write operations
 
 ### API Endpoint Tests
 
@@ -166,6 +183,38 @@ k6 run --out json=results.json tests/stress/stress-test.js
 # With HTML report
 k6 run --out web-dashboard tests/spike/spike-test.js
 ```
+
+## SLA Baseline Measurements
+
+### Running Baseline Tests
+
+The `sla-baseline-measurement.sh` script automates the process of establishing performance baselines:
+
+```bash
+# Run full baseline measurement suite
+./sla-baseline-measurement.sh
+```
+
+This script will:
+1. Check API availability
+2. Run smoke test (warm-up)
+3. Run SLA validation test
+4. Run individual endpoint tests
+5. Generate a comprehensive report
+
+### Understanding Baseline Reports
+
+Reports are saved to `results/baseline_<timestamp>/`:
+- `baseline_report.md`: Summary report with pass/fail status
+- Individual test logs and metrics
+- SLA compliance summary
+
+### Establishing Baselines
+
+1. **Initial Baseline**: Run tests on a clean deployment
+2. **Regular Updates**: Re-run after significant changes
+3. **Compare Results**: Track performance trends over time
+4. **Document Changes**: Note configuration or code changes
 
 ## Analyzing Results
 
