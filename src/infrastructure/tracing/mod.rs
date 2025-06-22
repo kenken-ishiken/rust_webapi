@@ -18,7 +18,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 /// - Integration with OpenTelemetry for distributed tracing
 pub fn init_tracing() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Forward log crate events to `tracing`
-    LogTracer::init()?;
+    // Ignore error if already initialized
+    let _ = LogTracer::init();
 
     // Create JSON log formatter layer
     let fmt_layer = fmt::layer()
@@ -28,10 +29,11 @@ pub fn init_tracing() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_span_events(FmtSpan::ENTER | FmtSpan::EXIT);
 
     // Initialize subscriber with layers
-    tracing_subscriber::registry()
+    // Use try_init() to handle the case where it's already initialized
+    let _ = tracing_subscriber::registry()
         .with(EnvFilter::from_default_env())
         .with(fmt_layer)
-        .init();
+        .try_init();
 
     Ok(())
 }

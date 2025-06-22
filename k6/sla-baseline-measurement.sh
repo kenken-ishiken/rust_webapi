@@ -21,7 +21,7 @@ echo ""
 
 # Check if API is running
 echo -e "${YELLOW}Checking API availability...${NC}"
-API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health || echo "000")
+API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/health || echo "000")
 
 if [ "$API_STATUS" != "200" ]; then
     echo -e "${RED}❌ API is not running or not accessible at http://localhost:8080${NC}"
