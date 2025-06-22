@@ -13,3 +13,25 @@
 /.idea/
 
 **/.claude/settings.local.json
+
+# k6 test results
+k6/results/
+
+# Coverage reports
+lcov.info
+filtered_lcov.info
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+
+# Backup files
+*.bak
+*.backup
