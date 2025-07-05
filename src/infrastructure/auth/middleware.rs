@@ -8,6 +8,9 @@ use std::pin::Pin;
 
 use super::keycloak::{KeycloakAuth, KeycloakClaims, KeycloakError};
 
+#[cfg(feature = "test-support")]
+use crate::infrastructure::auth::keycloak::{RealmAccess, ResourceAccess, Account};
+
 pub struct KeycloakUser {
     pub claims: KeycloakClaims,
 }
@@ -36,6 +39,7 @@ impl ResponseError for AuthError {
     }
 }
 
+#[cfg(not(feature = "test-support"))]
 impl FromRequest for KeycloakUser {
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
@@ -72,6 +76,42 @@ impl FromRequest for KeycloakUser {
             let claims = token_data.claims;
 
             Ok(KeycloakUser { claims })
+        })
+    }
+}
+
+#[cfg(feature = "test-support")]
+impl FromRequest for KeycloakUser {
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+
+    fn from_request(_req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        Box::pin(async move {
+            Ok(KeycloakUser {
+                claims: KeycloakClaims {
+                    exp: 9999999999,
+                    iat: 0,
+                    auth_time: 0,
+                    jti: "dummy-jti".to_string(),
+                    iss: "dummy-iss".to_string(),
+                    aud: "dummy-aud".to_string(),
+                    sub: "dummy-sub".to_string(),
+                    typ: "Bearer".to_string(),
+                    azp: "dummy-azp".to_string(),
+                    session_state: "dummy-session".to_string(),
+                    acr: "dummy-acr".to_string(),
+                    realm_access: RealmAccess { roles: vec!["user".to_string()] },
+                    resource_access: ResourceAccess { account: Account { roles: vec!["user".to_string()] } },
+                    scope: "openid profile email".to_string(),
+                    sid: "dummy-sid".to_string(),
+                    email_verified: true,
+                    name: "Test User".to_string(),
+                    preferred_username: "testuser".to_string(),
+                    given_name: "Test".to_string(),
+                    family_name: "User".to_string(),
+                    email: "test@example.com".to_string(),
+                }
+            })
         })
     }
 }

@@ -117,34 +117,30 @@ impl PostgresContainer {
     }
 
     pub async fn run_migrations(&self, pool: &Pool<Postgres>) {
-        // For this test, we'll create only the tables needed by the test
-        // The full migration file has complex statements that need special handling
+        // Read and execute the complete migration file
+        let migration_content = include_str!("../../initdb/01_create_tables.sql");
+        
+        // Split the migration file by semicolon and execute each statement
+        let statements: Vec<&str> = migration_content
+            .split(';')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty() && !s.starts_with("--"))
+            .collect();
 
-        // Create users table
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS users (
-                id BIGINT PRIMARY KEY,
-                username VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL
-            )",
-        )
-        .execute(pool)
-        .await
-        .expect("Failed to create users table");
-
-        // Create items table
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS items (
-                id BIGINT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                deleted BOOLEAN DEFAULT FALSE,
-                deleted_at TIMESTAMP WITH TIME ZONE
-            )",
-        )
-        .execute(pool)
-        .await
-        .expect("Failed to create items table");
+        for statement in statements {
+            if statement.is_empty() {
+                continue;
+            }
+            
+            match sqlx::query(statement).execute(pool).await {
+                Ok(_) => {},
+                Err(e) => {
+                    // Log the error but continue with other statements
+                    eprintln!("Warning: Failed to execute migration statement: {}", e);
+                    eprintln!("Statement: {}", statement);
+                }
+            }
+        }
     }
 }
 

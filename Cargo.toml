@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 testing = []
+test-support = []
 
 [dependencies]
 actix-web = "4.4.0"
