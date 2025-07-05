@@ -4,6 +4,7 @@ use tracing::info;
 
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
 use crate::application::service::user_service::UserService;
+use crate::infrastructure::error::AppError;
 
 pub struct UserHandler {
     service: Arc<UserService>,
@@ -15,22 +16,35 @@ impl UserHandler {
     }
 
     pub async fn get_users(data: web::Data<UserHandler>) -> impl Responder {
-        let users = data.service.find_all().await;
-        info!("Fetched {} users", users.len());
-        HttpResponse::Ok().json(users)
+        match data.service.find_all().await {
+            Ok(users) => {
+                info!("Fetched {} users", users.len());
+                HttpResponse::Ok().json(users)
+            }
+            Err(err) => {
+                tracing::error!("Failed to fetch users: {}", err);
+                HttpResponse::InternalServerError().json(err.to_string())
+            }
+        }
     }
 
     pub async fn get_user(data: web::Data<UserHandler>, path: web::Path<u64>) -> impl Responder {
         let user_id = path.into_inner();
         match data.service.find_by_id(user_id).await {
-            Some(user) => {
+            Ok(user) => {
                 info!("Fetched user {}", user_id);
                 HttpResponse::Ok().json(user)
             }
-            None => {
-                info!("User {} not found", user_id);
-                HttpResponse::NotFound().json("ユーザーが見つかりません")
-            }
+            Err(err) => match err {
+                AppError::NotFound { .. } => {
+                    info!("User {} not found", user_id);
+                    HttpResponse::NotFound().json(err.to_string())
+                }
+                _ => {
+                    tracing::error!("Failed to fetch user {}: {}", user_id, err);
+                    HttpResponse::InternalServerError().json(err.to_string())
+                }
+            },
         }
     }
 
@@ -38,9 +52,16 @@ impl UserHandler {
         data: web::Data<UserHandler>,
         user: web::Json<CreateUserRequest>,
     ) -> impl Responder {
-        let new_user = data.service.create(user.into_inner()).await;
-        info!("Created user with id {}", new_user.id);
-        HttpResponse::Created().json(new_user)
+        match data.service.create(user.into_inner()).await {
+            Ok(new_user) => {
+                info!("Created user with id {}", new_user.id);
+                HttpResponse::Created().json(new_user)
+            }
+            Err(err) => {
+                tracing::error!("Failed to create user: {}", err);
+                HttpResponse::InternalServerError().json(err.to_string())
+            }
+        }
     }
 
     pub async fn update_user(
@@ -50,25 +71,40 @@ impl UserHandler {
     ) -> impl Responder {
         let user_id = path.into_inner();
         match data.service.update(user_id, user.into_inner()).await {
-            Some(updated_user) => {
+            Ok(updated_user) => {
                 info!("Updated user {}", user_id);
                 HttpResponse::Ok().json(updated_user)
             }
-            None => {
-                info!("User {} not found for update", user_id);
-                HttpResponse::NotFound().json("ユーザーが見つかりません")
-            }
+            Err(err) => match err {
+                AppError::NotFound { .. } => {
+                    info!("User {} not found for update", user_id);
+                    HttpResponse::NotFound().json(err.to_string())
+                }
+                _ => {
+                    tracing::error!("Failed to update user {}: {}", user_id, err);
+                    HttpResponse::InternalServerError().json(err.to_string())
+                }
+            },
         }
     }
 
     pub async fn delete_user(data: web::Data<UserHandler>, path: web::Path<u64>) -> impl Responder {
         let user_id = path.into_inner();
-        if data.service.delete(user_id).await {
-            info!("Deleted user {}", user_id);
-            HttpResponse::Ok().json("ユーザーを削除しました")
-        } else {
-            info!("User {} not found for deletion", user_id);
-            HttpResponse::NotFound().json("ユーザーが見つかりません")
+        match data.service.delete(user_id).await {
+            Ok(_) => {
+                info!("Deleted user {}", user_id);
+                HttpResponse::Ok().json("ユーザーを削除しました")
+            }
+            Err(err) => match err {
+                AppError::NotFound { .. } => {
+                    info!("User {} not found for deletion", user_id);
+                    HttpResponse::NotFound().json(err.to_string())
+                }
+                _ => {
+                    tracing::error!("Failed to delete user {}: {}", user_id, err);
+                    HttpResponse::InternalServerError().json(err.to_string())
+                }
+            },
         }
     }
 }

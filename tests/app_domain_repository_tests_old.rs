@@ -226,10 +226,7 @@ async fn test_mock_repository_sequence_operations() {
     };
 
     // Set up a sequence of operations
-    mock_repo
-        .expect_create()
-        .times(1)
-        .returning(Ok);
+    mock_repo.expect_create().times(1).returning(Ok);
 
     mock_repo
         .expect_find_by_id()
@@ -240,10 +237,7 @@ async fn test_mock_repository_sequence_operations() {
             move |_| Ok(Some(item.clone()))
         });
 
-    mock_repo
-        .expect_update()
-        .times(1)
-        .returning(Ok);
+    mock_repo.expect_update().times(1).returning(Ok);
 
     mock_repo
         .expect_logical_delete()

@@ -53,7 +53,8 @@ impl ProductService {
                     Err(ProductError::ProductNotFound)
                 }
             }
-        }).await
+        })
+        .await
     }
 
     pub async fn find_by_sku(&self, sku: &str) -> Result<ProductResponse, ProductError> {
@@ -86,7 +87,8 @@ impl ProductService {
                     Err(ProductError::ProductNotFound)
                 }
             }
-        }).await
+        })
+        .await
     }
 
     pub async fn search(&self, query: ProductSearchQuery) -> ProductListResponse {
@@ -408,8 +410,6 @@ impl ProductService {
 
         self.find_by_id(id).await
     }
-
-
 
     pub async fn update_price(
         &self,

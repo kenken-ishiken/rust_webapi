@@ -2,15 +2,15 @@ use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use tracing::error;
 
-use crate::app_domain::model::product::{ProductError, ProductHistory};
 use super::converters::row_to_product_history;
+use crate::app_domain::model::product::{ProductError, ProductHistory};
 
 /// Product repository extensions for tags, attributes, and history management
 pub struct ProductMetadata<'a> {
     pub pool: &'a PgPool,
 }
 
-impl<'a> ProductMetadata<'a> {
+impl ProductMetadata<'_> {
     pub async fn get_tags_for_product(&self, product_id: &str) -> Vec<String> {
         let query = "SELECT tag FROM product_tags WHERE product_id = $1 ORDER BY tag";
 
@@ -32,7 +32,8 @@ impl<'a> ProductMetadata<'a> {
             return Ok(());
         }
 
-        let mut tx = self.pool
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -59,8 +60,13 @@ impl<'a> ProductMetadata<'a> {
         Ok(())
     }
 
-    pub async fn replace_tags(&self, product_id: &str, tags: Vec<String>) -> Result<(), ProductError> {
-        let mut tx = self.pool
+    pub async fn replace_tags(
+        &self,
+        product_id: &str,
+        tags: Vec<String>,
+    ) -> Result<(), ProductError> {
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -129,7 +135,8 @@ impl<'a> ProductMetadata<'a> {
         product_id: &str,
         attributes: HashMap<String, String>,
     ) -> Result<(), ProductError> {
-        let mut tx = self.pool
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -219,4 +226,4 @@ impl<'a> ProductMetadata<'a> {
             }
         }
     }
-} 
+}

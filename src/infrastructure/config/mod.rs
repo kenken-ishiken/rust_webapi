@@ -1,6 +1,6 @@
+use crate::infrastructure::startup_error::{StartupError, StartupResult};
 use serde::Deserialize;
 use std::env;
-use crate::infrastructure::startup_error::{StartupError, StartupResult};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
@@ -14,9 +14,9 @@ pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
     pub min_connections: u32,
-    pub connect_timeout: u64,  // seconds
-    pub idle_timeout: Option<u64>,  // seconds
-    pub max_lifetime: Option<u64>,  // seconds
+    pub connect_timeout: u64,      // seconds
+    pub idle_timeout: Option<u64>, // seconds
+    pub max_lifetime: Option<u64>, // seconds
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -34,8 +34,6 @@ pub struct AuthConfig {
     pub keycloak_client_id: String,
 }
 
-
-
 impl AppConfig {
     /// 環境変数から設定を読み込む
     pub fn from_env() -> StartupResult<Self> {
@@ -50,29 +48,41 @@ impl AppConfig {
     pub fn validate(&self) -> StartupResult<()> {
         // データベース設定の検証
         if self.database.url.is_empty() {
-            return Err(StartupError::Configuration("Database URL cannot be empty".to_string()));
+            return Err(StartupError::Configuration(
+                "Database URL cannot be empty".to_string(),
+            ));
         }
-        
+
         if self.database.max_connections == 0 {
-            return Err(StartupError::Configuration("Max connections must be greater than 0".to_string()));
+            return Err(StartupError::Configuration(
+                "Max connections must be greater than 0".to_string(),
+            ));
         }
 
         if self.database.min_connections > self.database.max_connections {
-            return Err(StartupError::Configuration("Min connections must be less than or equal to max connections".to_string()));
+            return Err(StartupError::Configuration(
+                "Min connections must be less than or equal to max connections".to_string(),
+            ));
         }
 
         if self.database.connect_timeout == 0 {
-            return Err(StartupError::Configuration("Connect timeout must be greater than 0".to_string()));
+            return Err(StartupError::Configuration(
+                "Connect timeout must be greater than 0".to_string(),
+            ));
         }
 
         // サーバー設定の検証
         if self.server.http_port == 0 || self.server.grpc_port == 0 {
-            return Err(StartupError::Configuration("Port numbers must be greater than 0".to_string()));
+            return Err(StartupError::Configuration(
+                "Port numbers must be greater than 0".to_string(),
+            ));
         }
 
         // Auth設定の検証
         if self.auth.keycloak_realm.is_empty() {
-            return Err(StartupError::Configuration("Keycloak realm cannot be empty".to_string()));
+            return Err(StartupError::Configuration(
+                "Keycloak realm cannot be empty".to_string(),
+            ));
         }
 
         Ok(())
@@ -85,25 +95,31 @@ impl DatabaseConfig {
             url: env::var("DATABASE_URL")
                 .map_err(|_| StartupError::EnvVarMissing("DATABASE_URL".to_string()))?,
             max_connections: env::var("DATABASE_MAX_CONNECTIONS")
-                .unwrap_or_else(|_| "100".to_string())  // Increased for production
+                .unwrap_or_else(|_| "100".to_string()) // Increased for production
                 .parse()
-                .map_err(|_| StartupError::Configuration("Invalid DATABASE_MAX_CONNECTIONS".to_string()))?,
+                .map_err(|_| {
+                    StartupError::Configuration("Invalid DATABASE_MAX_CONNECTIONS".to_string())
+                })?,
             min_connections: env::var("DATABASE_MIN_CONNECTIONS")
-                .unwrap_or_else(|_| "10".to_string())  // Maintain minimum pool
+                .unwrap_or_else(|_| "10".to_string()) // Maintain minimum pool
                 .parse()
-                .map_err(|_| StartupError::Configuration("Invalid DATABASE_MIN_CONNECTIONS".to_string()))?,
+                .map_err(|_| {
+                    StartupError::Configuration("Invalid DATABASE_MIN_CONNECTIONS".to_string())
+                })?,
             connect_timeout: env::var("DATABASE_CONNECT_TIMEOUT")
-                .unwrap_or_else(|_| "5".to_string())  // 5 seconds
+                .unwrap_or_else(|_| "5".to_string()) // 5 seconds
                 .parse()
-                .map_err(|_| StartupError::Configuration("Invalid DATABASE_CONNECT_TIMEOUT".to_string()))?,
+                .map_err(|_| {
+                    StartupError::Configuration("Invalid DATABASE_CONNECT_TIMEOUT".to_string())
+                })?,
             idle_timeout: env::var("DATABASE_IDLE_TIMEOUT")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .or(Some(600)),  // 10 minutes default
+                .or(Some(600)), // 10 minutes default
             max_lifetime: env::var("DATABASE_MAX_LIFETIME")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .or(Some(1800)),  // 30 minutes default
+                .or(Some(1800)), // 30 minutes default
         })
     }
 }
@@ -138,8 +154,6 @@ impl AuthConfig {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,7 +168,7 @@ mod tests {
         env::remove_var("GRPC_PORT");
 
         let config = ServerConfig::from_env().unwrap();
-        
+
         assert_eq!(config.http_host, "127.0.0.1");
         assert_eq!(config.http_port, 8080);
         assert_eq!(config.grpc_host, "127.0.0.1");
@@ -164,7 +178,7 @@ mod tests {
     #[test]
     fn test_database_config_validation() {
         env::set_var("DATABASE_URL", "");
-        
+
         let database_config = DatabaseConfig {
             url: "".to_string(),
             max_connections: 5,
@@ -173,7 +187,7 @@ mod tests {
             idle_timeout: None,
             max_lifetime: None,
         };
-        
+
         let config = AppConfig {
             database: database_config,
             server: ServerConfig {
@@ -188,7 +202,7 @@ mod tests {
                 keycloak_client_id: "test-client".to_string(),
             },
         };
-        
+
         assert!(config.validate().is_err());
     }
-} 
+}

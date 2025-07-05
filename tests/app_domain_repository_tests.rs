@@ -1,13 +1,13 @@
 mod helpers;
 
-use helpers::mock_builder::{ItemMockBuilder, MockBuilder, TestDataFactory, TestAssertions};
+use helpers::mock_builder::{ItemMockBuilder, MockBuilder, TestAssertions, TestDataFactory};
 use rust_webapi::app_domain::repository::item_repository::ItemRepository;
 
 #[tokio::test]
 async fn test_mock_item_repository_find_all() {
     // テストデータの準備
     let expected_items = TestDataFactory::create_items(2);
-    
+
     // MockBuilderを使用してモック設定
     let mock_repo = ItemMockBuilder::new()
         .with_find_all_returning(expected_items.clone())
@@ -25,9 +25,7 @@ async fn test_mock_item_repository_find_all() {
 #[tokio::test]
 async fn test_mock_item_repository_find_all_empty() {
     // MockBuilderを使用してモック設定
-    let mock_repo = ItemMockBuilder::new()
-        .with_find_all_empty()
-        .build();
+    let mock_repo = ItemMockBuilder::new().with_find_all_empty().build();
 
     // テスト実行
     let result = mock_repo.find_all().await.unwrap();
@@ -40,7 +38,7 @@ async fn test_mock_item_repository_find_all_empty() {
 async fn test_mock_item_repository_find_by_id() {
     // テストデータの準備
     let expected_item = TestDataFactory::create_item(1, "Found Item");
-    
+
     // MockBuilderを使用してモック設定
     let mock_repo = ItemMockBuilder::new()
         .with_find_by_id_returning(1, Some(expected_item.clone()))
@@ -61,12 +59,10 @@ async fn test_mock_item_repository_find_by_id() {
 async fn test_mock_item_repository_create() {
     // テストデータの準備
     let input_item = TestDataFactory::create_item(1, "New Item");
-    
+
     // MockBuilderを使用してモック設定
     let mock_repo = ItemMockBuilder::new()
-        .with_create_success_when(move |item| {
-            item.id == 1 && item.name == "New Item"
-        })
+        .with_create_success_when(move |item| item.id == 1 && item.name == "New Item")
         .build();
 
     // テスト実行
@@ -80,11 +76,9 @@ async fn test_mock_item_repository_create() {
 async fn test_mock_item_repository_update_success() {
     // テストデータの準備
     let update_item = TestDataFactory::create_item(1, "Updated Item");
-    
+
     // MockBuilderを使用してモック設定
-    let mock_repo = ItemMockBuilder::new()
-        .with_update_success()
-        .build();
+    let mock_repo = ItemMockBuilder::new().with_update_success().build();
 
     // テスト実行
     let result = mock_repo.update(update_item.clone()).await.unwrap();
@@ -95,15 +89,13 @@ async fn test_mock_item_repository_update_success() {
 async fn test_mock_item_repository_update_not_found() {
     // テストデータの準備
     let non_existing_item = TestDataFactory::create_item(999, "Non-existing");
-    
+
     // MockBuilderを使用してモック設定
-    let mock_repo = ItemMockBuilder::new()
-        .with_update_not_found(999)
-        .build();
+    let mock_repo = ItemMockBuilder::new().with_update_not_found(999).build();
 
     // テスト実行
     let result = mock_repo.update(non_existing_item).await;
-    
+
     // アサーション
     TestAssertions::assert_app_error_not_found(result.map(|_| ()));
 }
@@ -129,7 +121,7 @@ async fn test_mock_item_repository_delete_not_found() {
 
     // テスト実行
     let result = mock_repo.logical_delete(999).await;
-    
+
     // アサーション
     TestAssertions::assert_app_error_not_found(result);
 }
@@ -138,7 +130,7 @@ async fn test_mock_item_repository_delete_not_found() {
 async fn test_mock_repository_multiple_calls() {
     // テストデータの準備
     let items = TestDataFactory::create_items(2);
-    
+
     // MockBuilderを使用してモック設定（複数回呼び出し）
     let mock_repo = ItemMockBuilder::new()
         .with_find_all_times(3, items.clone())
@@ -161,7 +153,7 @@ async fn test_mock_repository_sequence_operations() {
     // テストデータの準備
     let item = TestDataFactory::create_item(1, "Sequence Test");
     let updated_item = TestDataFactory::create_item(1, "Updated Sequence Test");
-    
+
     // MockBuilderを使用してモック設定（シーケンス操作）
     let mock_repo = ItemMockBuilder::new()
         .with_create_success()
@@ -211,4 +203,4 @@ async fn test_mock_repository_error_scenarios() {
     // 削除失敗
     let result = mock_repo.logical_delete(1).await;
     TestAssertions::assert_app_error_not_found(result);
-} 
+}

@@ -1,0 +1,353 @@
+---
+description: testやlintの実行ルールを定義します。
+alwaysApply: false
+---
+# Rust WebAPI - Lint & Test実行ガイド
+
+このドキュメントは、Rustプロジェクトにおけるlintとtest実行の統一ルールとベストプラクティスを定義します。
+
+## 🔍 Lint実行
+
+### 基本的なlintコマンド
+
+```bash
+# コードフォーマットチェック（--checkフラグで実際の変更なし）
+cargo fmt --all -- --check
+
+# コードフォーマット実行
+cargo fmt --all
+
+# Clippyによるlintチェック
+cargo clippy -- -D warnings
+
+# より厳密なClippyチェック
+cargo clippy --all-targets --all-features -- -D warnings -W clippy::all -W clippy::pedantic
+```
+
+### プロジェクト固有のClippy設定
+
+```toml
+# Cargo.tomlまたは.clippy.tomlに追加
+[workspace.lints.clippy]
+# エラーとして扱うlint
+enum_glob_use = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+
+# 警告として扱うlint
+missing_docs_in_private_items = "warn"
+missing_const_for_fn = "warn"
+
+# 許可するlint
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+```
+
+### rustfmt設定（rustfmt.toml）
+
+```toml
+# rustfmt.toml
+edition = "2021"
+max_width = 100
+tab_spaces = 4
+use_small_heuristics = "Default"
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+reorder_modules = true
+remove_nested_parens = true
+use_field_init_shorthand = true
+use_try_shorthand = true
+format_code_in_doc_comments = true
+```
+
+## 🧪 Test実行
+
+### 基本的なtestコマンド
+
+```bash
+# 全テスト実行
+cargo test
+
+# 並行実行数を制限（データベーステスト時に推奨）
+cargo test -- --test-threads=1
+
+# 特定のテストのみ実行
+cargo test test_create_user
+
+# テスト出力を表示
+cargo test -- --nocapture
+
+# 失敗時に即座に停止
+cargo test -- --fail-fast
+
+# リリースモードでテスト
+cargo test --release
+```
+
+### テストカテゴリ別実行
+
+```bash
+# 単体テストのみ
+cargo test --lib
+
+# 統合テストのみ
+cargo test --test '*'
+
+# 特定の統合テストファイル
+cargo test --test integration_tests
+
+# ドキュメントテスト
+cargo test --doc
+
+# 全種類のテスト
+cargo test --all-targets
+```
+
+### テストカバレッジ測定
+
+```bash
+# tarpaulinを使用（推奨）
+cargo install cargo-tarpaulin
+cargo tarpaulin --out Html --output-dir coverage
+
+# カバレッジレポートをCIで使用
+cargo tarpaulin --out Xml
+
+# より詳細な設定
+cargo tarpaulin \
+  --out Html \
+  --output-dir coverage \
+  --exclude-files "*/tests/*" \
+  --exclude-files "*/target/*" \
+  --ignore-panics \
+  --timeout 300
+```
+
+## 📋 実行前チェックリスト
+
+### コミット前に実行すべきコマンド
+
+```bash
+#!/bin/bash
+# scripts/pre-commit.sh
+
+echo "🔍 Running format check..."
+cargo fmt --all -- --check || exit 1
+
+echo "📝 Running clippy..."
+cargo clippy --all-targets --all-features -- -D warnings || exit 1
+
+echo "🧪 Running tests..."
+cargo test || exit 1
+
+echo "✅ All checks passed!"
+```
+
+### Git pre-commitフック設定
+
+```bash
+# .git/hooks/pre-commit
+#!/bin/sh
+./scripts/pre-commit.sh
+```
+
+## 🚀 CI/CD統合
+
+### GitHub Actions設定例
+
+```yaml
+name: Rust CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v2
+    
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+    
+    - name: Run Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v2
+    
+    - name: Run migrations
+      run: |
+        cargo install sqlx-cli --no-default-features --features rustls,postgres
+        sqlx migrate run
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+    
+    - name: Run tests
+      run: cargo test --all-features
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+        RUST_LOG: debug
+    
+    - name: Generate coverage report
+      run: |
+        cargo install cargo-tarpaulin
+        cargo tarpaulin --out Xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: true
+```
+
+## 🎯 ベストプラクティス
+
+### 1. 段階的なチェック
+
+```bash
+# 開発中の頻繁なチェック
+cargo check          # コンパイルチェックのみ（高速）
+cargo clippy         # 基本的なlint
+
+# コミット前の完全チェック
+cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+```
+
+### 2. 並列実行の活用
+
+```bash
+# cargo-nextest（高速なテストランナー）
+cargo install cargo-nextest
+cargo nextest run
+
+# 並列ビルド設定
+export CARGO_BUILD_JOBS=8
+```
+
+### 3. キャッシュの活用
+
+```toml
+# .cargo/config.toml
+[build]
+target-dir = "target"
+incremental = true
+
+[profile.dev]
+incremental = true
+
+[profile.test]
+incremental = true
+```
+
+### 4. ローカル開発環境での自動化
+
+```bash
+# cargo-watchを使用した自動実行
+cargo install cargo-watch
+
+# ファイル変更時に自動でテスト実行
+cargo watch -x test
+
+# ファイル変更時に自動でlint実行
+cargo watch -x "clippy -- -D warnings"
+```
+
+## 🔧 トラブルシューティング
+
+### よくある問題と解決策
+
+1. **Clippyの警告が多すぎる場合**
+   ```toml
+   # 特定のlintを一時的に無効化
+   #![allow(clippy::too_many_arguments)]
+   ```
+
+2. **テストが遅い場合**
+   ```bash
+   # テストを並列実行
+   cargo test --release -- --test-threads=4
+   
+   # 特定のテストのみ実行
+   cargo test test_pattern
+   ```
+
+3. **フォーマットの競合**
+   ```bash
+   # rustfmtの設定を統一
+   rustup component add rustfmt
+   cargo fmt --all
+   ```
+
+## 📊 品質指標
+
+### 目標値
+- **コードカバレッジ**: 80%以上
+- **Clippy警告**: 0
+- **フォーマット違反**: 0
+- **テスト実行時間**: 5分以内
+
+### 測定コマンド
+
+```bash
+# カバレッジ率を表示
+cargo tarpaulin --print-summary
+
+# パフォーマンステスト
+cargo test --release -- --nocapture bench
+
+# ビルド時間測定
+cargo build --timings
+```
+
+## 🔗 関連ファイル
+
+- **[testing-strategy.mdc](mdc:testing-strategy.mdc)** - テスト戦略の詳細
+- **[development-guidelines.mdc](mdc:development-guidelines.mdc)** - 開発ガイドライン
+- **[Cargo.toml](mdc:Cargo.toml)** - プロジェクト設定
+- **[.github/workflows](mdc:.github/workflows)** - CI/CD設定
+
+

@@ -1,9 +1,9 @@
-use slog::{Drain, Logger, o};
-use slog_json::Json;
+use slog::{o, Drain, Logger};
 use slog_async::Async;
+use slog_json::Json;
 use slog_scope::GlobalLoggerGuard;
-use std::sync::Mutex;
 use std::io;
+use std::sync::Mutex;
 
 pub mod actix_logger;
 
@@ -11,15 +11,10 @@ pub mod actix_logger;
 #[allow(dead_code)]
 pub fn init_json_logger() -> Result<GlobalLoggerGuard, Box<dyn std::error::Error>> {
     // JSONドレインの設定
-    let json_drain = Json::new(io::stdout())
-        .add_default_keys()
-        .build()
-        .fuse();
+    let json_drain = Json::new(io::stdout()).add_default_keys().build().fuse();
 
     // 非同期ドレインの設定
-    let drain = Async::new(json_drain)
-        .build()
-        .fuse();
+    let drain = Async::new(json_drain).build().fuse();
 
     // スレッドセーフなドレインの設定
     let drain = Mutex::new(drain).fuse();
@@ -30,7 +25,7 @@ pub fn init_json_logger() -> Result<GlobalLoggerGuard, Box<dyn std::error::Error
         o!(
             "version" => env!("CARGO_PKG_VERSION"),
             "app" => env!("CARGO_PKG_NAME")
-        )
+        ),
     );
 
     // グローバルロガーとして設定
@@ -61,7 +56,7 @@ pub fn init_stdout_logger() -> Result<GlobalLoggerGuard, Box<dyn std::error::Err
         o!(
             "version" => env!("CARGO_PKG_VERSION"),
             "app" => env!("CARGO_PKG_NAME")
-        )
+        ),
     );
 
     // グローバルロガーとして設定

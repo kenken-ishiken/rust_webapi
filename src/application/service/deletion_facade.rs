@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
-use crate::app_domain::service::deletion_service::{DeleteKind, DeletionError, DeletionStrategy, ItemDeletionStrategy, CategoryDeletionStrategy, ProductDeletionStrategy};
-use crate::infrastructure::error::{AppError, AppResult};
-use crate::app_domain::repository::item_repository::ItemRepository;
 use crate::app_domain::repository::category_repository::CategoryRepository;
+use crate::app_domain::repository::item_repository::ItemRepository;
 use crate::app_domain::repository::product_repository::ProductRepository;
+use crate::app_domain::service::deletion_service::{
+    CategoryDeletionStrategy, DeleteKind, DeletionError, DeletionStrategy, ItemDeletionStrategy,
+    ProductDeletionStrategy,
+};
+use crate::infrastructure::error::{AppError, AppResult};
+use crate::infrastructure::metrics::Metrics;
 
 /// ドメイン層 DeletionStrategy をアプリケーション層に公開するファサード
 ///
@@ -32,7 +36,7 @@ impl DeletionFacade {
         let item_strategy = ItemDeletionStrategy::new(item_repository);
         let category_strategy = CategoryDeletionStrategy::new(category_repository);
         let product_strategy = ProductDeletionStrategy::new(product_repository);
-        
+
         Self {
             item_strategy: Arc::new(item_strategy),
             category_strategy: Arc::new(category_strategy),
@@ -42,17 +46,44 @@ impl DeletionFacade {
 
     /// Item を削除する共通メソッド
     pub async fn delete_item(&self, id: u64, kind: DeleteKind) -> AppResult<()> {
-        self.map_error(self.item_strategy.delete(id, kind).await)
+        let operation = match kind {
+            DeleteKind::Logical => "delete_item_logical",
+            DeleteKind::Physical => "delete_item_physical",
+            DeleteKind::Restore => "restore_item",
+        };
+
+        Metrics::with_metrics("deletion_facade", operation, async {
+            self.map_error(self.item_strategy.delete(id, kind).await)
+        })
+        .await
     }
 
     /// Category を削除する共通メソッド
     pub async fn delete_category(&self, id: String, kind: DeleteKind) -> AppResult<()> {
-        self.map_error(self.category_strategy.delete(id, kind).await)
+        let operation = match kind {
+            DeleteKind::Logical => "delete_category_logical",
+            DeleteKind::Physical => "delete_category_physical",
+            DeleteKind::Restore => "restore_category",
+        };
+
+        Metrics::with_metrics("deletion_facade", operation, async {
+            self.map_error(self.category_strategy.delete(id, kind).await)
+        })
+        .await
     }
 
     /// Product を削除する共通メソッド
     pub async fn delete_product(&self, id: String, kind: DeleteKind) -> AppResult<()> {
-        self.map_error(self.product_strategy.delete(id, kind).await)
+        let operation = match kind {
+            DeleteKind::Logical => "delete_product_logical",
+            DeleteKind::Physical => "delete_product_physical",
+            DeleteKind::Restore => "restore_product",
+        };
+
+        Metrics::with_metrics("deletion_facade", operation, async {
+            self.map_error(self.product_strategy.delete(id, kind).await)
+        })
+        .await
     }
 
     /// Domain エラーをアプリケーション層の AppError にマッピング
@@ -65,4 +96,4 @@ impl DeletionFacade {
             }
         })
     }
-} 
+}

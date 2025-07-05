@@ -237,7 +237,7 @@ mod tests {
     fn test_category_error_response_conversion() {
         let error = CategoryError::NotFound("cat_123".to_string());
         let response: CategoryErrorResponse = error.into();
-        
+
         assert_eq!(response.code, "CATEGORY_NOT_FOUND");
         assert_eq!(response.message, "Category not found: cat_123");
         assert!(response.details.is_none());
@@ -253,7 +253,7 @@ mod tests {
                 "reason": "too long"
             })),
         };
-        
+
         let details = response.details.expect("Details should exist");
         assert_eq!(details["field"], "name");
         assert_eq!(details["reason"], "too long");
@@ -267,10 +267,10 @@ mod tests {
             "parent_id": "cat_123",
             "sort_order": 1
         }"#;
-        
-        let request: CreateCategoryRequest = serde_json::from_str(json)
-            .expect("Failed to deserialize CreateCategoryRequest");
-        
+
+        let request: CreateCategoryRequest =
+            serde_json::from_str(json).expect("Failed to deserialize CreateCategoryRequest");
+
         assert_eq!(request.name, "Electronics");
         assert_eq!(request.description, Some("Electronic products".to_string()));
         assert_eq!(request.parent_id, Some("cat_123".to_string()));
@@ -285,10 +285,10 @@ mod tests {
             "sort_order": 2,
             "is_active": false
         }"#;
-        
-        let request: UpdateCategoryRequest = serde_json::from_str(json)
-            .expect("Failed to deserialize UpdateCategoryRequest");
-        
+
+        let request: UpdateCategoryRequest =
+            serde_json::from_str(json).expect("Failed to deserialize UpdateCategoryRequest");
+
         assert_eq!(request.name, Some("Updated Electronics".to_string()));
         assert_eq!(request.description, Some("Updated description".to_string()));
         assert_eq!(request.sort_order, Some(2));
@@ -301,10 +301,10 @@ mod tests {
             "new_parent_id": "cat_456",
             "new_sort_order": 3
         }"#;
-        
-        let request: MoveCategoryRequest = serde_json::from_str(json)
-            .expect("Failed to deserialize MoveCategoryRequest");
-        
+
+        let request: MoveCategoryRequest =
+            serde_json::from_str(json).expect("Failed to deserialize MoveCategoryRequest");
+
         assert_eq!(request.new_parent_id, Some("cat_456".to_string()));
         assert_eq!(request.new_sort_order, Some(3));
     }
@@ -315,10 +315,10 @@ mod tests {
             "parent_id": "cat_789",
             "include_inactive": true
         }"#;
-        
-        let params: CategoryQueryParams = serde_json::from_str(json)
-            .expect("Failed to deserialize CategoryQueryParams");
-        
+
+        let params: CategoryQueryParams =
+            serde_json::from_str(json).expect("Failed to deserialize CategoryQueryParams");
+
         assert_eq!(params.parent_id, Some("cat_789".to_string()));
         assert_eq!(params.include_inactive, Some(true));
     }

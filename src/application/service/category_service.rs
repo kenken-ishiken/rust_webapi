@@ -34,19 +34,24 @@ impl CategoryService {
     /// 全カテゴリを取得します。
     ///
     /// `include_inactive` が `true` の場合、非アクティブなカテゴリも含めて取得します。
-    pub async fn find_all(&self, include_inactive: bool) -> CategoriesResponse {
-        let categories = self.repository.find_all(include_inactive).await;
+    pub async fn find_all(
+        &self,
+        include_inactive: bool,
+    ) -> Result<CategoriesResponse, CategoryError> {
+        Metrics::with_metrics("category", "find_all", async {
+            let categories = self.repository.find_all(include_inactive).await;
 
-        let category_list = self.build_category_list_response(&categories).await;
+            let category_list = self.build_category_list_response(&categories).await;
 
-        Metrics::record_success("category", "find_all");
-        info!("Fetched {} categories", categories.len());
+            info!("Fetched {} categories", categories.len());
 
-        let total = category_list.len();
-        CategoriesResponse {
-            categories: category_list,
-            total,
-        }
+            let total = category_list.len();
+            Ok(CategoriesResponse {
+                categories: category_list,
+                total,
+            })
+        })
+        .await
     }
 
     /// 複数の `Category` を `CategoryListResponse` に変換します。
@@ -83,20 +88,21 @@ impl CategoryService {
 
     /// ID でカテゴリを取得します。
     pub async fn find_by_id(&self, id: &str) -> Result<CategoryResponse, CategoryError> {
-        match self.repository.find_by_id(id).await {
-            Some(category) => {
-                Metrics::record_success("category", "find_by_id");
-                info!("Fetched category {}", id);
-                Ok(category.into())
+        Metrics::with_metrics("category", "find_by_id", async {
+            match self.repository.find_by_id(id).await {
+                Some(category) => {
+                    info!("Fetched category {}", id);
+                    Ok(category.into())
+                }
+                None => {
+                    error!("Category {} not found", id);
+                    Err(CategoryError::NotFound(
+                        "カテゴリが見つかりません".to_string(),
+                    ))
+                }
             }
-            None => {
-                Metrics::record_error("category", "find_by_id");
-                error!("Category {} not found", id);
-                Err(CategoryError::NotFound(
-                    "カテゴリが見つかりません".to_string(),
-                ))
-            }
-        }
+        })
+        .await
     }
 
     /// 指定された親 ID 配下のカテゴリを取得します。
@@ -106,30 +112,36 @@ impl CategoryService {
         &self,
         parent_id: Option<String>,
         include_inactive: bool,
-    ) -> CategoriesResponse {
-        let categories = self
-            .repository
-            .find_by_parent_id(parent_id.clone(), include_inactive)
-            .await;
+    ) -> Result<CategoriesResponse, CategoryError> {
+        Metrics::with_metrics("category", "find_by_parent", async {
+            let categories = self
+                .repository
+                .find_by_parent_id(parent_id.clone(), include_inactive)
+                .await;
 
-        let category_list = self.build_category_list_response(&categories).await;
+            let category_list = self.build_category_list_response(&categories).await;
 
-        Metrics::record_success("category", "find_by_parent");
-        info!(
-            "Fetched {} categories for parent {:?}",
-            categories.len(),
-            parent_id
-        );
+            info!(
+                "Fetched {} categories for parent {:?}",
+                categories.len(),
+                parent_id
+            );
 
-        let total = category_list.len();
-        CategoriesResponse {
-            categories: category_list,
-            total,
-        }
+            let total = category_list.len();
+            Ok(CategoriesResponse {
+                categories: category_list,
+                total,
+            })
+        })
+        .await
     }
 
     /// 指定カテゴリの子カテゴリ一覧を取得します。
-    pub async fn find_children(&self, id: &str, include_inactive: bool) -> CategoriesResponse {
+    pub async fn find_children(
+        &self,
+        id: &str,
+        include_inactive: bool,
+    ) -> Result<CategoriesResponse, CategoryError> {
         self.find_by_parent_id(Some(id.to_string()), include_inactive)
             .await
     }
@@ -138,38 +150,45 @@ impl CategoryService {
     ///
     /// 戻り値の `depth` はルートからの階層深さを示します。
     pub async fn find_path(&self, id: &str) -> Result<CategoryPathResponse, CategoryError> {
-        let path = self.repository.find_path(id).await?;
+        Metrics::with_metrics("category", "find_path", async {
+            let path = self.repository.find_path(id).await?;
 
-        // Enrich path with category names
-        let mut path_items = Vec::new();
-        for category_id in &path.path {
-            if let Some(category) = self.repository.find_by_id(category_id).await {
-                path_items.push(CategoryPathItem {
-                    id: category.id,
-                    name: category.name,
-                });
+            // Enrich path with category names
+            let mut path_items = Vec::new();
+            for category_id in &path.path {
+                if let Some(category) = self.repository.find_by_id(category_id).await {
+                    path_items.push(CategoryPathItem {
+                        id: category.id,
+                        name: category.name,
+                    });
+                }
             }
-        }
 
-        Metrics::record_success("category", "find_path");
-        info!("Fetched path for category {}, depth: {}", id, path.depth);
+            info!("Fetched path for category {}, depth: {}", id, path.depth);
 
-        Ok(CategoryPathResponse {
-            path: path_items,
-            depth: path.depth,
+            Ok(CategoryPathResponse {
+                path: path_items,
+                depth: path.depth,
+            })
         })
+        .await
     }
 
     /// 全カテゴリを木構造で取得します。
-    pub async fn find_tree(&self, include_inactive: bool) -> CategoryTreesResponse {
-        let trees = self.repository.find_tree(include_inactive).await;
+    pub async fn find_tree(
+        &self,
+        include_inactive: bool,
+    ) -> Result<CategoryTreesResponse, CategoryError> {
+        Metrics::with_metrics("category", "find_tree", async {
+            let trees = self.repository.find_tree(include_inactive).await;
 
-        Metrics::record_success("category", "find_tree");
-        info!("Fetched category tree with {} root categories", trees.len());
+            info!("Fetched category tree with {} root categories", trees.len());
 
-        CategoryTreesResponse {
-            tree: trees.into_iter().map(|t| t.into()).collect(),
-        }
+            Ok(CategoryTreesResponse {
+                tree: trees.into_iter().map(|t| t.into()).collect(),
+            })
+        })
+        .await
     }
 
     /// 新しいカテゴリを作成します。
@@ -180,23 +199,25 @@ impl CategoryService {
         &self,
         req: CreateCategoryRequest,
     ) -> Result<CategoryResponse, CategoryError> {
-        // 一意な ID を UUID v4 で生成
-        let id = format!("cat_{}", Uuid::new_v4());
+        Metrics::with_metrics("category", "create", async {
+            // 一意な ID を UUID v4 で生成
+            let id = format!("cat_{}", Uuid::new_v4());
 
-        let category = Category::new(id, req.name, req.description, req.parent_id, req.sort_order);
+            let category =
+                Category::new(id, req.name, req.description, req.parent_id, req.sort_order);
 
-        match self.repository.create(category).await {
-            Ok(created_category) => {
-                Metrics::record_success("category", "create");
-                info!("Created category with id {}", created_category.id);
-                Ok(created_category.into())
+            match self.repository.create(category).await {
+                Ok(created_category) => {
+                    info!("Created category with id {}", created_category.id);
+                    Ok(created_category.into())
+                }
+                Err(e) => {
+                    error!("Failed to create category: {}", e);
+                    Err(e)
+                }
             }
-            Err(e) => {
-                Metrics::record_error("category", "create");
-                error!("Failed to create category: {}", e);
-                Err(e)
-            }
-        }
+        })
+        .await
     }
 
     /// 既存カテゴリを更新します。
@@ -205,48 +226,46 @@ impl CategoryService {
         id: &str,
         req: UpdateCategoryRequest,
     ) -> Result<CategoryResponse, CategoryError> {
-        let mut category = self
-            .repository
-            .find_by_id(id)
-            .await
-            .ok_or_else(|| CategoryError::NotFound("カテゴリが見つかりません".to_string()))?;
+        Metrics::with_metrics("category", "update", async {
+            let mut category =
+                self.repository.find_by_id(id).await.ok_or_else(|| {
+                    CategoryError::NotFound("カテゴリが見つかりません".to_string())
+                })?;
 
-        // Update fields if provided
-        if let Some(name) = req.name {
-            category.update_name(name)?;
-        }
-
-        if let Some(description) = req.description {
-            category.update_description(Some(description));
-        }
-
-        if let Some(sort_order) = req.sort_order {
-            category.update_sort_order(sort_order)?;
-        }
-
-        if let Some(is_active) = req.is_active {
-            if is_active {
-                category.activate();
-            } else {
-                category.deactivate();
+            // Update fields if provided
+            if let Some(name) = req.name {
+                category.update_name(name)?;
             }
-        }
 
-        match self.repository.update(category).await {
-            Ok(updated_category) => {
-                Metrics::record_success("category", "update");
-                info!("Updated category {}", id);
-                Ok(updated_category.into())
+            if let Some(description) = req.description {
+                category.update_description(Some(description));
             }
-            Err(e) => {
-                Metrics::record_error("category", "update");
-                error!("Failed to update category {}: {}", id, e);
-                Err(e)
+
+            if let Some(sort_order) = req.sort_order {
+                category.update_sort_order(sort_order)?;
             }
-        }
+
+            if let Some(is_active) = req.is_active {
+                if is_active {
+                    category.activate();
+                } else {
+                    category.deactivate();
+                }
+            }
+
+            match self.repository.update(category).await {
+                Ok(updated_category) => {
+                    info!("Updated category {}", id);
+                    Ok(updated_category.into())
+                }
+                Err(e) => {
+                    error!("Failed to update category {}: {}", id, e);
+                    Err(e)
+                }
+            }
+        })
+        .await
     }
-
-
 
     /// 親カテゴリ変更および並び順変更を行います。
     pub async fn move_category(
@@ -254,27 +273,28 @@ impl CategoryService {
         id: &str,
         req: MoveCategoryRequest,
     ) -> Result<CategoryResponse, CategoryError> {
-        let parent_id = req.new_parent_id.clone();
-        let sort_order = req.new_sort_order.unwrap_or(0);
-        match self
-            .repository
-            .move_category(id, req.new_parent_id, sort_order)
-            .await
-        {
-            Ok(moved_category) => {
-                Metrics::record_success("category", "move");
-                info!(
-                    "Moved category {} to parent {:?} with sort order {}",
-                    id, parent_id, sort_order
-                );
-                Ok(moved_category.into())
+        Metrics::with_metrics("category", "move", async {
+            let parent_id = req.new_parent_id.clone();
+            let sort_order = req.new_sort_order.unwrap_or(0);
+            match self
+                .repository
+                .move_category(id, req.new_parent_id, sort_order)
+                .await
+            {
+                Ok(moved_category) => {
+                    info!(
+                        "Moved category {} to parent {:?} with sort order {}",
+                        id, parent_id, sort_order
+                    );
+                    Ok(moved_category.into())
+                }
+                Err(e) => {
+                    error!("Failed to move category {}: {}", id, e);
+                    Err(e)
+                }
             }
-            Err(e) => {
-                Metrics::record_error("category", "move");
-                error!("Failed to move category {}: {}", id, e);
-                Err(e)
-            }
-        }
+        })
+        .await
     }
 }
 
@@ -446,8 +466,6 @@ mod tests {
         let response = result.unwrap();
         assert_eq!(response.name, "Updated Electronics");
     }
-
-
 
     #[tokio::test]
     async fn test_move_category_success() {
@@ -672,7 +690,9 @@ mod tests {
         let result = service.find_all(true).await;
 
         // Verify that total matches the category_list length (2)
-        assert_eq!(result.total, 2);
-        assert_eq!(result.categories.len(), 2);
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.total, 2);
+        assert_eq!(response.categories.len(), 2);
     }
 }

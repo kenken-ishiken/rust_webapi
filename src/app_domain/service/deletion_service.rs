@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use std::fmt::Debug;
 
-use crate::app_domain::repository::item_repository::ItemRepository;
 use crate::app_domain::repository::category_repository::CategoryRepository;
+use crate::app_domain::repository::item_repository::ItemRepository;
 use crate::app_domain::repository::product_repository::ProductRepository;
 
 /// 削除方法を示す列挙型
@@ -121,11 +121,16 @@ where
                 match self.repository.find_by_id(&id).await {
                     Some(mut category) => {
                         category.deactivate();
-                        self.repository.update(category).await
+                        self.repository
+                            .update(category)
+                            .await
                             .map(|_| true)
                             .map_err(|e| CategoryError::NotFound(format!("Update failed: {}", e)))
                     }
-                    None => Err(CategoryError::NotFound(format!("Category {} not found", id)))
+                    None => Err(CategoryError::NotFound(format!(
+                        "Category {} not found",
+                        id
+                    ))),
                 }
             }
             DeleteKind::Physical => self.repository.delete(&id).await,
@@ -134,11 +139,16 @@ where
                 match self.repository.find_by_id(&id).await {
                     Some(mut category) => {
                         category.activate();
-                        self.repository.update(category).await
+                        self.repository
+                            .update(category)
+                            .await
                             .map(|_| true)
                             .map_err(|e| CategoryError::NotFound(format!("Update failed: {}", e)))
                     }
-                    None => Err(CategoryError::NotFound(format!("Category {} not found", id)))
+                    None => Err(CategoryError::NotFound(format!(
+                        "Category {} not found",
+                        id
+                    ))),
                 }
             }
         };
@@ -189,11 +199,13 @@ where
                 match self.repository.find_by_id(&id).await {
                     Some(mut product) => {
                         product.update_status(ProductStatus::Discontinued);
-                        self.repository.update(product).await
+                        self.repository
+                            .update(product)
+                            .await
                             .map(|_| ())
                             .map_err(|_e| ProductError::ProductNotFound)
                     }
-                    None => Err(ProductError::ProductNotFound)
+                    None => Err(ProductError::ProductNotFound),
                 }
             }
             DeleteKind::Physical => self.repository.delete(&id).await,
@@ -202,11 +214,13 @@ where
                 match self.repository.find_by_id(&id).await {
                     Some(mut product) => {
                         product.update_status(ProductStatus::Active);
-                        self.repository.update(product).await
+                        self.repository
+                            .update(product)
+                            .await
                             .map(|_| ())
                             .map_err(|_e| ProductError::ProductNotFound)
                     }
-                    None => Err(ProductError::ProductNotFound)
+                    None => Err(ProductError::ProductNotFound),
                 }
             }
         };
@@ -215,9 +229,11 @@ where
         match res {
             Ok(_) => Ok(()),
             Err(err) => match err {
-                ProductError::ProductNotFound => Err(DeletionError::NotFound(format!("Product {} not found", id))),
+                ProductError::ProductNotFound => {
+                    Err(DeletionError::NotFound(format!("Product {} not found", id)))
+                }
                 _ => Err(DeletionError::Other(anyhow::Error::new(err))),
             },
         }
     }
-} 
+}

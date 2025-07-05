@@ -139,6 +139,20 @@ The following monitors are configured:
 ## Metrics Collected
 
 ### Application Metrics (via Prometheus)
+
+#### HTTP Level Metrics (Enhanced)
+- `prometheus.http_requests_total` - Total HTTP requests by method, endpoint, and status
+  - Labels: `method`, `endpoint`, `status`
+  - Use for: Request rate, traffic patterns, error tracking
+- `prometheus.http_request_duration_seconds` - HTTP request latency histogram
+  - Labels: `method`, `endpoint`, `status`
+  - Buckets: 0.001s to 5.0s
+  - Use for: Performance monitoring, SLA tracking
+- `prometheus.http_responses_total` - Response counts by status class
+  - Labels: `status_class` (2xx, 4xx, 5xx)
+  - Use for: Error rate calculation, health monitoring
+
+#### Service Level Metrics (Legacy, maintained for compatibility)
 - `prometheus.api_success_count` - Successful API calls by endpoint
 - `prometheus.api_error_count` - Failed API calls by endpoint
 - `prometheus.api_request_duration_seconds` - Request duration histogram
@@ -153,6 +167,26 @@ The following monitors are configured:
 - Connection pool size
 - Query performance
 - Database availability
+
+## Example Queries
+
+### Error Rate by Endpoint
+```
+sum(rate(prometheus.http_requests_total{status=~"5.."}[5m])) by (endpoint, method) / 
+sum(rate(prometheus.http_requests_total[5m])) by (endpoint, method)
+```
+
+### P95 Latency
+```
+histogram_quantile(0.95, 
+  sum(rate(prometheus.http_request_duration_seconds_bucket[5m])) by (endpoint, le)
+)
+```
+
+### Request Rate
+```
+sum(rate(prometheus.http_requests_total[5m])) by (method, endpoint)
+```
 
 ## Customization
 

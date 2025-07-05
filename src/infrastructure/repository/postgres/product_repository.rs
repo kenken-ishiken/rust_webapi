@@ -5,15 +5,13 @@ use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use tracing::error;
 
+use super::converters::{row_to_inventory, row_to_product};
+use super::product_extensions::ProductExtensions;
+use super::product_metadata::ProductMetadata;
 use crate::app_domain::model::product::{
     Inventory, Price, Product, ProductError, ProductHistory, ProductImage,
 };
 use crate::app_domain::repository::product_repository::ProductRepository;
-use super::converters::{
-    row_to_product, row_to_inventory
-};
-use super::product_extensions::ProductExtensions;
-use super::product_metadata::ProductMetadata;
 
 pub struct PostgresProductRepository {
     pool: PgPool,
@@ -23,10 +21,6 @@ impl PostgresProductRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
-
-
-
-
 }
 
 #[async_trait]
@@ -498,7 +492,9 @@ impl ProductRepository for PostgresProductRepository {
         offset: Option<i64>,
     ) -> Vec<ProductHistory> {
         let metadata = ProductMetadata { pool: &self.pool };
-        metadata.get_history(product_id, field_name, limit, offset).await
+        metadata
+            .get_history(product_id, field_name, limit, offset)
+            .await
     }
 
     // async fn add_history_entry(&self,

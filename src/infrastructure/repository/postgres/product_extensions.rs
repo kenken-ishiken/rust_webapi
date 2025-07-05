@@ -1,17 +1,15 @@
 use sqlx::{PgPool, Row};
 use tracing::error;
 
-use crate::app_domain::model::product::{
-    Inventory, Price, ProductError, ProductImage,
-};
-use super::converters::{row_to_price, row_to_inventory, row_to_product_image};
+use super::converters::{row_to_inventory, row_to_price, row_to_product_image};
+use crate::app_domain::model::product::{Inventory, Price, ProductError, ProductImage};
 
 /// Product repository extensions for price, inventory, and image management
 pub struct ProductExtensions<'a> {
     pub pool: &'a PgPool,
 }
 
-impl<'a> ProductExtensions<'a> {
+impl ProductExtensions<'_> {
     pub async fn get_current_price(&self, product_id: &str) -> Option<Price> {
         let query = "SELECT selling_price, list_price, discount_price, currency, tax_included,
                            effective_from, effective_until
@@ -39,7 +37,11 @@ impl<'a> ProductExtensions<'a> {
         }
     }
 
-    pub async fn update_price(&self, product_id: &str, price: Price) -> Result<Price, ProductError> {
+    pub async fn update_price(
+        &self,
+        product_id: &str,
+        price: Price,
+    ) -> Result<Price, ProductError> {
         // Validate price before updating
         price.validate()?;
 
@@ -152,7 +154,8 @@ impl<'a> ProductExtensions<'a> {
 
         image.validate()?;
 
-        let mut tx = self.pool
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -205,7 +208,8 @@ impl<'a> ProductExtensions<'a> {
     ) -> Result<ProductImage, ProductError> {
         image.validate()?;
 
-        let mut tx = self.pool
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -277,7 +281,8 @@ impl<'a> ProductExtensions<'a> {
         product_id: &str,
         image_orders: Vec<(String, i32)>,
     ) -> Result<(), ProductError> {
-        let mut tx = self.pool
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -310,8 +315,13 @@ impl<'a> ProductExtensions<'a> {
         Ok(())
     }
 
-    pub async fn set_main_image(&self, product_id: &str, image_id: &str) -> Result<(), ProductError> {
-        let mut tx = self.pool
+    pub async fn set_main_image(
+        &self,
+        product_id: &str,
+        image_id: &str,
+    ) -> Result<(), ProductError> {
+        let mut tx = self
+            .pool
             .begin()
             .await
             .map_err(|e| ProductError::DatabaseError(e.to_string()))?;
@@ -353,4 +363,4 @@ impl<'a> ProductExtensions<'a> {
             }
         }
     }
-} 
+}

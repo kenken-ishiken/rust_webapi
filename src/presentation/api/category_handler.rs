@@ -2,13 +2,13 @@ use actix_web::{web, HttpResponse, Responder, Result as ActixResult};
 use std::sync::Arc;
 use tracing::{error, info};
 
+use crate::app_domain::service::deletion_service::DeleteKind;
 use crate::application::dto::category_dto::{
     CategoryErrorResponse, CategoryQueryParams, CreateCategoryRequest, MoveCategoryRequest,
     UpdateCategoryRequest,
 };
 use crate::application::service::category_service::CategoryService;
 use crate::application::service::deletion_facade::DeletionFacade;
-use crate::app_domain::service::deletion_service::DeleteKind;
 use crate::infrastructure::auth::middleware::KeycloakUser;
 use crate::infrastructure::error::AppError;
 
@@ -19,7 +19,10 @@ pub struct CategoryHandler {
 
 impl CategoryHandler {
     pub fn new(service: Arc<CategoryService>, deletion_facade: Arc<DeletionFacade>) -> Self {
-        Self { service, deletion_facade }
+        Self {
+            service,
+            deletion_facade,
+        }
     }
 
     pub async fn get_categories(
@@ -35,21 +38,39 @@ impl CategoryHandler {
 
         match &query.parent_id {
             Some(parent_id) => {
-                let response = data
+                match data
                     .service
                     .find_by_parent_id(Some(parent_id.clone()), include_inactive)
-                    .await;
-                info!(
-                    "Fetched {} categories for parent {}",
-                    response.total, parent_id
-                );
-                Ok(HttpResponse::Ok().json(response))
+                    .await
+                {
+                    Ok(response) => {
+                        info!(
+                            "Fetched {} categories for parent {}",
+                            response.total, parent_id
+                        );
+                        Ok(HttpResponse::Ok().json(response))
+                    }
+                    Err(error) => {
+                        error!(
+                            "Failed to fetch categories for parent {}: {}",
+                            parent_id, error
+                        );
+                        let error_response: CategoryErrorResponse = error.into();
+                        Ok(HttpResponse::InternalServerError().json(error_response))
+                    }
+                }
             }
-            None => {
-                let response = data.service.find_all(include_inactive).await;
-                info!("Fetched {} categories", response.total);
-                Ok(HttpResponse::Ok().json(response))
-            }
+            None => match data.service.find_all(include_inactive).await {
+                Ok(response) => {
+                    info!("Fetched {} categories", response.total);
+                    Ok(HttpResponse::Ok().json(response))
+                }
+                Err(error) => {
+                    error!("Failed to fetch all categories: {}", error);
+                    let error_response: CategoryErrorResponse = error.into();
+                    Ok(HttpResponse::InternalServerError().json(error_response))
+                }
+            },
         }
     }
 
@@ -83,15 +104,30 @@ impl CategoryHandler {
         let category_id = path.into_inner();
         let include_inactive = query.include_inactive.unwrap_or(false);
 
-        let response = data
+        match data
             .service
             .find_children(&category_id, include_inactive)
-            .await;
-        info!(
-            "Fetched {} children for category {}",
-            response.total, category_id
-        );
-        Ok(HttpResponse::Ok().json(response))
+            .await
+        {
+            Ok(response) => {
+                info!(
+                    "Fetched {} children for category {}",
+                    response.total, category_id
+                );
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(error) => {
+                error!(
+                    "Failed to fetch children for category {}: {}",
+                    category_id, error
+                );
+                let error_response: CategoryErrorResponse = error.into();
+                match error_response.code.as_str() {
+                    "CATEGORY_NOT_FOUND" => Ok(HttpResponse::NotFound().json(error_response)),
+                    _ => Ok(HttpResponse::InternalServerError().json(error_response)),
+                }
+            }
+        }
     }
 
     pub async fn get_category_path(
@@ -125,12 +161,20 @@ impl CategoryHandler {
     ) -> ActixResult<impl Responder> {
         let include_inactive = query.include_inactive.unwrap_or(false);
 
-        let response = data.service.find_tree(include_inactive).await;
-        info!(
-            "Fetched category tree with {} root categories",
-            response.tree.len()
-        );
-        Ok(HttpResponse::Ok().json(response))
+        match data.service.find_tree(include_inactive).await {
+            Ok(response) => {
+                info!(
+                    "Fetched category tree with {} root categories",
+                    response.tree.len()
+                );
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(error) => {
+                error!("Failed to fetch category tree: {}", error);
+                let error_response: CategoryErrorResponse = error.into();
+                Ok(HttpResponse::InternalServerError().json(error_response))
+            }
+        }
     }
 
     pub async fn create_category(
@@ -199,7 +243,11 @@ impl CategoryHandler {
     ) -> ActixResult<impl Responder> {
         let category_id = path.into_inner();
 
-        match data.deletion_facade.delete_category(category_id.clone(), DeleteKind::Physical).await {
+        match data
+            .deletion_facade
+            .delete_category(category_id.clone(), DeleteKind::Physical)
+            .await
+        {
             Ok(_) => {
                 info!("Deleted category {}", category_id);
                 Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -209,22 +257,18 @@ impl CategoryHandler {
             Err(error) => {
                 error!("Failed to delete category {}: {}", category_id, error);
                 match error {
-                    AppError::NotFound(_) => {
-                        Ok(HttpResponse::NotFound().json(serde_json::json!({
-                            "error": {
-                                "code": "CATEGORY_NOT_FOUND",
-                                "message": "カテゴリが見つかりません"
-                            }
-                        })))
-                    }
-                    _ => {
-                        Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                            "error": {
-                                "code": "INTERNAL_SERVER_ERROR",
-                                "message": "削除処理中にエラーが発生しました"
-                            }
-                        })))
-                    }
+                    AppError::NotFound(_) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+                        "error": {
+                            "code": "CATEGORY_NOT_FOUND",
+                            "message": "カテゴリが見つかりません"
+                        }
+                    }))),
+                    _ => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": {
+                            "code": "INTERNAL_SERVER_ERROR",
+                            "message": "削除処理中にエラーが発生しました"
+                        }
+                    }))),
                 }
             }
         }
@@ -289,17 +333,16 @@ mod tests {
     use super::*;
     use crate::app_domain::model::category::Category;
     use crate::app_domain::repository::category_repository::MockCategoryRepository;
+
     use crate::application::service::category_service::CategoryService;
     use crate::application::service::deletion_facade::DeletionFacade;
-    use crate::app_domain::repository::item_repository::MockItemRepository;
-    use crate::app_domain::repository::product_repository::ProductRepository;
     use crate::infrastructure::repository::item_repository::InMemoryItemRepository;
     use crate::infrastructure::repository::postgres::product_repository::PostgresProductRepository;
     use actix_web::{http::StatusCode, test, web, App};
     use chrono::Utc;
     use mockall::predicate::*;
+
     use std::sync::Arc;
-    use sqlx::PgPool;
 
     fn create_test_category() -> Category {
         Category {
@@ -318,20 +361,20 @@ mod tests {
     fn create_handler(mock_repo: MockCategoryRepository) -> web::Data<CategoryHandler> {
         let mock_repo_arc = Arc::new(mock_repo);
         let service = Arc::new(CategoryService::new(mock_repo_arc.clone()));
-        
+
         // Create mock repositories for DeletionFacade
         let mock_item_repo = Arc::new(InMemoryItemRepository::new());
-        
+
         // Create a lazy connection pool for ProductRepository (won't actually connect)
         let pool = sqlx::PgPool::connect_lazy("postgres://dummy:dummy@localhost/dummy").unwrap();
         let mock_product_repo = Arc::new(PostgresProductRepository::new(pool));
-        
+
         let deletion_facade = Arc::new(DeletionFacade::new(
             mock_item_repo,
             mock_repo_arc,
             mock_product_repo,
         ));
-        
+
         web::Data::new(CategoryHandler::new(service, deletion_facade))
     }
 

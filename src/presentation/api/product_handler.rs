@@ -2,14 +2,14 @@ use actix_web::{web, HttpResponse, Responder, Result as ActixResult};
 use std::sync::Arc;
 use tracing::{error, info};
 
+use crate::app_domain::service::deletion_service::DeleteKind;
 use crate::application::dto::product_dto::{
     BatchUpdateRequest, CreateProductRequest, ImageReorderRequest, InventoryRequest,
     PatchProductRequest, PriceRequest, ProductErrorResponse, ProductHistoryQuery,
     ProductImageRequest, ProductSearchQuery, UpdateProductRequest,
 };
-use crate::application::service::product_service::ProductService;
 use crate::application::service::deletion_facade::DeletionFacade;
-use crate::app_domain::service::deletion_service::DeleteKind;
+use crate::application::service::product_service::ProductService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
 use crate::infrastructure::error::AppError;
 
@@ -20,7 +20,10 @@ pub struct ProductHandler {
 
 impl ProductHandler {
     pub fn new(service: Arc<ProductService>, deletion_facade: Arc<DeletionFacade>) -> Self {
-        Self { service, deletion_facade }
+        Self {
+            service,
+            deletion_facade,
+        }
     }
 
     // GET /api/products/{id}
@@ -192,7 +195,11 @@ impl ProductHandler {
 
         info!("Deleting product {}", product_id);
 
-        match data.deletion_facade.delete_product(product_id.clone(), DeleteKind::Physical).await {
+        match data
+            .deletion_facade
+            .delete_product(product_id.clone(), DeleteKind::Physical)
+            .await
+        {
             Ok(_) => {
                 info!("Successfully deleted product {}", product_id);
                 Ok(HttpResponse::NoContent().finish())
@@ -200,22 +207,18 @@ impl ProductHandler {
             Err(error) => {
                 error!("Failed to delete product {}: {}", product_id, error);
                 match error {
-                    AppError::NotFound(_) => {
-                        Ok(HttpResponse::NotFound().json(serde_json::json!({
-                            "error": {
-                                "code": "PRODUCT_NOT_FOUND",
-                                "message": "商品が見つかりません"
-                            }
-                        })))
-                    }
-                    _ => {
-                        Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                            "error": {
-                                "code": "INTERNAL_SERVER_ERROR",
-                                "message": "削除処理中にエラーが発生しました"
-                            }
-                        })))
-                    }
+                    AppError::NotFound(_) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+                        "error": {
+                            "code": "PRODUCT_NOT_FOUND",
+                            "message": "商品が見つかりません"
+                        }
+                    }))),
+                    _ => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": {
+                            "code": "INTERNAL_SERVER_ERROR",
+                            "message": "削除処理中にエラーが発生しました"
+                        }
+                    }))),
                 }
             }
         }

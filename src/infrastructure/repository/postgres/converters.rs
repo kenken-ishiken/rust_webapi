@@ -2,8 +2,8 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 
 use crate::app_domain::model::product::{
-    Dimensions, Inventory, Price, Product, ProductHistory, ProductImage,
-    ProductStatus, ShippingInfo,
+    Dimensions, Inventory, Price, Product, ProductHistory, ProductImage, ProductStatus,
+    ShippingInfo,
 };
 
 /// SQLクエリ結果をProductエンティティに変換
@@ -104,4 +104,4 @@ pub fn row_to_product_history(row: &sqlx::postgres::PgRow) -> ProductHistory {
         reason: row.try_get("reason").unwrap_or(None),
         changed_at: row.get("changed_at"),
     }
-} 
+}

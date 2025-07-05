@@ -1,4 +1,5 @@
 use crate::application::dto::user_dto::{CreateUserRequest, UpdateUserRequest};
+use crate::infrastructure::error::{AppError, AppResult};
 use crate::infrastructure::metrics::Metrics;
 use domain::model::user::User;
 
@@ -11,26 +12,27 @@ impl UserService {
         Self { repository }
     }
 
-    pub async fn find_all(&self) -> Vec<User> {
-        Metrics::with_timer("user", "find_all", async {
+    pub async fn find_all(&self) -> AppResult<Vec<User>> {
+        Metrics::with_metrics("user", "find_all", async {
             let users = self.repository.find_all().await;
-            Metrics::record_success("user", "find_all");
-            users
-        }).await
+            Ok(users)
+        })
+        .await
     }
 
-    pub async fn find_by_id(&self, id: u64) -> Option<User> {
+    pub async fn find_by_id(&self, id: u64) -> AppResult<User> {
         Metrics::with_metrics("user", "find_by_id", async {
             let user = self.repository.find_by_id(id).await;
             match user {
                 Some(user) => Ok(user),
-                None => Err("User not found"),
+                None => Err(AppError::not_found("User", id)),
             }
-        }).await.ok()
+        })
+        .await
     }
 
-    pub async fn create(&self, req: CreateUserRequest) -> User {
-        Metrics::with_timer("user", "create", async {
+    pub async fn create(&self, req: CreateUserRequest) -> AppResult<User> {
+        Metrics::with_metrics("user", "create", async {
             // IDはリポジトリ/DB側で生成
             let user = User {
                 id: 0,
@@ -38,12 +40,12 @@ impl UserService {
                 email: req.email,
             };
             let created_user = self.repository.create(user).await;
-            Metrics::record_success("user", "create");
-            created_user
-        }).await
+            Ok(created_user)
+        })
+        .await
     }
 
-    pub async fn update(&self, id: u64, req: UpdateUserRequest) -> Option<User> {
+    pub async fn update(&self, id: u64, req: UpdateUserRequest) -> AppResult<User> {
         Metrics::with_metrics("user", "update", async {
             if let Some(mut user) = self.repository.find_by_id(id).await {
                 if let Some(username) = req.username {
@@ -53,22 +55,27 @@ impl UserService {
                     user.email = email;
                 }
                 let updated_user = self.repository.update(user).await;
-                Ok(updated_user)
+                match updated_user {
+                    Some(user) => Ok(user),
+                    None => Err(AppError::internal_error("Failed to update user")),
+                }
             } else {
-                Err("User not found")
+                Err(AppError::not_found("User", id))
             }
-        }).await.ok().flatten()
+        })
+        .await
     }
 
-    pub async fn delete(&self, id: u64) -> bool {
+    pub async fn delete(&self, id: u64) -> AppResult<bool> {
         Metrics::with_metrics("user", "delete", async {
             let result = self.repository.delete(id).await;
             if result {
                 Ok(result)
             } else {
-                Err("Failed to delete user")
+                Err(AppError::not_found("User", id))
             }
-        }).await.unwrap_or(false)
+        })
+        .await
     }
 }
 
@@ -113,11 +120,13 @@ mod tests {
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.find_all().await;
 
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].id, 1);
-        assert_eq!(result[0].username, "user1");
-        assert_eq!(result[1].id, 2);
-        assert_eq!(result[1].username, "user2");
+        assert!(result.is_ok());
+        let users = result.unwrap();
+        assert_eq!(users.len(), 2);
+        assert_eq!(users[0].id, 1);
+        assert_eq!(users[0].username, "user1");
+        assert_eq!(users[1].id, 2);
+        assert_eq!(users[1].username, "user2");
     }
 
     #[tokio::test]
@@ -137,7 +146,7 @@ mod tests {
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.find_by_id(1).await;
 
-        assert!(result.is_some());
+        assert!(result.is_ok());
         let user = result.unwrap();
         assert_eq!(user.id, 1);
         assert_eq!(user.username, "user1");
@@ -155,7 +164,11 @@ mod tests {
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.find_by_id(999).await;
 
-        assert!(result.is_none());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NotFound { .. } => (),
+            _ => panic!("Expected NotFound error"),
+        }
     }
 
     #[tokio::test]
@@ -178,9 +191,11 @@ mod tests {
 
         let result = service.create(request).await;
 
-        assert_eq!(result.id, 42);
-        assert_eq!(result.username, "newuser");
-        assert_eq!(result.email, "newuser@example.com");
+        assert!(result.is_ok());
+        let user = result.unwrap();
+        assert_eq!(user.id, 42);
+        assert_eq!(user.username, "newuser");
+        assert_eq!(user.email, "newuser@example.com");
     }
 
     #[tokio::test]
@@ -215,7 +230,7 @@ mod tests {
 
         let result = service.update(1, request).await;
 
-        assert!(result.is_some());
+        assert!(result.is_ok());
         let user = result.unwrap();
         assert_eq!(user.id, 1);
         assert_eq!(user.username, "newname");
@@ -238,7 +253,11 @@ mod tests {
 
         let result = service.update(999, request).await;
 
-        assert!(result.is_none());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NotFound { .. } => (),
+            _ => panic!("Expected NotFound error"),
+        }
     }
 
     #[tokio::test]
@@ -252,7 +271,8 @@ mod tests {
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.delete(1).await;
 
-        assert!(result);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
     }
 
     #[tokio::test]
@@ -266,6 +286,10 @@ mod tests {
         let service = UserService::new(Arc::new(mock_repo));
         let result = service.delete(999).await;
 
-        assert!(!result);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::NotFound { .. } => (),
+            _ => panic!("Expected NotFound error"),
+        }
     }
 }

@@ -72,10 +72,14 @@ async fn test_delete_item(
     path: web::Path<u64>,
 ) -> impl actix_web::Responder {
     let item_id = path.into_inner();
-    let result = item_service.batch_delete(rust_webapi::application::dto::item_dto::BatchDeleteRequest {
-        ids: vec![item_id],
-        is_physical: Some(false),
-    }).await;
+    let result = item_service
+        .batch_delete(
+            rust_webapi::application::dto::item_dto::BatchDeleteRequest {
+                ids: vec![item_id],
+                is_physical: Some(false),
+            },
+        )
+        .await;
     match result {
         Ok(_) => HttpResponse::NoContent().finish(),
         Err(_) => HttpResponse::InternalServerError().json("Error deleting item"),
@@ -83,8 +87,10 @@ async fn test_delete_item(
 }
 
 async fn test_get_users(user_service: web::Data<Arc<UserService>>) -> impl actix_web::Responder {
-    let users = user_service.find_all().await;
-    HttpResponse::Ok().json(users)
+    match user_service.find_all().await {
+        Ok(users) => HttpResponse::Ok().json(users),
+        Err(_) => HttpResponse::InternalServerError().json("Error fetching users"),
+    }
 }
 
 async fn test_create_user(
@@ -98,8 +104,10 @@ async fn test_create_user(
         email: user["email"].as_str().unwrap_or("").to_string(),
     };
 
-    let user = user_service.create(create_request).await;
-    HttpResponse::Created().json(user)
+    match user_service.create(create_request).await {
+        Ok(user) => HttpResponse::Created().json(user),
+        Err(_) => HttpResponse::InternalServerError().json("Error creating user"),
+    }
 }
 
 async fn test_get_user(
@@ -108,8 +116,8 @@ async fn test_get_user(
 ) -> impl actix_web::Responder {
     let user_id = path.into_inner();
     match user_service.find_by_id(user_id).await {
-        Some(user) => HttpResponse::Ok().json(user),
-        None => HttpResponse::NotFound().json("User not found"),
+        Ok(user) => HttpResponse::Ok().json(user),
+        Err(_) => HttpResponse::NotFound().json("User not found"),
     }
 }
 
@@ -127,8 +135,8 @@ async fn test_update_user(
     };
 
     match user_service.update(user_id, update_request).await {
-        Some(user) => HttpResponse::Ok().json(user),
-        None => HttpResponse::NotFound().json("User not found"),
+        Ok(user) => HttpResponse::Ok().json(user),
+        Err(_) => HttpResponse::NotFound().json("User not found"),
     }
 }
 
@@ -138,8 +146,9 @@ async fn test_delete_user(
 ) -> impl actix_web::Responder {
     let user_id = path.into_inner();
     match user_service.delete(user_id).await {
-        true => HttpResponse::Ok().json("User deleted"),
-        false => HttpResponse::NotFound().json("User not found"),
+        Ok(true) => HttpResponse::Ok().json("User deleted"),
+        Ok(false) => HttpResponse::NotFound().json("User not found"),
+        Err(_) => HttpResponse::InternalServerError().json("Error deleting user"),
     }
 }
 

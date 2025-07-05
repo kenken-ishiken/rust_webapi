@@ -97,7 +97,7 @@ impl KeycloakConfig {
             client_id,
         }
     }
-    
+
     pub fn from_auth_config(config: &crate::infrastructure::config::AuthConfig) -> Self {
         Self::new(
             config.keycloak_realm.clone(),

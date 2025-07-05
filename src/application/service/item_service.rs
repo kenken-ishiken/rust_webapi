@@ -33,7 +33,8 @@ impl ItemService {
                 .into_iter()
                 .map(|item| self.to_response(item))
                 .collect())
-        }).await
+        })
+        .await
     }
 
     pub async fn find_by_id(&self, id: u64) -> AppResult<ItemResponse> {
@@ -43,7 +44,8 @@ impl ItemService {
                 Some(item) => Ok(self.to_response(item)),
                 None => Err(AppError::not_found("Item", id)),
             }
-        }).await
+        })
+        .await
     }
 
     pub async fn create(&self, req: CreateItemRequest) -> AppResult<ItemResponse> {
@@ -68,7 +70,8 @@ impl ItemService {
 
             let created_item = self.repository.create(item).await?;
             Ok(self.to_response(created_item))
-        }).await
+        })
+        .await
     }
 
     pub async fn update(&self, id: u64, req: UpdateItemRequest) -> AppResult<ItemResponse> {
@@ -87,7 +90,8 @@ impl ItemService {
                 }
                 None => Err(AppError::not_found("Item", id)),
             }
-        }).await
+        })
+        .await
     }
 
     // New methods for product deletion API
@@ -99,7 +103,8 @@ impl ItemService {
                 .into_iter()
                 .map(|item| self.to_response(item))
                 .collect())
-        }).await
+        })
+        .await
     }
 
     pub async fn validate_deletion(&self, id: u64) -> AppResult<DeletionValidationResponse> {
@@ -118,7 +123,8 @@ impl ItemService {
                 related_reviews: validation.related_data.related_reviews,
                 related_categories: validation.related_data.related_categories,
             })
-        }).await
+        })
+        .await
     }
 
     pub async fn batch_delete(&self, req: BatchDeleteRequest) -> AppResult<BatchDeleteResponse> {
@@ -144,7 +150,8 @@ impl ItemService {
                 successful_ids,
                 failed_ids,
             })
-        }).await
+        })
+        .await
     }
 
     pub async fn get_deletion_logs(
@@ -169,7 +176,8 @@ impl ItemService {
                     deleted_by: log.deleted_by,
                 })
                 .collect())
-        }).await
+        })
+        .await
     }
 
     // Helper method to convert domain Item to ItemResponse DTO

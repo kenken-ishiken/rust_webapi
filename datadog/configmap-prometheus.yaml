@@ -10,6 +10,11 @@ data:
       - prometheus_url: http://rust-webapi.rust-webapi.svc.cluster.local:8080/api/metrics
         namespace: rust_webapi
         metrics:
+          # HTTP Level Metrics
+          - http_requests_total
+          - http_request_duration_seconds
+          - http_responses_total
+          # Service Level Metrics (Legacy)
           - api_success_count
           - api_error_count
           - api_request_duration_seconds

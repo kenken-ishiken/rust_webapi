@@ -1,16 +1,16 @@
-use actix_web::{web, App, HttpServer, middleware};
-use tracing_actix_web::TracingLogger;
 use actix_web::dev::Service;
-use std::time::{Instant, Duration};
+use actix_web::{middleware, web, App, HttpServer};
+use std::time::{Duration, Instant};
+use tracing_actix_web::TracingLogger;
 
-use crate::infrastructure::metrics::{Metrics, metrics_handler};
-use crate::presentation::api::{
-    item_handler::ItemHandler,
-    user_handler::UserHandler,
-    category_handler::{configure_category_routes},
-    product_handler::{configure_product_routes},
-};
 use crate::infrastructure::di::container::AppContainer;
+use crate::infrastructure::metrics::{
+    metrics_handler, normalize_path_for_metrics, record_http_request, Metrics,
+};
+use crate::presentation::api::{
+    category_handler::configure_category_routes, item_handler::ItemHandler,
+    product_handler::configure_product_routes, user_handler::UserHandler,
+};
 
 /// HTTPサーバーを構築する
 pub fn build_http_server(
@@ -23,7 +23,7 @@ pub fn build_http_server(
         let category_handler = container.category_handler.clone();
         let product_handler = container.product_handler.clone();
         let keycloak_auth = container.keycloak_auth.clone();
-        
+
         move || {
             App::new()
                 .app_data(item_handler.clone())
@@ -38,7 +38,7 @@ pub fn build_http_server(
                         .error_handler(|err, _req| {
                             use crate::infrastructure::error::AppError;
                             AppError::bad_request(err.to_string()).into()
-                        })
+                        }),
                 )
                 // Enable response compression
                 .wrap(middleware::Compress::default())
@@ -48,23 +48,33 @@ pub fn build_http_server(
                 .wrap(TracingLogger::default())
                 // Metrics middleware: record request counts and durations
                 .wrap_fn(|req, srv| {
-                    // Clone path for labeling; skip metrics endpoint
+                    // Clone necessary request information
                     let path = req.path().to_string();
+                    let method = req.method().to_string();
                     let start = Instant::now();
+
                     let fut = srv.call(req);
                     async move {
                         let res = fut.await?;
+
+                        // Skip metrics endpoint to avoid self-recording
                         if path != "/api/metrics" {
                             let elapsed = start.elapsed().as_secs_f64();
-                            // Record request duration
-                            Metrics::record_duration("rust_webapi", &path, elapsed);
-                            // Count success vs error based on status code
+                            let status = res.status().as_u16();
+                            let normalized_path = normalize_path_for_metrics(&path);
+
+                            // 新しい詳細なメトリクスを記録
+                            record_http_request(&method, &normalized_path, status, elapsed);
+
+                            // 既存のメトリクスも互換性のため記録（将来的に削除可能）
                             if res.status().is_server_error() {
-                                Metrics::record_error("rust_webapi", &path);
-                            } else {
-                                Metrics::record_success("rust_webapi", &path);
+                                Metrics::record_error("rust_webapi", &normalized_path);
+                            } else if res.status().is_success() {
+                                Metrics::record_success("rust_webapi", &normalized_path);
                             }
+                            Metrics::record_duration("rust_webapi", &normalized_path, elapsed);
                         }
+
                         Ok(res)
                     }
                 })
@@ -131,6 +141,6 @@ pub fn build_http_server(
     .client_disconnect_timeout(Duration::from_secs(5)) // Client disconnect timeout
     .bind(addr)?
     .run();
-    
+
     Ok(server)
-} 
+}

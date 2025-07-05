@@ -75,8 +75,6 @@ impl ItemRepository for InMemoryItemRepository {
         )))
     }
 
-
-
     async fn logical_delete(&self, id: u64) -> AppResult<()> {
         let mut items = self
             .items
@@ -118,7 +116,10 @@ impl ItemRepository for InMemoryItemRepository {
                 return Ok(());
             }
         }
-        Err(AppError::not_found("Item", format!("{} (not found or not deleted)", id)))
+        Err(AppError::not_found(
+            "Item",
+            format!("{} (not found or not deleted)", id),
+        ))
     }
 
     async fn find_deleted(&self) -> AppResult<Vec<Item>> {
@@ -329,8 +330,6 @@ impl ItemRepository for PostgresItemRepository {
         }
     }
 
-
-
     async fn logical_delete(&self, id: u64) -> AppResult<()> {
         let now = Utc::now();
         let result = sqlx::query(
@@ -389,7 +388,10 @@ impl ItemRepository for PostgresItemRepository {
             }
             Ok(())
         } else {
-            Err(AppError::not_found("Item", format!("{} (not found or not deleted)", id)))
+            Err(AppError::not_found(
+                "Item",
+                format!("{} (not found or not deleted)", id),
+            ))
         }
     }
 
@@ -573,7 +575,10 @@ mod tests {
         };
 
         // 1. アイテム作成のテスト
-        let created_item = repo.create(item.clone()).await.expect("Failed to create item");
+        let created_item = repo
+            .create(item.clone())
+            .await
+            .expect("Failed to create item");
         assert_eq!(created_item.id, item.id);
         assert_eq!(created_item.name, item.name);
         assert_eq!(created_item.description, item.description);
@@ -590,7 +595,10 @@ mod tests {
         }
 
         // 3. 存在しないアイテム取得のテスト
-        let not_found = repo.find_by_id(999).await.expect("Failed to query item by id");
+        let not_found = repo
+            .find_by_id(999)
+            .await
+            .expect("Failed to query item by id");
         assert!(not_found.is_none());
 
         // 4. 全アイテム取得のテスト
@@ -621,7 +629,10 @@ mod tests {
         assert!(deleted.is_ok());
 
         // 削除後の検証
-        let all_items_after_delete = repo.find_all().await.expect("Failed to find all items after delete");
+        let all_items_after_delete = repo
+            .find_all()
+            .await
+            .expect("Failed to find all items after delete");
         assert_eq!(all_items_after_delete.len(), 0);
 
         // 7. 存在しないアイテムの削除テスト

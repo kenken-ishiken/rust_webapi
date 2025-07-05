@@ -2,10 +2,10 @@ use actix_web::{web, HttpResponse, Responder, Result as ActixResult};
 use std::sync::Arc;
 use tracing::info;
 
-use crate::application::dto::item_dto::{BatchDeleteRequest, CreateItemRequest, UpdateItemRequest};
-use crate::application::service::item_service::ItemService;
-use crate::application::service::deletion_facade::DeletionFacade;
 use crate::app_domain::service::deletion_service::DeleteKind;
+use crate::application::dto::item_dto::{BatchDeleteRequest, CreateItemRequest, UpdateItemRequest};
+use crate::application::service::deletion_facade::DeletionFacade;
+use crate::application::service::item_service::ItemService;
 use crate::infrastructure::auth::middleware::KeycloakUser;
 
 pub struct ItemHandler {
@@ -15,7 +15,10 @@ pub struct ItemHandler {
 
 impl ItemHandler {
     pub fn new(service: Arc<ItemService>, deletion_facade: Arc<DeletionFacade>) -> Self {
-        Self { service, deletion_facade }
+        Self {
+            service,
+            deletion_facade,
+        }
     }
 
     pub async fn index() -> impl Responder {
@@ -72,7 +75,9 @@ impl ItemHandler {
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
         // デフォルトで論理削除を使用
-        data.deletion_facade.delete_item(item_id, DeleteKind::Logical).await?;
+        data.deletion_facade
+            .delete_item(item_id, DeleteKind::Logical)
+            .await?;
         info!("Deleted item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを削除しました"))
     }
@@ -84,7 +89,9 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.deletion_facade.delete_item(item_id, DeleteKind::Logical).await?;
+        data.deletion_facade
+            .delete_item(item_id, DeleteKind::Logical)
+            .await?;
         info!("Logically deleted item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを論理削除しました"))
     }
@@ -94,7 +101,9 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.deletion_facade.delete_item(item_id, DeleteKind::Physical).await?;
+        data.deletion_facade
+            .delete_item(item_id, DeleteKind::Physical)
+            .await?;
         info!("Physically deleted item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを物理削除しました"))
     }
@@ -104,7 +113,9 @@ impl ItemHandler {
         path: web::Path<u64>,
     ) -> ActixResult<impl Responder> {
         let item_id = path.into_inner();
-        data.deletion_facade.delete_item(item_id, DeleteKind::Restore).await?;
+        data.deletion_facade
+            .delete_item(item_id, DeleteKind::Restore)
+            .await?;
         info!("Restored item {}", item_id);
         Ok(HttpResponse::Ok().json("アイテムを復元しました"))
     }
@@ -164,30 +175,30 @@ mod tests {
         DeletionLog, DeletionType, DeletionValidation, Item, RelatedDataCount,
     };
     use mockall::predicate::*;
+
     use std::sync::Arc;
-    use sqlx::PgPool;
 
     // Helper function to create handler with DeletionFacade
     fn create_handler(mock_repo: MockItemRepository) -> web::Data<ItemHandler> {
         use crate::app_domain::repository::category_repository::MockCategoryRepository;
         use crate::infrastructure::repository::postgres::product_repository::PostgresProductRepository;
-        
+
         let mock_repo_arc = Arc::new(mock_repo);
         let service = Arc::new(ItemService::new(mock_repo_arc.clone()));
-        
+
         // Create mock repositories for DeletionFacade
         let mock_category_repo = Arc::new(MockCategoryRepository::new());
-        
+
         // Create a lazy connection pool for ProductRepository (won't actually connect)
         let pool = sqlx::PgPool::connect_lazy("postgres://dummy:dummy@localhost/dummy").unwrap();
         let mock_product_repo = Arc::new(PostgresProductRepository::new(pool));
-        
+
         let deletion_facade = Arc::new(DeletionFacade::new(
             mock_repo_arc,
             mock_category_repo,
             mock_product_repo,
         ));
-        
+
         web::Data::new(ItemHandler::new(service, deletion_facade))
     }
 

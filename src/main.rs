@@ -34,22 +34,24 @@ async fn main() -> StartupResult<()> {
     let mut pool_options = PgPoolOptions::new()
         .max_connections(config.database.max_connections)
         .min_connections(config.database.min_connections)
-        .acquire_timeout(std::time::Duration::from_secs(config.database.connect_timeout));
-    
+        .acquire_timeout(std::time::Duration::from_secs(
+            config.database.connect_timeout,
+        ));
+
     // オプション設定
     if let Some(idle_timeout) = config.database.idle_timeout {
         pool_options = pool_options.idle_timeout(std::time::Duration::from_secs(idle_timeout));
     }
-    
+
     if let Some(max_lifetime) = config.database.max_lifetime {
         pool_options = pool_options.max_lifetime(std::time::Duration::from_secs(max_lifetime));
     }
-    
-    let pool = pool_options
-        .connect(&config.database.url)
-        .await?;
-    info!("✅ PostgreSQL データベース接続に成功しました (pool: min={}, max={})", 
-        config.database.min_connections, config.database.max_connections);
+
+    let pool = pool_options.connect(&config.database.url).await?;
+    info!(
+        "✅ PostgreSQL データベース接続に成功しました (pool: min={}, max={})",
+        config.database.min_connections, config.database.max_connections
+    );
 
     // 依存性注入コンテナの作成
     let container = AppContainer::new(pool, &config);

@@ -11,7 +11,6 @@ pub trait ItemRepository {
     async fn create(&self, item: Item) -> AppResult<Item>;
     async fn update(&self, item: Item) -> AppResult<Item>;
 
-
     // New methods for product deletion API
     async fn logical_delete(&self, id: u64) -> AppResult<()>;
     async fn physical_delete(&self, id: u64) -> AppResult<()>;

@@ -1,8 +1,9 @@
 use actix_web::{error::ResponseError, HttpResponse};
-use thiserror::Error;
 use std::fmt;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum AppError {
     #[error("Database error: {0}")]
     DatabaseError(#[from] sqlx::Error),
@@ -169,6 +170,7 @@ impl ResponseError for AppError {
 pub type AppResult<T> = Result<T, AppError>;
 
 // Conversion helpers
+#[allow(dead_code)]
 impl AppError {
     /// エンティティが見つからない場合のエラーを生成
     pub fn not_found(entity: &str, id: impl fmt::Display) -> Self {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::application::service::user_service::UserService;
 
@@ -26,21 +26,29 @@ impl UserServiceTrait for UserServiceImpl {
         &self,
         _request: Request<GetUsersRequest>,
     ) -> Result<Response<GetUsersResponse>, Status> {
-        let users = self.service.find_all().await;
-        info!("gRPC: Fetched {} users", users.len());
+        info!("gRPC: Getting all users");
 
-        let grpc_users = users
-            .into_iter()
-            .map(|user| User {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-            })
-            .collect();
+        match self.service.find_all().await {
+            Ok(users) => {
+                info!("gRPC: Fetched {} users", users.len());
 
-        let response = GetUsersResponse { users: grpc_users };
+                let users_proto = users
+                    .into_iter()
+                    .map(|user| User {
+                        id: user.id,
+                        username: user.username,
+                        email: user.email,
+                    })
+                    .collect();
 
-        Ok(Response::new(response))
+                let response = GetUsersResponse { users: users_proto };
+                Ok(Response::new(response))
+            }
+            Err(err) => {
+                error!("gRPC: Failed to fetch users: {}", err);
+                Err(Status::internal("Failed to fetch users"))
+            }
+        }
     }
 
     async fn get_user(
@@ -48,26 +56,31 @@ impl UserServiceTrait for UserServiceImpl {
         request: Request<GetUserRequest>,
     ) -> Result<Response<GetUserResponse>, Status> {
         let req = request.into_inner();
+        info!("gRPC: Getting user with id {}", req.id);
 
         match self.service.find_by_id(req.id).await {
-            Some(user) => {
-                info!("gRPC: Fetched user {}", req.id);
-                let grpc_user = User {
+            Ok(user) => {
+                info!("gRPC: Found user {}", req.id);
+
+                let user_proto = Some(User {
                     id: user.id,
                     username: user.username,
                     email: user.email,
-                };
+                });
 
-                let response = GetUserResponse {
-                    user: Some(grpc_user),
-                };
-
+                let response = GetUserResponse { user: user_proto };
                 Ok(Response::new(response))
             }
-            None => {
-                info!("gRPC: User {} not found", req.id);
-                Err(Status::not_found("ユーザーが見つかりません"))
-            }
+            Err(err) => match err {
+                crate::infrastructure::error::AppError::NotFound(_) => {
+                    info!("gRPC: User {} not found", req.id);
+                    Err(Status::not_found("User not found"))
+                }
+                _ => {
+                    error!("gRPC: Failed to get user {}: {}", req.id, err);
+                    Err(Status::internal("Failed to get user"))
+                }
+            },
         }
     }
 
@@ -76,26 +89,31 @@ impl UserServiceTrait for UserServiceImpl {
         request: Request<CreateUserRequest>,
     ) -> Result<Response<CreateUserResponse>, Status> {
         let req = request.into_inner();
+        info!("gRPC: Creating user with username {}", req.username);
 
         let create_request = crate::application::dto::user_dto::CreateUserRequest {
             username: req.username,
             email: req.email,
         };
 
-        let new_user = self.service.create(create_request).await;
-        info!("gRPC: Created user with id {}", new_user.id);
+        match self.service.create(create_request).await {
+            Ok(new_user) => {
+                info!("gRPC: Created user with id {}", new_user.id);
 
-        let grpc_user = User {
-            id: new_user.id,
-            username: new_user.username,
-            email: new_user.email,
-        };
+                let user_proto = Some(User {
+                    id: new_user.id,
+                    username: new_user.username,
+                    email: new_user.email,
+                });
 
-        let response = CreateUserResponse {
-            user: Some(grpc_user),
-        };
-
-        Ok(Response::new(response))
+                let response = CreateUserResponse { user: user_proto };
+                Ok(Response::new(response))
+            }
+            Err(err) => {
+                error!("gRPC: Failed to create user: {}", err);
+                Err(Status::internal("Failed to create user"))
+            }
+        }
     }
 
     async fn update_user(
@@ -103,31 +121,37 @@ impl UserServiceTrait for UserServiceImpl {
         request: Request<UpdateUserRequest>,
     ) -> Result<Response<UpdateUserResponse>, Status> {
         let req = request.into_inner();
+        info!("gRPC: Updating user {}", req.id);
 
+        // gRPCのUpdateUserRequestはOption<String>フィールドを持つ
         let update_request = crate::application::dto::user_dto::UpdateUserRequest {
-            username: req.username,
-            email: req.email,
+            username: req.username.filter(|s| !s.is_empty()),
+            email: req.email.filter(|s| !s.is_empty()),
         };
 
         match self.service.update(req.id, update_request).await {
-            Some(updated_user) => {
+            Ok(updated_user) => {
                 info!("gRPC: Updated user {}", req.id);
-                let grpc_user = User {
+
+                let user_proto = Some(User {
                     id: updated_user.id,
                     username: updated_user.username,
                     email: updated_user.email,
-                };
+                });
 
-                let response = UpdateUserResponse {
-                    user: Some(grpc_user),
-                };
-
+                let response = UpdateUserResponse { user: user_proto };
                 Ok(Response::new(response))
             }
-            None => {
-                info!("gRPC: User {} not found for update", req.id);
-                Err(Status::not_found("ユーザーが見つかりません"))
-            }
+            Err(err) => match err {
+                crate::infrastructure::error::AppError::NotFound(_) => {
+                    info!("gRPC: User {} not found for update", req.id);
+                    Err(Status::not_found("User not found"))
+                }
+                _ => {
+                    error!("gRPC: Failed to update user {}: {}", req.id, err);
+                    Err(Status::internal("Failed to update user"))
+                }
+            },
         }
     }
 
@@ -136,12 +160,24 @@ impl UserServiceTrait for UserServiceImpl {
         request: Request<DeleteUserRequest>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let req = request.into_inner();
+        info!("gRPC: Deleting user {}", req.id);
 
-        let success = self.service.delete(req.id).await;
-        info!("gRPC: Delete user {} result: {}", req.id, success);
-
-        let response = DeleteUserResponse { success };
-
-        Ok(Response::new(response))
+        match self.service.delete(req.id).await {
+            Ok(success) => {
+                info!("gRPC: Delete user {} result: {}", req.id, success);
+                let response = DeleteUserResponse { success };
+                Ok(Response::new(response))
+            }
+            Err(err) => match err {
+                crate::infrastructure::error::AppError::NotFound(_) => {
+                    info!("gRPC: User {} not found for deletion", req.id);
+                    Err(Status::not_found("User not found"))
+                }
+                _ => {
+                    error!("gRPC: Failed to delete user {}: {}", req.id, err);
+                    Err(Status::internal("Failed to delete user"))
+                }
+            },
+        }
     }
 }
