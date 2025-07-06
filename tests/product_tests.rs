@@ -1,5 +1,5 @@
 use rust_webapi::application::dto::product_dto::{
-    CreateProductRequest, ProductResponse, PriceRequest, InventoryRequest, DimensionsRequest, ShippingInfoRequest, PriceResponse, InventoryResponse, DimensionsResponse, ShippingInfoResponse
+    CreateProductRequest, ProductResponse, PriceRequest, InventoryRequest, DimensionsRequest, ShippingInfoRequest
 };
 use rust_decimal::Decimal;
 use chrono::{Utc, TimeZone, DateTime};
@@ -189,7 +189,7 @@ mod product_tests {
         let inv: rust_webapi::app_domain::model::product::Inventory = req.into();
         assert_eq!(inv.quantity, 10);
         assert_eq!(inv.reserved_quantity, 2);
-        assert_eq!(inv.track_inventory, true);
-        assert_eq!(inv.allow_backorder, false);
+        assert!(inv.track_inventory);
+        assert!(!inv.allow_backorder);
     }
 }

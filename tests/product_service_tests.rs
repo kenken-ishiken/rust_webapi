@@ -2,7 +2,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use rust_webapi::application::service::product_service::ProductService;
 use rust_webapi::app_domain::repository::product_repository::ProductRepository;
-use rust_webapi::app_domain::model::product::{Product, ProductStatus, ProductError, Price, Inventory, Dimensions, ShippingInfo};
+use rust_webapi::app_domain::model::product::{Product, ProductStatus, ProductError, Price, Inventory};
 use rust_webapi::application::dto::product_dto::{CreateProductRequest, PriceRequest, InventoryRequest, DimensionsRequest, ShippingInfoRequest};
 use rust_decimal::Decimal;
 

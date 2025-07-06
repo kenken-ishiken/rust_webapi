@@ -1,7 +1,9 @@
 CREATE TABLE items (
     id BIGINT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    description TEXT
+    description TEXT,
+    deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE users (

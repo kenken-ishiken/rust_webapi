@@ -1,7 +1,7 @@
 use actix_web::{test, App, web, HttpResponse, Responder};
 use rust_webapi::application::dto::product_dto::{CreateProductRequest, PriceRequest, InventoryRequest};
 use rust_decimal::Decimal;
-use actix_web::http::header;
+// use actix_web::http::header; // Uncomment if needed for authentication tests
 use rust_webapi::infrastructure::auth::middleware::KeycloakUser;
 use actix_web::test::TestRequest;
 
@@ -109,7 +109,7 @@ async fn test_get_product(
 
 #[actix_rt::test]
 async fn test_create_and_get_product() {
-    let mut app = test::init_service(
+    let app = test::init_service(
         App::new()
             .service(
                 web::scope("/api/products")
@@ -153,7 +153,7 @@ async fn test_create_and_get_product() {
         .uri("/api/products")
         .set_json(&req)
         .to_request();
-    let resp = test::call_service(&mut app, req_json).await;
+    let resp = test::call_service(&app, req_json).await;
     
     // デバッグ情報を追加
     println!("Response status: {}", resp.status());
@@ -165,7 +165,7 @@ async fn test_create_and_get_product() {
         .uri("/api/products")
         .set_json(&req)
         .to_request();
-    let resp = test::call_service(&mut app, req_json).await;
+    let resp = test::call_service(&app, req_json).await;
     
     assert!(resp.status().is_success());
     let product: serde_json::Value = test::read_body_json(resp).await;
@@ -177,7 +177,7 @@ async fn test_create_and_get_product() {
     let get_req = test::TestRequest::get()
         .uri(&format!("/api/products/{}", product_id))
         .to_request();
-    let get_resp = test::call_service(&mut app, get_req).await;
+    let get_resp = test::call_service(&app, get_req).await;
     assert!(get_resp.status().is_success());
     let get_product: serde_json::Value = test::read_body_json(get_resp).await;
     assert_eq!(get_product["id"], product_id);

@@ -725,7 +725,7 @@ impl ProductRepository for PostgresProductRepository {
             if let Some(max_p) = max_price {
                 conditions.push(format!("pp.selling_price <= ${}", param_index));
                 params.push(max_p.to_string());
-                param_index += 1;
+                // param_index += 1; // Not needed since we're not using it after this
             }
         }
 
@@ -749,16 +749,11 @@ impl ProductRepository for PostgresProductRepository {
         sql_query.push_str(" ORDER BY p.created_at DESC");
 
         if let Some(limit_val) = limit {
-            sql_query.push_str(&format!(" LIMIT ${}", param_index));
-            let limit_val_str = limit_val.to_string();
-            params.push(limit_val_str);
-            param_index += 1;
+            sql_query.push_str(&format!(" LIMIT {}", limit_val));
         }
 
         if let Some(offset_val) = offset {
-            sql_query.push_str(&format!(" OFFSET ${}", param_index));
-            let offset_val_str = offset_val.to_string();
-            params.push(offset_val_str);
+            sql_query.push_str(&format!(" OFFSET {}", offset_val));
         }
 
         let mut sqlx_query = sqlx::query(&sql_query);
