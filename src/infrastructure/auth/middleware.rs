@@ -1,12 +1,9 @@
-use actix_web::web::Data;
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest, HttpResponse, ResponseError};
-use actix_web_httpauth::extractors::bearer::BearerAuth;
-use log::error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use super::keycloak::{KeycloakAuth, KeycloakClaims, KeycloakError};
+use super::keycloak::KeycloakClaims;
 
 #[cfg(feature = "test-support")]
 use crate::infrastructure::auth::keycloak::{RealmAccess, ResourceAccess, Account};
@@ -17,7 +14,9 @@ pub struct KeycloakUser {
 
 #[derive(Debug)]
 pub enum AuthError {
+    #[allow(dead_code)]
     Unauthorized(String),
+    #[allow(dead_code)]
     InternalError(String),
 }
 

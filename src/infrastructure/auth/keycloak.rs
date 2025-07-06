@@ -7,9 +7,8 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum KeycloakError {
-    InvalidToken,
-    #[allow(dead_code)]
     TokenExpired,
+    #[allow(dead_code)]
     JwtError(jsonwebtoken::errors::Error),
     ReqwestError(reqwest::Error),
     Other(String),
@@ -18,7 +17,6 @@ pub enum KeycloakError {
 impl fmt::Display for KeycloakError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            KeycloakError::InvalidToken => write!(f, "Invalid token"),
             KeycloakError::TokenExpired => write!(f, "Token expired"),
             KeycloakError::JwtError(e) => write!(f, "JWT error: {}", e),
             KeycloakError::ReqwestError(e) => write!(f, "Reqwest error: {}", e),
@@ -98,6 +96,7 @@ impl KeycloakConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_auth_config(config: &crate::infrastructure::config::AuthConfig) -> Self {
         Self::new(
             config.keycloak_realm.clone(),
@@ -106,9 +105,10 @@ impl KeycloakConfig {
         )
     }
 
+    #[allow(dead_code)]
     pub fn get_jwks_url(&self) -> String {
         format!(
-            "{}/realms/{}/protocol/openid-connect/certs",
+            "{}/realms/{}/protocol/openid_connect/certs",
             self.auth_server_url, self.realm
         )
     }
@@ -116,18 +116,22 @@ impl KeycloakConfig {
 
 #[derive(Debug, Deserialize)]
 struct JwkSet {
+    #[allow(dead_code)]
     keys: Vec<Jwk>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Jwk {
+    #[allow(dead_code)]
     kid: String,
     #[allow(dead_code)]
     kty: String,
     #[allow(dead_code)]
     #[serde(rename = "use")]
     usage: String,
+    #[allow(dead_code)]
     n: String,
+    #[allow(dead_code)]
     e: String,
     #[allow(dead_code)]
     alg: Option<String>,
@@ -146,6 +150,7 @@ impl KeycloakAuth {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn verify_token(
         &self,
         token: &str,
@@ -162,14 +167,14 @@ impl KeycloakAuth {
 
         // トークンのヘッダーを解析してkidを取得
         let header = jsonwebtoken::decode_header(token)?;
-        let kid = header.kid.ok_or(KeycloakError::InvalidToken)?;
+        let kid = header.kid.ok_or(KeycloakError::TokenExpired)?;
 
         // 対応するJWKを検索
         let jwk = jwks
             .keys
             .iter()
             .find(|k| k.kid == kid)
-            .ok_or(KeycloakError::InvalidToken)?;
+            .ok_or(KeycloakError::TokenExpired)?;
 
         // JWKからRSA公開鍵を作成
         // トークンを検証
